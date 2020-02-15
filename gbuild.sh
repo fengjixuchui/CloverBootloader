@@ -33,7 +33,7 @@ PLATFORMFILE=
 MODULEFILE=
 TARGETRULE=
 
-SCRIPT_VERS="2019-11-09"
+SCRIPT_VERS="2019-09-06"
 
 # Macro
 M_NOGRUB=0
@@ -47,6 +47,7 @@ export BUILDTHREADS=$(( NUMBER_OF_CPUS + 1 ))
 export WORKSPACE=${WORKSPACE:-}
 export CONF_PATH=${CONF_PATH:-}
 #export NASM_PREFIX=
+export EDK_TOOLS_PATH="${PWD}"/BaseTools
 
 # if building through Xcode, then TOOLCHAIN_DIR is not defined
 # checking if it is where CloverGrowerPro put it
@@ -54,12 +55,10 @@ if [[ "$SYSNAME" == Linux ]]; then
   export TOOLCHAIN=GCC53
   TOOLCHAIN_DIR=${TOOLCHAIN_DIR:-/usr}
 else
-  if [[ -d ~/src/opt/local ]]; then
-    TOOLCHAIN_DIR=~/src/opt/local
-  else
-    TOOLCHAIN_DIR=${TOOLCHAIN_DIR:-"$CLOVERROOT"/toolchain}
-  fi
-  export DIR_MAIN=${DIR_MAIN:-"$CLOVERROOT"/toolchain}
+  TOOLCHAIN_DIR=${TOOLCHAIN_DIR:-"$CLOVERROOT"/../../toolchain}
+fi
+if [[ ! -d $TOOLCHAIN_DIR ]]; then
+  TOOLCHAIN_DIR="${PWD}"/../opt/local
 fi
 export TOOLCHAIN_DIR
 echo "TOOLCHAIN_DIR: $TOOLCHAIN_DIR"
@@ -393,7 +392,7 @@ checkCmdlineArguments() {
     done
 
     # Update variables
-    PLATFORMFILE="${PLATFORMFILE:-Clover_cpp.dsc}"
+    PLATFORMFILE="${PLATFORMFILE:-Clover.dsc}"
     if [ ! -z "${MODULEFILE}" ]; then
         MODULEFILE=" -m $MODULEFILE"
     fi
@@ -455,8 +454,7 @@ MainBuildScript() {
     checkCmdlineArguments $@
     checkToolchain
 
- #   local repoRev=$(git describe --tags $(git rev-list --tags --max-count=1﻿))
-	local repoRev=$(git describe --tags --abbrev=0)
+    local repoRev=$(git describe --tags $(git rev-list --tags --max-count=1﻿))
 
     #
     # we are building the same rev as before?
@@ -492,6 +490,7 @@ MainBuildScript() {
         source ./edksetup.sh BaseTools
         set -u
         cd "$CLOVERROOT"
+		WORKSPACE="${PWD}"
     else
         echo "Building from: $WORKSPACE"
     fi
@@ -577,8 +576,7 @@ MainBuildScript() {
     if (( $SkipAutoGen == 0 )) || (( $FORCEREBUILD == 1 )); then
 
  #     local clover_revision=$(cat "${CLOVERROOT}/${VERSTXT}")     
- #     local clover_revision=$(git describe --tags $(git rev-list --tags --max-count=1﻿))
-	  local clover_revision=$(git describe --tags --abbrev=0)
+      local clover_revision=$(git describe --tags $(git rev-list --tags --max-count=1﻿))
       local clover_build_date=$(date '+%Y-%m-%d %H:%M:%S')
       #echo "#define FIRMWARE_VERSION \"2.31\"" > "$CLOVERROOT"/Version.h
 
