@@ -132,8 +132,11 @@ fi
 buildClover() {
 checkTools
 
-cd "${CLOVERROOT}"
+# to force recreation of the Conf folder. You can sill use a custom CONF_PATH if you don't want recreation.
+rm -rf "$CLOVERROOT"/Conf
+mkdir "$CLOVERROOT"/Conf
 
+cd "${CLOVERROOT}"
 if [[ -z "$WORKSPACE" ]]; then
   export EDK_TOOLS_PATH="${PWD}"/BaseTools
   set +u
