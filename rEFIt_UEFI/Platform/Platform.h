@@ -97,6 +97,12 @@ extern "C" {
 #define PCAT_RTC_ADDRESS_REGISTER 0x70
 #define PCAT_RTC_DATA_REGISTER    0x71
 
+#include "../cpp_util/remove_ref.h"
+#ifdef _MSC_VER
+#define __typeof__(x) decltype(x)
+#endif
+#define __typeof_am__(x) remove_ref<decltype(x)>::type
+
 
 /* XML Tags */
 #define kXMLTagPList     "plist"
@@ -1721,13 +1727,14 @@ extern SIDELOAD_KEXT                   *InjectKextList;
 
 // Hold theme fixed IconFormat / extension
 extern CHAR16                         *IconFormat;
-extern CONST CHAR16                         *gFirmwareRevision;
+extern CONST CHAR16                   *gFirmwareRevision;
 
 extern BOOLEAN                        ResumeFromCoreStorage;
 extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass argument for Dell SMBIOS here
 
 
 //-----------------------------------
+//void FreePool(const wchar_t * A);
 
 VOID
 FixBiosDsdt (
@@ -2289,7 +2296,7 @@ iStrLen(
   UINTN  MaxLen
   );
 
-VOID CheckEmptyFB();
+//VOID CheckEmptyFB(); //not needed to be global
 
 EFI_STATUS
 PrepatchSmbios (VOID);

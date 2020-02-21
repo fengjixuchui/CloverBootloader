@@ -6,8 +6,7 @@
 *.bak
 *~
 .cache
-Conf/.cache
-Conf/target.txt
+/Conf
 toolchain/
 
 # /CloverPackage/
@@ -28,6 +27,7 @@ toolchain/
 /CloverPackage/CloverV2/EFI/BOOT/BOOTIA32.efi
 /CloverPackage/CloverV2/EFI/BOOT/BOOTX64.efi
 /CloverPackage/CloverV2/EFI/CLOVER/CLOVERX64.efi
+/CloverPackage/CloverV2/EFI/CLOVER/CLOVERX64-test.efi
 /CloverPackage/CloverV2/EFI/CLOVER/CLOVERIA32.efi
 /CloverPackage/CloverV2/EFI/CLOVER/drivers/
 /CloverPackage/CloverV2/EFI/CLOVER/drivers32/
@@ -121,4 +121,6 @@ BaseTools/Source/Python/build/BuildReport.pyc
 CloverPackage/revision
 CloverPackage/version
 tools
-/Conf/
+
+#VC project
+/VC
