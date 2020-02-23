@@ -97,7 +97,9 @@ extern "C" {
 #define PCAT_RTC_ADDRESS_REGISTER 0x70
 #define PCAT_RTC_DATA_REGISTER    0x71
 
+#ifdef __cplusplus
 #include "../cpp_util/remove_ref.h"
+#endif
 #ifdef _MSC_VER
 #define __typeof__(x) decltype(x)
 #endif
@@ -1734,7 +1736,6 @@ extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass arg
 
 
 //-----------------------------------
-//void FreePool(const wchar_t * A);
 
 VOID
 FixBiosDsdt (
@@ -2295,8 +2296,6 @@ iStrLen(
   CONST CHAR8* String,
   UINTN  MaxLen
   );
-
-//VOID CheckEmptyFB(); //not needed to be global
 
 EFI_STATUS
 PrepatchSmbios (VOID);
