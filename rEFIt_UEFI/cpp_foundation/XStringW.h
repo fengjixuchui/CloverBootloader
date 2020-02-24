@@ -9,12 +9,9 @@
 #if !defined(__XSTRINGW_H__)
 #define __XSTRINGW_H__
 
-//#include "XToolsCommon.h"
-//#include "XConstStringW.h"
-
-extern "C" {
-  #include <Library/BaseLib.h>
-}
+#include "XToolsCommon.h"
+#include <Platform.h>
+#include "utf8Conversion.h"
 
 #define LPATH_SEPARATOR L'\\'
 
@@ -36,14 +33,16 @@ public:
 	XStringW(const wchar_t* S, UINTN count);
 	XStringW(const wchar_t);
 
+	XStringW(const char*);
+
 	~XStringW();
 
 protected:
 	wchar_t *CheckSize(UINTN nNewSize, UINTN nGrowBy = XStringWGrowByDefault);
 
 public:
-	const wchar_t *data(UINTN ui=0) const { return m_data+ui; }
-	wchar_t *data(UINTN ui=0) { return m_data+ui; }
+	const wchar_t *data(UINTN ui=0) const { return m_data+ui; } // do not multiply by sizeof(wchar_t), it's done by the compiler.
+	wchar_t *data(UINTN ui=0) { return m_data+ui; } // do not multiply by sizeof(wchar_t), it's done by the compiler.
 	wchar_t *dataWithSizeMin(UINTN pos, UINTN sizeMin, UINTN nGrowBy=XStringWGrowByDefault) { CheckSize(sizeMin, nGrowBy); return data(pos); }
 
 	UINTN length() const { return m_len; }
@@ -88,8 +87,8 @@ public:
 	void Insert(UINTN pos, const XStringW& Str);
 
 
-	void vSPrintf(const wchar_t *format, VA_LIST va);
-	void SPrintf(const wchar_t *format, ...);
+	void vSPrintf(const char* format, VA_LIST va);
+	void SPrintf(const char* format, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
 
 	const XStringW &operator =(const XStringW &aString);
 	const XStringW &operator =(const wchar_t* S);
@@ -100,10 +99,10 @@ public:
 	const XStringW &operator += (wchar_t);
 
 	XStringW SubString(UINTN pos, UINTN count) const;
-  UINTN IdxOf(wchar_t c, UINTN Pos = 0) const;
+	UINTN IdxOf(wchar_t c, UINTN Pos = 0) const;
 	UINTN IdxOf(const XStringW& S, UINTN Pos = 0) const;
-	UINTN RIdxOf(const wchar_t c, UINTN Pos = MAX_UINTN) const;
-	UINTN RIdxOf(const XStringW& S, UINTN Pos = MAX_UINTN) const;
+	UINTN RIdxOf(const wchar_t c, UINTN Pos = MAX_XSIZE) const;
+	UINTN RIdxOf(const XStringW& S, UINTN Pos = MAX_XSIZE) const;
 
 	void ToLower(bool FirstCharIsCap = false);
 	bool IsLetters() const;
@@ -111,11 +110,11 @@ public:
 	bool IsDigits() const;
 	bool IsDigits(UINTN pos, UINTN count) const;
 
-	bool ExistIn(const XStringW &S) const { return IdxOf(S) != MAX_UINTN; }
+	bool ExistIn(const XStringW &S) const { return IdxOf(S) != MAX_XSIZE; }
 	void Replace(wchar_t c1, wchar_t c2);
 	XStringW SubStringReplace(wchar_t c1, wchar_t c2);
 
-	INTN Compare(const wchar_t* S) const { return StrCmp(data(), S) ; }
+	int Compare(const wchar_t* S) const { return (int)StrCmp(data(), S) ; }
 
 	bool Equal(const wchar_t* S) const { return Compare(S) == 0; };
 	bool BeginingEqual(const wchar_t* S) const { return StrnCmp(data(), S, StrLen(S)); }
@@ -173,7 +172,7 @@ public:
 
 //extern const XStringW NullXStringW;
 
-XStringW SPrintf(const wchar_t *format, ...);
+XStringW SPrintf(const char* format, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 XStringW SubString(const wchar_t *S, UINTN pos, UINTN count);
 
 XStringW CleanCtrl(const XStringW &S);

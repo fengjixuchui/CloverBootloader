@@ -1,6 +1,13 @@
-//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+//*************************************************************************************************
+//*************************************************************************************************
+//
 //                                      STRING
-//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+//
+// Developed by jief666, from 1997.
+//
+//*************************************************************************************************
+//*************************************************************************************************
+
 
 #if !defined(__XStringW_CPP__)
 #define __XStringW_CPP__
@@ -11,25 +18,22 @@
 #define DBG(...)
 #endif
 
+#include "XToolsCommon.h"
 #include "XStringW.h"
 
-extern "C" {
-  #include <Library/MemoryAllocationLib.h>
-  #include <Library/BaseMemoryLib.h>
-}
-#include "Platform/Platform.h"
-#include "refit/IO.h"
+#include <Platform.h>
+#include "printf_lite.h"
 
 UINTN XStringWGrowByDefault = 1024;
-//const XStringW NullXStringW;
+const XStringW NullXStringW;
 
 
 void XStringW::Init(UINTN aSize)
 {
 //DBG("Init aSize=%d\n", aSize);
-	m_data = (wchar_t*)AllocatePool( (aSize+1)*sizeof(wchar_t) ); /* le 0 terminal n'est pas compté dans mSize */
+	m_data = (wchar_t*)Xalloc( (aSize+1)*sizeof(wchar_t) ); /* le 0 terminal n'est pas compté dans mSize */
 	if ( !m_data ) {
-		DBG("XStringW::Init(%d) : AllocatePool returned NULL. Cpu halted\n", (aSize+1)*sizeof(wchar_t));
+		DBG("XStringW::Init(%d) : Xalloc returned NULL. Cpu halted\n", (aSize+1)*sizeof(wchar_t));
 		CpuDeadLoop();
 	}
 	m_size = aSize;
@@ -75,6 +79,14 @@ DBG("Constructor(const wchar_t aChar)\n");
 	StrnCpy(&aChar, 1);
 }
 
+XStringW::XStringW(const char* S)
+{
+DBG("Constructor(const char* S)\n");
+	xsize newLen = StrLenInWChar(S, AsciiStrLen(S));
+	Init(newLen);
+	utf8ToWChar(m_data, m_size+1, S, AsciiStrLen(S)); // m_size doesn't count the NULL terminator
+}
+
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 // Destructor
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -110,9 +122,9 @@ wchar_t *XStringW::CheckSize(UINTN nNewSize, UINTN nGrowBy)
 	if ( m_size < nNewSize )
 	{
 		nNewSize += nGrowBy;
-		m_data = (wchar_t*)ReallocatePool(m_size*sizeof(wchar_t), (nNewSize+1)*sizeof(wchar_t), m_data);
+		m_data = (wchar_t*)Xrealloc(m_size*sizeof(wchar_t), (nNewSize+1)*sizeof(wchar_t), m_data);
 		if ( !m_data ) {
-  		DBG("XStringW::CheckSize(%d, %d) : ReallocatePool(%d, %d, %d) returned NULL. System halted\n", nNewSize, nGrowBy, m_size, (nNewSize+1)*sizeof(wchar_t), m_data);
+  		DBG("XStringW::CheckSize(%d, %d) : Xrealloc(%d, %d, %d) returned NULL. System halted\n", nNewSize, nGrowBy, m_size, (nNewSize+1)*sizeof(wchar_t), m_data);
 	  	CpuDeadLoop();
 		}
 		m_size = nNewSize;
@@ -124,7 +136,7 @@ void XStringW::StrnCpy(const wchar_t *buf, UINTN len)
 {
 	if ( buf && *buf && len > 0 ) {
 		CheckSize(len, 0);
-		CopyMem(data(), buf, len*sizeof(wchar_t));
+		Xmemmove(data(), buf, len*sizeof(wchar_t));
 	}
 	SetLength(len); /* data()[len]=0 done in SetLength */
 }
@@ -146,7 +158,7 @@ void XStringW::StrnCat(const wchar_t *buf, UINTN len)
 	if ( buf && *buf && len > 0 ) {
 		NewLen = length()+len;
 		CheckSize(NewLen, 0);
-		CopyMem(data(length()), buf, len*sizeof(wchar_t));
+		Xmemmove(data(length()), buf, len*sizeof(wchar_t));
 		SetLength(NewLen); /* data()[NewLen]=0 done in SetLength */
 	}
 }
@@ -166,8 +178,8 @@ void XStringW::StrCat(const XStringW &uneXStringWW)
 void XStringW::Delete(UINTN pos, UINTN count)
 {
 	if ( pos < length() ) {
-		if ( count != MAX_UINTN  &&  pos + count < length() ) {
-			CopyMem( data(pos), data(pos+count), (length()-pos-count)*sizeof(wchar_t)); // CopyMem handles overlapping memory move
+		if ( count != MAX_XSIZE  &&  pos + count < length() ) {
+			Xmemmove( data(pos), data(pos+count), (length()-pos-count)*sizeof(wchar_t)); // Xmemmove handles overlapping memory move
 			SetLength(length()-count);/* data()[length()-count]=0 done in SetLength */
 		}else{
 			SetLength(pos);/* data()[pos]=0 done in SetLength */
@@ -179,8 +191,8 @@ void XStringW::Insert(UINTN pos, const XStringW& Str)
 {
 	if ( pos < length() ) {
 		CheckSize(length()+Str.length());
-		CopyMem(data(pos + Str.length()),  data(pos),  (length()-pos)*sizeof(wchar_t));
-		CopyMem(data(pos), Str.data(), Str.length()*sizeof(wchar_t));
+		Xmemmove(data(pos + Str.length()),  data(pos),  (length()-pos)*sizeof(wchar_t));
+		Xmemmove(data(pos), Str.data(), Str.length()*sizeof(wchar_t));
 		SetLength(length()+Str.length());
 	}else{
 		StrCat(Str);
@@ -212,31 +224,44 @@ XStringW XStringW::SubStringReplace(wchar_t c1, wchar_t c2)
 	return Result;
 }
 
-void XStringW::vSPrintf(const wchar_t *format, VA_LIST va)
+static XStringW* sprintfBuf;
+
+void transmitSprintf(const wchar_t* buf, size_t nbyte)
 {
-  POOL_PRINT  spc;
-  PRINT_STATE ps;
-
-  ZeroMem(&spc, sizeof (spc));
-  spc.Str = data();
-  SetLength(0);
-  spc.Len = 0;
-  spc.Maxlen = m_size;
-  ZeroMem(&ps, sizeof (ps));
-  ps.Output   = (IN EFI_STATUS (EFIAPI *)(VOID *context, CONST CHAR16 *str))_PoolPrint;
-  ps.Context  = (void*)&spc;
-  ps.fmt.u.pw = format;
-
-  VA_COPY(ps.args, va);
-  _PPrint (&ps);
-  VA_END(ps.args);
+	(*sprintfBuf).StrnCat(buf, nbyte);
 }
 
-void XStringW::SPrintf(const wchar_t *format, ...)
+void XStringW::vSPrintf(const char* format, VA_LIST va)
+{
+	SetLength(0);
+
+	sprintfBuf = this;
+	vprintf_with_callback(format, va, transmitSprintf);
+	
+	// This is an attempt to use _PPrint from IO.c. Problem is : you have to allocate the memory BEFORE calling it.
+//  POOL_PRINT  spc;
+//  PRINT_STATE ps;
+//
+//  ZeroMem(&spc, sizeof (spc));
+//  spc.Str = data();
+//  SetLength(0);
+//  spc.Len = 0;
+//  spc.Maxlen = m_size;
+//  ZeroMem(&ps, sizeof (ps));
+//  ps.Output   = (IN EFI_STATUS (EFIAPI *)(VOID *context, CONST CHAR16 *str))_PoolPrint;
+//  ps.Context  = (void*)&spc;
+//  ps.fmt.u.pw = format;
+//
+//  VA_COPY(ps.args, va);
+//  _PPrint (&ps);
+//  VA_END(ps.args);
+}
+
+void XStringW::SPrintf(const char* format, ...)
 {
   VA_LIST     va;
 
-  VA_START (va, format);
+	VA_START (va, format);
 	vSPrintf(format, va);
 	VA_END(va);
 }
@@ -244,14 +269,14 @@ void XStringW::SPrintf(const wchar_t *format, ...)
 XStringW XStringW::basename() const
 {
 	UINTN idx = RIdxOf(LPATH_SEPARATOR);
-	if ( idx == MAX_UINTN ) return XStringW();
+	if ( idx == MAX_XSIZE ) return NullXStringW;
 	return SubString(idx+1, length()-idx-1);
 }
 
 XStringW XStringW::dirname() const
 {
 	UINTN idx = RIdxOf(LPATH_SEPARATOR);
-	if ( idx == MAX_UINTN ) return XStringW();
+	if ( idx == MAX_XSIZE ) return NullXStringW;
 	return SubString(0, idx);
 }
 
@@ -268,7 +293,7 @@ UINTN XStringW::IdxOf(wchar_t aChar, UINTN Pos) const
 	for ( Idx=Pos ; Idx<length() ; Idx+=1 ) {
         if ( data()[Idx] == aChar ) return Idx;
 	}
-	return MAX_UINTN;
+	return MAX_XSIZE;
 }
 
 UINTN XStringW::IdxOf(const XStringW &S, UINTN Pos) const
@@ -276,13 +301,13 @@ UINTN XStringW::IdxOf(const XStringW &S, UINTN Pos) const
   UINTN i;
   UINTN Idx;
 
-	if ( length() < S.length() ) return MAX_UINTN;
+	if ( length() < S.length() ) return MAX_XSIZE;
 	for ( Idx=Pos ; Idx<=length()-S.length() ; Idx+=1 ) {
 		i = 0;
 	    while( i<S.length()  &&  ( data()[Idx+i] - S[i] ) == 0 ) i += 1;
 		if ( i == S.length() ) return Idx;
 	}
-	return MAX_UINTN;
+	return MAX_XSIZE;
 }
 
 UINTN XStringW::RIdxOf(const wchar_t charToSearch, UINTN Pos) const
@@ -290,11 +315,11 @@ UINTN XStringW::RIdxOf(const wchar_t charToSearch, UINTN Pos) const
   UINTN Idx;
 
 	if ( Pos > length() ) Pos = length();
-	if ( Pos < 1 ) return MAX_UINTN;
+	if ( Pos < 1 ) return MAX_XSIZE;
 	for ( Idx=Pos ; Idx-- > 0 ; ) {
 		if ( m_data[Idx] == charToSearch ) return Idx;
 	}
-	return MAX_UINTN;
+	return MAX_XSIZE;
 }
 
 UINTN XStringW::RIdxOf(const XStringW &S, UINTN Pos) const
@@ -302,16 +327,16 @@ UINTN XStringW::RIdxOf(const XStringW &S, UINTN Pos) const
   UINTN i;
   UINTN Idx;
 
-	if ( S.length() == 0 ) return MAX_UINTN;
+	if ( S.length() == 0 ) return MAX_XSIZE;
 	if ( Pos > length() ) Pos = length();
-	if ( Pos < S.length() ) return MAX_UINTN;
+	if ( Pos < S.length() ) return MAX_XSIZE;
 	Pos -= S.length();
 	for ( Idx=Pos+1 ; Idx-- > 0 ; ) {
 		i = 0;
 		while( i<S.length()  &&  data()[Idx+i] == S[i] ) i += 1;
 		if ( i == S.length() ) return Idx;
 	}
-	return MAX_UINTN;
+	return MAX_XSIZE;
 }
 
 
@@ -456,7 +481,7 @@ const XStringW &XStringW::operator +=(const wchar_t *S)
 //                                 Functions
 //-----------------------------------------------------------------------------
 
-XStringW SPrintf(const wchar_t *format, ...)
+XStringW SPrintf(const char* format, ...)
 {
   VA_LIST     va;
   XStringW str;
