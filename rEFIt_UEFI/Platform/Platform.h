@@ -82,14 +82,26 @@ extern "C" {
 }
 #endif
 
+
+// cpp_foundation objects has to be included before lib.h
+#ifdef __cplusplus
+#include "../cpp_foundation/XStringW.h"
+#include "../cpp_foundation/XArray.h"
+#include "../cpp_foundation/XObjArray.h"
+#include "../cpp_util/remove_ref.h"
+#endif
+
 #include "../refit/lib.h"
 #include "string.h"
 #include "boot.h"
 //#include "PiBootMode.h"
 #include "../refit/IO.h"
 #include "device_inject.h"
+
+#ifdef __cplusplus
 #include "kext_inject.h"
 //#include "entry_scan.h"
+#endif
 
 #define CLOVER_SIGN             SIGNATURE_32('C','l','v','r')
 #define NON_APPLE_SMC_SIGNATURE SIGNATURE_64('S','M','C','H','E','L','P','E')
@@ -97,12 +109,6 @@ extern "C" {
 #define PCAT_RTC_ADDRESS_REGISTER 0x70
 #define PCAT_RTC_DATA_REGISTER    0x71
 
-#ifdef __cplusplus
-#include "../cpp_foundation/XStringW.h"
-#include "../cpp_foundation/XArray.h"
-#include "../cpp_foundation/XObjArray.h"
-#include "../cpp_util/remove_ref.h"
-#endif
 #ifdef _MSC_VER
 #define __typeof__(x) decltype(x)
 #endif
@@ -1737,6 +1743,9 @@ extern CONST CHAR16                   *gFirmwareRevision;
 extern BOOLEAN                        ResumeFromCoreStorage;
 extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass argument for Dell SMBIOS here
 
+#ifdef _cplusplus
+extern XObjArray<REFIT_VOLUME> Volumes;
+#endif
 
 //-----------------------------------
 
@@ -1771,12 +1780,6 @@ KillMouse (VOID);
 
 VOID
 HidePointer (VOID);
-
-EFI_STATUS
-WaitForInputEventPoll (
-  REFIT_MENU_SCREEN *Screen,
-  UINTN             TimeoutDefault
-  );
 
 VOID
 InitBooterLog (VOID);
@@ -1842,11 +1845,6 @@ CHAR16 * GuidBeToStr(EFI_GUID *Guid);
 CHAR16 * GuidLEToStr(EFI_GUID *Guid);
 
 EFI_STATUS
-InitBootScreen (
-  IN  LOADER_ENTRY *Entry
-  );
-
-EFI_STATUS
 InitializeConsoleSim (VOID);
 
 EFI_STATUS
@@ -1879,11 +1877,6 @@ GetDefaultModel (VOID);
 
 UINT16
 GetAdvancedCpuType (VOID);
-
-CHAR8
-*GetOSVersion (
-  IN  LOADER_ENTRY *Entry
-  );
 
 CONST CHAR16
 *GetOSIconName (
@@ -1920,11 +1913,6 @@ VOID GetOutputs();
 
 EFI_STATUS CheckSyncSound();
 
-EFI_STATUS
-SetFSInjection (
-  IN LOADER_ENTRY *Entry
-  );
-
 CHAR16*
 GetOtherKextsDir (BOOLEAN On);
 
@@ -1937,11 +1925,6 @@ EFI_STATUS
 InjectKextsFromDir (
   EFI_STATUS Status,
   CHAR16 *SrcDir
-  );
-
-EFI_STATUS
-LoadKexts (
-  IN  LOADER_ENTRY *Entry
   );
 
 VOID
@@ -2017,11 +2000,6 @@ GetSmcKeys(BOOLEAN WriteToSMC);
 VOID
 GetMacAddress(VOID);
 
-INTN
-FindStartupDiskVolume (
-  REFIT_MENU_SCREEN *MainMenu
-  );
-
 EFI_STATUS
 SetStartupDiskVolume (
   IN  REFIT_VOLUME *Volume,
@@ -2044,10 +2022,6 @@ LogDataHub (
   UINT32   DataSize
   );
 
-EFI_STATUS
-EFIAPI
-SetVariablesForOSX (LOADER_ENTRY *Entry);
-
 VOID
 EFIAPI
 SetupDataForOSX (BOOLEAN Hibernate);
@@ -2056,24 +2030,7 @@ EFI_STATUS
 SetPrivateVarProto (VOID);
 
 VOID
-SetDevices (
-  LOADER_ENTRY *Entry
-  );
-
-VOID
 ScanSPD (VOID);
-
-BOOLEAN
-setup_ati_devprop (
-  LOADER_ENTRY *Entry,
-  pci_dt_t     *ati_dev
-  );
-
-BOOLEAN
-setup_gma_devprop (
-  LOADER_ENTRY *Entry,
-  pci_dt_t *gma_dev
-  );
 
 CONST CHAR8
 *get_gma_model (
@@ -2183,11 +2140,6 @@ FixAny (
 
 VOID
 GetAcpiTablesList (VOID);
-
-EFI_STATUS
-EventsInitialize (
-  IN LOADER_ENTRY *Entry
-  );
 
 EFI_STATUS
 EjectVolume (
@@ -2465,12 +2417,6 @@ DeleteBootOptionsContainingFile (
 
 //get default boot
 VOID GetBootFromOption(VOID);
-//
-// check if this entry corresponds to Boot# variable and then set BootCurrent
-//
-VOID
-SetBootCurrent(REFIT_MENU_ENTRY *LoadedEntry);
-
 VOID
 InitKextList(VOID);
 
@@ -2508,17 +2454,6 @@ EFI_GUID *APFSPartitionUUIDExtract(
 
 UINTN
 NodeParser  (UINT8 *DevPath, UINTN PathSize, UINT8 Type);
-
-//
-// Hibernate.c
-//
-/** Returns TRUE if given macOS on given volume is hibernated
- *  (/private/var/vm/sleepimage exists and it's modification time is close to volume modification time).
- */
-BOOLEAN
-IsOsxHibernated (
-  IN LOADER_ENTRY    *Entry
-  );
 
 /** Prepares nvram vars needed for boot.efi to wake from hibernation. */
 BOOLEAN

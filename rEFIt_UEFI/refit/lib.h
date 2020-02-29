@@ -68,7 +68,11 @@
 // Experimental <--
 
 #include "libeg.h"
+#ifdef __cplusplus
 #include "../cpp_foundation/XObjArray.h"
+#include "../cpp_foundation/XStringWArray.h"
+#include "../cpp_foundation/XStringW.h"
+#endif
 
 #define REFIT_DEBUG (2)
 #define Print if ((!GlobalConfig.Quiet) || (GlobalConfig.TextOnly)) Print
@@ -88,24 +92,6 @@ extern EFI_RUNTIME_SERVICES*	gRT;
 #ifdef __cplusplus
 }
 #endif
-
-#define TAG_ABOUT              (1)
-#define TAG_RESET              (2)
-#define TAG_SHUTDOWN           (3)
-#define TAG_TOOL               (4)
-#define TAG_LOADER             (5)
-#define TAG_LEGACY             (6)
-#define TAG_INFO               (7)
-#define TAG_OPTIONS            (8)
-#define TAG_INPUT              (9)
-#define TAG_HELP               (10)
-#define TAG_SWITCH             (11)
-#define TAG_CHECKBIT           (12)
-#define TAG_SECURE_BOOT        (13)
-#define TAG_SECURE_BOOT_CONFIG (14)
-#define TAG_CLOVER             (100)
-#define TAG_EXIT               (101)
-#define TAG_RETURN             ((UINTN)(-1))
 
 //
 // lib module
@@ -390,29 +376,7 @@ extern INTN ScrollbarYMovement;
 
 #define MAX_ANIME  41
 
-typedef struct _refit_menu_screen REFIT_MENU_SCREEN;
 
-typedef struct _refit_menu_entry {
-  CONST CHAR16            *Title;
-  UINTN              Tag;
-  UINTN              Row;
-  CHAR16             ShortcutDigit;
-  CHAR16             ShortcutLetter;
-  EG_IMAGE          *Image;
-  EG_IMAGE          *DriveImage;
-  EG_IMAGE          *BadgeImage;
-  EG_RECT            Place;
-  ACTION             AtClick;
-  ACTION             AtDoubleClick;
-  ACTION             AtRightClick;
-  ACTION             AtMouseOver;
-  REFIT_MENU_SCREEN *SubScreen;
-} REFIT_MENU_ENTRY;
-
-typedef struct _refit_input_dialog {
-  REFIT_MENU_ENTRY  Entry;
-  INPUT_ITEM        *Item;
-} REFIT_INPUT_DIALOG;
 
 //some unreal values
 #define FILM_CENTRE   40000
@@ -422,27 +386,6 @@ typedef struct _refit_input_dialog {
 //#define FILM_BOTTOM   60000
 //#define FILM_PERCENT 100000
 #define INITVALUE       40000
-
-struct _refit_menu_screen {
-  UINTN             ID;
-  CONST CHAR16            *Title;
-  EG_IMAGE          *TitleImage;
-  INTN              InfoLineCount;
-  CONST CHAR16            **InfoLines;
-  INTN              EntryCount;
-  REFIT_MENU_ENTRY  **Entries;
-  INTN              TimeoutSeconds;
-  CONST CHAR16            *TimeoutText;
-  CONST CHAR16            *Theme;
-  BOOLEAN           AnimeRun;
-  BOOLEAN           Once;
-  UINT64            LastDraw;
-  INTN              CurrentFrame;
-  INTN              Frames;
-  UINTN             FrameTime; //ms
-  EG_RECT           FilmPlace;
-  EG_IMAGE          **Film;
-};
 
 #define VOLTYPE_OPTICAL    (0x0001)
 #define VOLTYPE_EXTERNAL   (0x0002)
@@ -626,35 +569,6 @@ typedef struct KERNEL_AND_KEXT_PATCHES
   
 } KERNEL_AND_KEXT_PATCHES;
 
-typedef struct {
-  REFIT_MENU_ENTRY  me;
-  REFIT_VOLUME     *Volume;
-  CONST CHAR16           *DevicePathString;
-  CONST CHAR16           *LoadOptions; //moved here for compatibility with legacy
-  UINTN             BootNum;
-  CONST CHAR16           *LoaderPath;
-  CONST CHAR16           *VolName;
-  EFI_DEVICE_PATH  *DevicePath;
-  UINT16            Flags;
-  UINT8             LoaderType;
-  CHAR8            *OSVersion;
-  CHAR8            *BuildVersion;
-  EG_PIXEL         *BootBgColor;
-  UINT8             CustomBoot;
-  EG_IMAGE         *CustomLogo;
-  KERNEL_AND_KEXT_PATCHES *KernelAndKextPatches;
-  CONST CHAR16            *Settings;
-} LOADER_ENTRY;
-
-typedef struct {
-  REFIT_MENU_ENTRY  me;
-  REFIT_VOLUME     *Volume;
-  CONST CHAR16           *DevicePathString;
-  CONST CHAR16     *LoadOptions;
-  UINTN             BootNum;
-  CONST CHAR16           *LoaderPath; //will be set to NULL
-} LEGACY_ENTRY;
-
 #define ANIME_INFINITE ((UINTN)-1)
 //some unreal values
 #define SCREEN_EDGE_LEFT    50000
@@ -694,7 +608,9 @@ extern BOOLEAN          MainAnime;
 extern GUI_ANIME        *GuiAnime;
 
 extern REFIT_VOLUME     *SelfVolume;
+#ifdef __cplusplus
 extern XObjArray<REFIT_VOLUME> Volumes;
+#endif
 //extern UINTN            VolumesCount;
 
 extern EG_IMAGE         *Banner;
@@ -707,7 +623,6 @@ extern BOOLEAN          gThemeChanged;
 extern BOOLEAN          gBootChanged;
 extern BOOLEAN          gThemeOptionsChanged;
 //extern POINTERS         gPointer;
-extern REFIT_MENU_SCREEN OptionMenu;
 //extern EFI_GUID gEfiAppleBootGuid;
 
 
@@ -721,8 +636,8 @@ VOID        PauseForKey(IN CONST CHAR16 *Msg);
 BOOLEAN     IsEmbeddedTheme(VOID);
 UINT8       GetOSTypeFromPath (IN CONST CHAR16 *Path);
 
-VOID CreateList(OUT VOID ***ListPtr, OUT UINTN *ElementCount, IN UINTN InitialElementCount);
-VOID AddListElement(IN OUT VOID ***ListPtr, IN OUT UINTN *ElementCount, IN VOID *NewElement);
+//VOID CreateList(OUT VOID ***ListPtr, OUT UINTN *ElementCount, IN UINTN InitialElementCount);
+//VOID AddListElement(IN OUT VOID ***ListPtr, IN OUT UINTN *ElementCount, IN VOID *NewElement);
 //VOID FreeList(IN OUT VOID ***ListPtr, IN OUT UINTN *ElementCount /*, IN Callback*/);
 
 VOID GetListOfThemes(VOID);
@@ -816,15 +731,6 @@ extern EG_RECT  BannerPlace;
 extern EG_IMAGE *BackgroundImage;
 
 
-VOID InitScreen(IN BOOLEAN SetMaxResolution);
-VOID SetupScreen(VOID);
-VOID BeginTextScreen(IN CONST CHAR16 *Title);
-VOID FinishTextScreen(IN BOOLEAN WaitAlways);
-VOID BeginExternalScreen(IN BOOLEAN UseGraphicsMode, IN CONST CHAR16 *Title);
-VOID FinishExternalScreen(VOID);
-VOID TerminateScreen(VOID);
-VOID SetNextScreenMode(INT32);
-
 #if REFIT_DEBUG > 0
 VOID DebugPause(VOID);
 #else
@@ -834,19 +740,6 @@ VOID EndlessIdleLoop(VOID);
 
 BOOLEAN CheckFatalError(IN EFI_STATUS Status, IN CONST CHAR16 *where);
 BOOLEAN CheckError(IN EFI_STATUS Status, IN CONST CHAR16 *where);
-
-VOID SwitchToGraphicsAndClear(VOID);
-VOID BltClearScreen(IN BOOLEAN ShowBanner);
-VOID BltImage(IN EG_IMAGE *Image, IN INTN XPos, IN INTN YPos);
-VOID BltImageAlpha(IN EG_IMAGE *Image, IN INTN XPos, IN INTN YPos, IN EG_PIXEL *BackgroundPixel, INTN Scale);
-VOID BltImageComposite(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN INTN XPos, IN INTN YPos);
-VOID BltImageCompositeBadge(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN EG_IMAGE *BadgeImage, IN INTN XPos, IN INTN YPos, INTN Scale);
-//VOID BltImageCompositeIndicator(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN INTN XPos, IN INTN YPos, INTN Scale);
-
-BOOLEAN GetAnime(REFIT_MENU_SCREEN *Screen);
-VOID    InitAnime(REFIT_MENU_SCREEN *Screen);
-VOID    UpdateAnime(REFIT_MENU_SCREEN *Screen, EG_RECT *Place);
-VOID    FreeAnime(GUI_ANIME *Anime);
 
 //
 // icns loader module
@@ -912,22 +805,8 @@ EG_IMAGE * GetSmallHover(IN UINTN Id);
 #define ICON_FORMAT_ICNS      (1)
 #define ICON_FORMAT_PNG       (2)
 #define ICON_FORMAT_BMP       (3)
-
-VOID AddMenuInfoLine(IN REFIT_MENU_SCREEN *Screen, IN CONST CHAR16 *InfoLine);
-VOID AddMenuInfo(IN REFIT_MENU_SCREEN  *SubScreen, IN CONST CHAR16 *Line);
-VOID AddMenuEntry(IN REFIT_MENU_SCREEN *Screen, IN REFIT_MENU_ENTRY *Entry);
-VOID AddMenuCheck(REFIT_MENU_SCREEN *SubScreen, CONST CHAR8 *Text, UINTN Bit, INTN ItemNum);
-VOID FreeMenu(IN REFIT_MENU_SCREEN *Screen);
-UINTN RunMenu(IN REFIT_MENU_SCREEN *Screen, OUT REFIT_MENU_ENTRY **ChosenEntry);
-UINTN RunMainMenu(IN REFIT_MENU_SCREEN *Screen, IN INTN DefaultSelection, OUT REFIT_MENU_ENTRY **ChosenEntry);
-VOID DrawMenuText(IN CONST CHAR16 *Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor);
 VOID ReinitVolumes(VOID);
 BOOLEAN ReadAllKeyStrokes(VOID);
-VOID OptionsMenu(OUT REFIT_MENU_ENTRY **ChosenEntry, IN CHAR8 *LastChosenOS);
-VOID FreeScrollBar(VOID);
-INTN DrawTextXY(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign);
-VOID DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign);
-
 //
 // config module
 //

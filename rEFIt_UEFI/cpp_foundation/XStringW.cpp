@@ -21,7 +21,6 @@
 #include "XToolsCommon.h"
 #include "XStringW.h"
 
-#include <Platform.h>
 #include "printf_lite.h"
 
 UINTN XStringWGrowByDefault = 1024;

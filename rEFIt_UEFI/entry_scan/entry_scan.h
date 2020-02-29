@@ -35,15 +35,16 @@
 
 #include "Platform.h"
 
-extern REFIT_MENU_ENTRY MenuEntryReturn;
-extern REFIT_MENU_ENTRY MenuEntryOptions;
-extern REFIT_MENU_ENTRY MenuEntryAbout;
-extern REFIT_MENU_ENTRY MenuEntryReset;
-extern REFIT_MENU_ENTRY MenuEntryShutdown;
+extern REFIT_MENU_ITEM_RETURN MenuEntryReturn;
+extern REFIT_MENU_ITEM_OPTIONS MenuEntryOptions;
+extern REFIT_MENU_ITEM_ABOUT MenuEntryAbout;
+extern REFIT_MENU_ITEM_RESET MenuEntryReset;
+extern REFIT_MENU_ITEM_SHUTDOWN MenuEntryShutdown;
 //extern REFIT_MENU_ENTRY MenuEntryHelp;
-extern REFIT_MENU_ENTRY MenuEntryExit;
+//extern REFIT_MENU_ENTRY MenuEntryExit;
 extern REFIT_MENU_SCREEN MainMenu;
 
+extern XObjArray<REFIT_VOLUME> Volumes;
 // common
 EG_IMAGE *LoadBuiltinIcon(IN CONST CHAR16 *IconName);
 LOADER_ENTRY * DuplicateLoaderEntry(IN LOADER_ENTRY *Entry);

@@ -9,7 +9,6 @@
 
 #include "XToolsCommon.h"
 #include "XStringWArray.h"
-#include <Platform.h>
 
 
 const XStringWArray NullXStrings;
