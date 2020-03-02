@@ -25,6 +25,7 @@ Revision History
 #define _SHELL_I_O_H
 
 #include <Library/GenericBdsLib.h>
+#include "../gui/menu_items/menu_items.h" // for REFIT_MENU_SCREEN
 
 #define EFI_TPL_APPLICATION 4
 #define EFI_TPL_CALLBACK    8
@@ -283,6 +284,9 @@ WaitFor2EventWithTsc (
                       IN EFI_EVENT        Event2,
                       IN UINT64           Timeout OPTIONAL
                     );
+
+EFI_STATUS
+WaitForInputEventPoll(REFIT_MENU_SCREEN *Screen, UINTN TimeoutDefault);
 
 VOID        LowCase (IN OUT CHAR8 *Str);
 UINT32      hex2bin(IN CHAR8 *hex, OUT UINT8 *bin, UINT32 len);

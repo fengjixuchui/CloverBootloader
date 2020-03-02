@@ -81,8 +81,10 @@
   libeg/VectorGraphics.cpp
   libeg/libeg.h
   libeg/libegint.h
-#  libeg/XImage.cpp
-#  libeg/XImage.h
+  libeg/XImage.cpp
+  libeg/XImage.h
+  libeg/XPointer.cpp
+  libeg/XPointer.h
   Platform/AcpiPatcher.cpp
 	Platform/ati_reg.h
 	Platform/AmlGenerator.cpp
