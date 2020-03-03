@@ -5,10 +5,15 @@ This class will replace EG_IMAGE structure and methods
 #if !defined(__XIMAGE_H__)
 #define __XIMAGE_H__
 
-#include <Platform.h>
+//#include <Platform.h>
 //
-//#include "../cpp_foundation/XToolsCommon.h"
-//#include "../cpp_foundation/XArray.h"
+
+extern "C" {
+#include <Protocol/GraphicsOutput.h>
+}
+#include "../cpp_foundation/XToolsCommon.h"
+#include "../cpp_foundation/XArray.h"
+#include "../libeg/libeg.h"
 //#include "lodepng.h"
 //
 //#include "nanosvg.h"
@@ -63,17 +68,21 @@ public:
   UINTN      GetWidth() const;
   UINTN      GetHeight() const;
 
+  void setEmpty() { PixelData.setEmpty(); }
+  bool isEmpty() const { return PixelData.size() == 0; }
+
+
   void Fill(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color = { 0, 0, 0, 0 });
   void FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, const EgRect& Rect);
   void CopyScaled(const XImage& Image, float scale);
-  void Compose(int PosX, int PosY, const XImage& TopImage, bool Lowest); //instead of compose we can Back.Draw(...) + Top.Draw(...)
+  void Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest); //instead of compose we can Back.Draw(...) + Top.Draw(...)
   void FlipRB(bool WantAlpha);
   unsigned FromPNG(const UINT8 * Data, UINTN Lenght);
   unsigned ToPNG(UINT8** Data, UINTN& OutSize);
   unsigned FromSVG(const CHAR8 *SVGData, UINTN SVGDataLength, float scale);
   void GetArea(const EG_RECT& Rect);
   void GetArea(INTN x, INTN y, UINTN W, UINTN H);
-  void Draw(int x, int y, float scale);
+  void Draw(INTN x, INTN y, float scale);
 };
 
 #endif //__XSTRINGW_H__

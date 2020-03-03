@@ -1,8 +1,13 @@
 /*
  * a class for mouse support
  */
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "Library/BaseLib.h"
+#ifdef __cplusplus
+}
+#endif
 #include "XPointer.h"
 #include "libegint.h"   //this includes platform.h 
 #include "../refit/screen.h"
@@ -26,25 +31,21 @@
 #define POINTER_HEIGHT 32
 
 XPointer::XPointer()
+            : PointerImage(BuiltinIcon(BUILTIN_ICON_POINTER)),
+              newImage(POINTER_WIDTH, POINTER_HEIGHT),
+              oldImage(POINTER_WIDTH, POINTER_HEIGHT)
 {
-  PointerImage = new XImage(BuiltinIcon(BUILTIN_ICON_POINTER));
-
-  oldImage = new XImage(POINTER_WIDTH, POINTER_HEIGHT);
-  newImage = new XImage(POINTER_WIDTH, POINTER_HEIGHT);
 
 }
 
 XPointer::~XPointer()
 {
-  delete PointerImage;
-  delete newImage;
-  delete oldImage;
 }
 
 void XPointer::Hide()
 {
   if (SimplePointerProtocol) {
-    oldImage->Draw(oldPlace.XPos, oldPlace.YPos, 1.f);
+    oldImage.Draw(oldPlace.XPos, oldPlace.YPos, 1.f);
   }
 }
 
@@ -79,8 +80,7 @@ EFI_STATUS XPointer::MouseBirth()
     return Status;
   }
 
-  PointerImage = BuiltinIcon(BUILTIN_ICON_POINTER);
-  if (!PointerImage) {
+  if ( PointerImage.isEmpty() ) {
     //this is impossible after BuiltinIcon
     DBG("No pointer image!\n");
     SimplePointerProtocol = NULL;
@@ -105,14 +105,14 @@ VOID XPointer::DrawPointer()
 {
 
 // take background image
-  oldImage->GetArea(newPlace);
+  oldImage.GetArea(newPlace);
   CopyMem(&oldPlace, &newPlace, sizeof(EG_RECT));  //can we use oldPlace = newPlace; ?
 
 //  CopyMem(newImage->PixelData, oldImage->PixelData, (UINTN)(POINTER_WIDTH * POINTER_HEIGHT * sizeof(EG_PIXEL)));
-  newImage->CopyScaled(*oldImage, 1.f);
+  newImage.CopyScaled(oldImage, 1.f);
 
-  newImage->Compose(0, 0, *PointerImage, true);
-  newImage->Draw(newPlace.XPos, newPlace.YPos, 1.f);
+  newImage.Compose(0, 0, PointerImage, true);
+  newImage.Draw(newPlace.XPos, newPlace.YPos, 1.f);
 }
 
 VOID XPointer::KillMouse()
@@ -122,10 +122,10 @@ VOID XPointer::KillMouse()
     return;
   }
  
-  delete newImage;
-  delete oldImage;
+  newImage.setEmpty();
+  oldImage.setEmpty();
 
-  delete PointerImage;
+//  delete PointerImage;
 
   MouseEvent = NoEvents;
   SimplePointerProtocol = NULL;
@@ -194,8 +194,8 @@ VOID XPointer::UpdatePointer()
     if (newPlace.YPos < 0) newPlace.YPos = 0;
     if (newPlace.YPos > UGAHeight - 1) newPlace.YPos = UGAHeight - 1;
 
-    HidePointer();
-    DrawPointer();
+    Hide();
+    Draw();
   }
 }
 

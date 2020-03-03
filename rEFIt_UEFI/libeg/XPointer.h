@@ -14,9 +14,9 @@ public:
 
 protected:
   EFI_SIMPLE_POINTER_PROTOCOL *SimplePointerProtocol;
-  XImage *PointerImage;
-  XImage *newImage;
-  XImage *oldImage;
+  XImage PointerImage;
+  XImage newImage;
+  XImage oldImage;
 
   EG_RECT  newPlace;
   EG_RECT  oldPlace;
@@ -35,6 +35,6 @@ public:
   EFI_STATUS CheckMouseEvent(REFIT_MENU_SCREEN *Screen);
 
 protected:
-  VOID DrawPointer();
+  VOID Draw();
 
 };

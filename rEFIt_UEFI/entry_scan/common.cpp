@@ -179,7 +179,8 @@ CHAR16 *AddLoadOption(IN CONST CHAR16 *LoadOptions, IN CONST CHAR16 *LoadOption)
     return EfiStrDuplicate(LoadOption);
   }
   // If there is no option or it is already present duplicate original
-  else if ((LoadOption == NULL) || StrStr(LoadOptions, LoadOption)) return EfiStrDuplicate(LoadOptions);
+  else if ((LoadOption == NULL) || StrStr(LoadOptions, LoadOption))
+    return EfiStrDuplicate(LoadOptions);
   // Otherwise add option
   return PoolPrint(L"%s %s", LoadOptions, LoadOption);
 }

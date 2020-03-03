@@ -68,6 +68,8 @@
 //#define TAG_EXIT_OLD               (101)
 //#define TAG_RETURN_OLD             ((UINTN)(-1))
 
+typedef VOID(*MENU_STYLE_FUNC)(IN UINTN Function, IN CONST CHAR16 *ParamText);
+
 //typedef struct _refit_menu_screen REFIT_MENU_SCREEN;
 class REFIT_MENU_SCREEN;
 class REFIT_MENU_SWITCH;
@@ -395,6 +397,7 @@ public:
   ACTION      mAction;
   UINTN       mItemID;
   XPointer    *mPointer;
+  SCROLL_STATE ScrollState, 
 
   REFIT_MENU_SCREEN()
 						: ID(0), Title(0), TitleImage(0),
@@ -483,6 +486,31 @@ public:
 							Entries.AddReference(entry1, false);
 							Entries.AddReference(entry2, false);
 						};
+  //Scroll functions
+  VOID InitScroll(IN INTN ItemCount, IN UINTN MaxCount,
+                  IN UINTN VisibleSpace, IN INTN Selected);
+  VOID UpdateScroll(IN UINTN Movement);
+  VOID HidePointer();
+  EFI_STATUS MouseBirth();
+  VOID KillMouse();
+  VOID AddMenuInfo(CONST CHAR16 *Line);
+  VOID AddMenuInfoLine(IN CONST CHAR16 *InfoLine);
+  VOID AddMenuEntry(IN REFIT_MENU_ENTRY *Entry, bool freeIt);
+  VOID FreeMenu();
+  INTN FindMenuShortcutEntry(IN CHAR16 Shortcut);
+  UINTN InputDialog(IN MENU_STYLE_FUNC  StyleFunc);
+  UINTN RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INTN *DefaultEntryIndex, OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry);
+  UINTN RunMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry);
+  UINTN RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry);
+
+  VOID DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos);
+  VOID CountItems();
+
+  //Style functions
+  virtual VOID MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);
+  virtual VOID MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);
+  virtual VOID GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);
+  virtual VOID TextMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);
 };
 
 #endif
