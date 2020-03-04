@@ -44,6 +44,7 @@
 #include "../cpp_foundation/XStringW.h"
 #include "../../libeg/XPointer.h"
 #endif
+
 //
 //#define REFIT_DEBUG (2)
 //#define Print if ((!GlobalConfig.Quiet) || (GlobalConfig.TextOnly)) Print
@@ -67,8 +68,6 @@
 //#define TAG_CLOVER_OLD             (100)
 //#define TAG_EXIT_OLD               (101)
 //#define TAG_RETURN_OLD             ((UINTN)(-1))
-
-typedef VOID(*MENU_STYLE_FUNC)(IN UINTN Function, IN CONST CHAR16 *ParamText);
 
 //typedef struct _refit_menu_screen REFIT_MENU_SCREEN;
 class REFIT_MENU_SCREEN;
@@ -371,11 +370,14 @@ public:
 //#define FILM_PERCENT 100000
 #define INITVALUE       40000
 
+typedef VOID (REFIT_MENU_SCREEN::*MENU_STYLE_FUNC)(IN UINTN Function, IN CONST CHAR16 *ParamText);
+
 class REFIT_MENU_SCREEN
 {
 public:
   UINTN             ID;
-  CONST CHAR16      *Title;
+/*  CONST */ CHAR16      *Title;  //Title is not const. It can be dynamically changed
+                                  // it will be better to make it XStringW
   EG_IMAGE          *TitleImage;
 //  INTN              InfoLineCount;
 //  CONST CHAR16    **InfoLines;
@@ -397,7 +399,9 @@ public:
   ACTION      mAction;
   UINTN       mItemID;
   XPointer    *mPointer;
-  SCROLL_STATE ScrollState, 
+  SCROLL_STATE ScrollState;
+  MENU_STYLE_FUNC StyleFunc;
+
 
   REFIT_MENU_SCREEN()
 						: ID(0), Title(0), TitleImage(0),
@@ -408,7 +412,7 @@ public:
 						{};
 
   REFIT_MENU_SCREEN(  UINTN             ID_,
-											CONST CHAR16      *Title_,
+										/*	CONST */ CHAR16      *Title_,
 											EG_IMAGE          *TitleImage_,
 //											INTN              InfoLineCount_,
 //											CONST CHAR16    **InfoLines_,
@@ -432,7 +436,7 @@ public:
 						{};
 
   REFIT_MENU_SCREEN(  UINTN             ID_,
-											CONST CHAR16      *Title_,
+											/*  CONST */  CHAR16      *Title_,
 											EG_IMAGE          *TitleImage_,
 //											INTN              InfoLineCount_,
 //											CONST CHAR16    **InfoLines_,
@@ -459,7 +463,7 @@ public:
 						};
 
   REFIT_MENU_SCREEN(  UINTN             ID_,
-											CONST CHAR16      *Title_,
+											/*  CONST */  CHAR16      *Title_,
 											EG_IMAGE          *TitleImage_,
 //											INTN              InfoLineCount_,
 //											CONST CHAR16    **InfoLines_,
@@ -493,18 +497,26 @@ public:
   VOID HidePointer();
   EFI_STATUS MouseBirth();
   VOID KillMouse();
+  VOID AddMenuItem_(REFIT_MENU_ITEM_IEM_ABSTRACT* InputBootArgs, INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);
   VOID AddMenuInfo(CONST CHAR16 *Line);
   VOID AddMenuInfoLine(IN CONST CHAR16 *InfoLine);
   VOID AddMenuEntry(IN REFIT_MENU_ENTRY *Entry, bool freeIt);
+  VOID AddMenuItemSwitch(INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);
+  VOID AddMenuCheck(CONST CHAR8 *Text, UINTN Bit, INTN ItemNum);
+  VOID AddMenuItemInput(INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);
   VOID FreeMenu();
   INTN FindMenuShortcutEntry(IN CHAR16 Shortcut);
-  UINTN InputDialog(IN MENU_STYLE_FUNC  StyleFunc);
   UINTN RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INTN *DefaultEntryIndex, OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry);
   UINTN RunMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry);
   UINTN RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry);
+  UINTN InputDialog(IN MENU_STYLE_FUNC StyleFunc);
 
   VOID DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos);
   VOID CountItems();
+  VOID InitAnime();
+  BOOLEAN GetAnime();
+  VOID UpdateAnime();
+
 
   //Style functions
   virtual VOID MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);

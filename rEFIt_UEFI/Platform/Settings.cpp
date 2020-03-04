@@ -10,6 +10,7 @@
 #include "../refit/screen.h"
 #include "../refit/menu.h"
 #include "gma.h"
+#include "Pointer.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_SET 1
@@ -4281,7 +4282,7 @@ InitTheme(
   }
 
   // Kill mouse before we invalidate builtin pointer image
-  KillMouse();
+//  KillMouse();
 
   // Invalidate BuiltinIcons
 //    DBG ("Invalidating BuiltinIcons...\n");
