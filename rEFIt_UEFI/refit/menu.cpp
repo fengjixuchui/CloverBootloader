@@ -68,7 +68,8 @@ CONST CHAR16 *VBIOS_BIN = L"EFI\\CLOVER\\misc\\c0000.bin";
 
 // scrolling definitions
 static INTN MaxItemOnScreen = -1;
-REFIT_MENU_SCREEN OptionMenu(4, L"Options", NULL, /*InfoLineCount*/0, NULL, 0, NULL, NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL );
+//REFIT_MENU_SCREEN OptionMenu(4, L"Options", NULL, /*InfoLineCount*/0, NULL, 0, NULL, NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL );
+REFIT_MENU_SCREEN OptionMenu(4, L"Options", NULL);
 extern REFIT_MENU_ITEM_RETURN MenuEntryReturn;
 extern UINTN            ThemesNum;
 extern CHAR16           *ThemesList[];
@@ -162,7 +163,7 @@ static INTN row1Count, row1PosX, row1PosXRunning;
 static INTN *itemPosX = NULL;
 static INTN *itemPosY = NULL;
 static INTN row0PosY, row1PosY, textPosY, FunctextPosY;
-static EG_IMAGE* MainImage;
+//static EG_IMAGE* MainImage;
 static INTN OldX = 0, OldY = 0;
 static INTN OldTextWidth = 0;
 static UINTN OldRow = 0;
@@ -225,9 +226,12 @@ REFIT_MENU_ITEM_RETURN   MenuEntryReturn  (L"Return", 0, 0, 0, ActionEnter);
 
 
 
-REFIT_MENU_SCREEN MainMenu    = {1, L"Main Menu", NULL, 0, NULL, 0, L"Automatic boot", NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL};
-REFIT_MENU_SCREEN AboutMenu   = {2, L"About",     NULL, 0, NULL, 0, NULL,              NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL};
-REFIT_MENU_SCREEN HelpMenu    = {3, L"Help",      NULL, 0, NULL, 0, NULL,              NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL};
+//REFIT_MENU_SCREEN MainMenu    = {1, L"Main Menu", NULL, 0, NULL, 0, L"Automatic boot", NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL};
+//REFIT_MENU_SCREEN AboutMenu   = {2, L"About",     NULL, 0, NULL, 0, NULL,              NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL};
+//REFIT_MENU_SCREEN HelpMenu    = {3, L"Help",      NULL, 0, NULL, 0, NULL,              NULL, FALSE, FALSE, 0, 0, 0, 0, {0, 0, 0, 0}, NULL};
+REFIT_MENU_SCREEN MainMenu(1, L"Main Menu", L"Automatic boot");
+REFIT_MENU_SCREEN AboutMenu(2, L"About", NULL);
+REFIT_MENU_SCREEN HelpMenu(3, L"Help", NULL);
 
 CONST CHAR16* ArgOptional[NUM_OPT] = {
   L"arch=i386",       //0
@@ -2160,11 +2164,12 @@ VOID REFIT_MENU_SCREEN::UpdateScroll(IN UINTN Movement)
 
 VOID REFIT_MENU_SCREEN::HidePointer()
 {
-  mPointer->Hide();
+  if ( mPointer ) mPointer->Hide();
 }
 
 EFI_STATUS REFIT_MENU_SCREEN::MouseBirth()
 {
+  if ( !mPointer ) return RETURN_INVALID_PARAMETER;
   return mPointer->MouseBirth();
 }
 
@@ -3769,9 +3774,12 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
  */
 VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN XPos, INTN YPos)
 {
+  EG_IMAGE* MainImage = NULL;
+  EG_IMAGE* BadgeImage = NULL;
+  bool NewImageCreated = false;
   INTN Scale = GlobalConfig.MainEntriesSize >> 3; //usually it is 128>>3 == 16. if 256>>3 == 32
 
-  if ( Entry->getDriveImage()  &&  !(GlobalConfig.HideBadges & HDBADGES_SWAP) /*&& Entry->Row == 0*/) {
+  if (Entry->Row == 0 && Entry->getDriveImage()  &&  !(GlobalConfig.HideBadges & HDBADGES_SWAP)) {
     MainImage = Entry->getDriveImage();
   } else {
     MainImage = Entry->Image;
@@ -3784,6 +3792,9 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
     if (!MainImage) {
       MainImage = DummyImage(Scale << 3);
     }
+    if (MainImage) {
+      NewImageCreated = true;
+    }
   }
   //  DBG("Entry title=%s; Width=%d\n", Entry->Title, MainImage->Width);
   if (GlobalConfig.TypeSVG) {
@@ -3791,18 +3802,21 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
   } else {
     Scale = ((Entry->Row == 0) ? (Scale * (selected ? 1 : -1)): 16) ;
   }
+  if (Entry->Row == 0) {
+    BadgeImage = Entry->getBadgeImage();
+  } //else null
   if (GlobalConfig.SelectionOnTop) {
     SelectionImages[0]->HasAlpha = TRUE;
     SelectionImages[2]->HasAlpha = TRUE;
     //MainImage->HasAlpha = TRUE;
       BltImageCompositeBadge(MainImage,
                              SelectionImages[((Entry->Row == 0) ? 0 : 2) + (selected ? 0 : 1)],
-                             Entry->getBadgeImage(),
+                             BadgeImage,
                              XPos, YPos, Scale);
   } else {
       BltImageCompositeBadge(SelectionImages[((Entry->Row == 0) ? 0 : 2) + (selected ? 0 : 1)],
                              MainImage,
-                             Entry->getBadgeImage(),
+                             BadgeImage,
                              XPos, YPos, Scale);
   }
 
@@ -3824,6 +3838,11 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
   Entry->Place.YPos = YPos;
   Entry->Place.Width = MainImage->Width;
   Entry->Place.Height = MainImage->Height;
+  //we can't free MainImage because it may be new image or it may be a link to entry image
+  // a workaround
+  if (NewImageCreated) {
+    egFreeImage(MainImage);
+  }
 }
 
 VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height, IN EG_PIXEL *Color, IN UINT8 XAlign)
@@ -4371,8 +4390,8 @@ VOID NewEntry(REFIT_MENU_ENTRY_OTHER **Entry, REFIT_MENU_SCREEN **SubScreen, ACT
 VOID NewEntry(LOADER_ENTRY **Entry, REFIT_MENU_SCREEN **SubScreen, ACTION AtClick, UINTN ID, CONST CHAR8 *Title)
 {
   //create entry
-  *Entry = (__typeof_am__(*Entry))AllocateZeroPool(sizeof(LOADER_ENTRY)); // carefull, **Entry is not a LOADER_ENTRY. Don't use sizeof.
-//  *Entry = new LOADER_ENTRY();
+//  *Entry = (__typeof_am__(*Entry))AllocateZeroPool(sizeof(LOADER_ENTRY)); // carefull, **Entry is not a LOADER_ENTRY. Don't use sizeof.
+  *Entry = new LOADER_ENTRY();
   NewEntry_(*Entry, SubScreen, AtClick, ID, Title); // cast ok because super class
 }
 
@@ -5458,7 +5477,7 @@ REFIT_MENU_ENTRY  *SubMenuConfigs()
   return Entry;
 }
 
-VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry, IN CHAR8 *LastChosenOS)
+VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
 {
   REFIT_ABSTRACT_MENU_ENTRY    *TmpChosenEntry = NULL;
   REFIT_ABSTRACT_MENU_ENTRY    *NextChosenEntry = NULL;
