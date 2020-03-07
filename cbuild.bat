@@ -39,7 +39,7 @@ set PYTHON3_ENABLE=TRUE
 set DEFAULT_NASM_PREFIX=
 rem C:\Program Files (x86)\NASM"
 rem # %DEFAULT_CYGWIN_HOME%\bin
-set DEFAULT_TOOLCHAIN=VS2017
+set DEFAULT_TOOLCHAIN=VS2015x86
 set DEFAULT_BUILDTARGET=RELEASE
 set DEFAULT_TARGETARCH=X64
 set DEFAULT_THREADNUMBER=%NUMBER_OF_PROCESSORS%
@@ -485,8 +485,8 @@ rem # drop compiled files to EFI folder
 
   call:copybin "%BUILD_DIR%\FV\boot%TARGETARCH_INT%" "%DEST_BOOTLOADERS%\%TARGETARCH%" "%cloverEFIFile%"
   call:copybin "%BUILD_DIR_ARCH%\bdmesg.efi" "%DEST_TOOLS%" "bdmesg-%TARGETARCH_INT%.efi"
-  call:copybin "%BUILD_DIR_ARCH%\CLOVER.efi" "%DEST_CLOVER%" "CLOVER%TARGETARCH%.efi"
-  call:copybin "%BUILD_DIR_ARCH%\CLOVER.efi" "%DEST_BOOT%" "BOOT%TARGETARCH%.efi"
+  call:copybin "%BUILD_DIR_ARCH%\CLOVERX64.efi" "%DEST_CLOVER%" "CLOVER%TARGETARCH%.efi"
+  call:copybin "%BUILD_DIR_ARCH%\CLOVERX64.efi" "%DEST_BOOT%" "BOOT%TARGETARCH%.efi"
 
   if not defined CLOVER_EDK2SHELL goto donebuild
 

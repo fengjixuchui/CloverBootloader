@@ -40,7 +40,7 @@ XImage::XImage(EG_IMAGE* egImage)
   PixelData.CheckSize(GetWidth()*GetHeight()); // change the allocated size, but not the size.
   PixelData.SetLength(GetWidth()*GetHeight()); // change the size, ie the number of element in the array
   if ( GetWidth()*GetHeight() > 0 ) {
-	  CopyMem(&PixelData[0], egImage->PixelData, PixelData.size());
+	  CopyMem(&PixelData[0], egImage->PixelData, PixelData.size() * sizeof(*egImage->PixelData));
   }
 }
 
@@ -54,11 +54,23 @@ XImage::XImage(const XImage& Image, float scale)
 {
   UINTN SrcWidth = Image.GetWidth();
   UINTN SrcHeight = Image.GetHeight();
-  Width = (UINTN)(SrcWidth * scale);
-  Height = (UINTN)(SrcHeight * scale);
-  PixelData.CheckSize(GetWidth()*GetHeight());
-  if (scale < 1.e-4) return;
-  CopyScaled(Image, scale);
+
+  if (scale < 1.e-4) {
+    Width = SrcWidth;
+    Height = SrcHeight;
+    PixelData.CheckSize(GetWidth()*GetHeight());
+    PixelData.SetLength(GetWidth()*GetHeight());
+    for (UINTN y = 0; y < Height; ++y)
+      for (UINTN x = 0; x < Width; ++x)
+        PixelData[y * Width + x] = Image.GetPixel(x, y);
+
+  } else {
+    Width = (UINTN)(SrcWidth * scale);
+    Height = (UINTN)(SrcHeight * scale);
+    PixelData.CheckSize(Width * Height);
+    PixelData.SetLength(Width * Height);
+    CopyScaled(Image, scale);
+  }
 }
 
 #if 0
@@ -205,7 +217,11 @@ void XImage::CopyScaled(const XImage& Image, float scale)
   }
 }
 
-void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest) //lowest image is opaque
+/* Place Top image over this image at PosX,PosY
+ * Lowest means final image is opaque
+ * else transparency will be multiplied
+ */
+void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
 {
   UINT32      TopAlpha;
   UINT32      RevAlpha;
@@ -213,28 +229,29 @@ void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest) 
   UINT32      Temp;
 
   for (UINTN y = PosY; y < Height && (y - PosY) < TopImage.GetHeight(); ++y) {
-    EFI_GRAPHICS_OUTPUT_BLT_PIXEL& CompPtr = *GetPixelPtr(PosX, y); // I assign a ref to avoid the operator ->. Compiler will produce the same anyway.
+ //   EFI_GRAPHICS_OUTPUT_BLT_PIXEL& CompPtr = *GetPixelPtr(PosX, y); // I assign a ref to avoid the operator ->. Compiler will produce the same anyway.
+    EFI_GRAPHICS_OUTPUT_BLT_PIXEL* CompPtr = GetPixelPtr(PosX, y);
     for (UINTN x = PosX; x < Width && (x - PosX) < TopImage.GetWidth(); ++x) {
       TopAlpha = TopImage.GetPixel(x-PosX, y-PosY).Reserved;
       RevAlpha = 255 - TopAlpha;
-      FinalAlpha = (255*255 - RevAlpha*(255 - CompPtr.Reserved)) / 255;
+      FinalAlpha = (255*255 - RevAlpha*(255 - CompPtr->Reserved)) / 255;
 
 //final alpha =(1-(1-x)*(1-y)) =(255*255-(255-topA)*(255-compA))/255
-      Temp = (CompPtr.Blue * RevAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Blue * TopAlpha);
-      CompPtr.Blue = (UINT8)(Temp / 255);
+      Temp = (CompPtr->Blue * RevAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Blue * TopAlpha);
+      CompPtr->Blue = (UINT8)(Temp / 255);
 
-      Temp = (CompPtr.Green * RevAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Green * TopAlpha);
-      CompPtr.Green = (UINT8)(Temp / 255);
+      Temp = (CompPtr->Green * RevAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Green * TopAlpha);
+      CompPtr->Green = (UINT8)(Temp / 255);
 
-      Temp = (CompPtr.Red * RevAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Red * TopAlpha);
-      CompPtr.Red = (UINT8)(Temp / 255);
+      Temp = (CompPtr->Red * RevAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Red * TopAlpha);
+      CompPtr->Red = (UINT8)(Temp / 255);
 
       if (Lowest) {
-        CompPtr.Reserved = 255;
+        CompPtr->Reserved = 255;
       } else {
-        CompPtr.Reserved = (UINT8)FinalAlpha;
+        CompPtr->Reserved = (UINT8)FinalAlpha;
       }
-
+      CompPtr++; //faster way to move to next pixel
     }
   }
 }
@@ -281,7 +298,7 @@ unsigned XImage::ToPNG(UINT8** Data, UINTN& OutSize)
 }
 
 /*
- * fill XImage object by rater data described in SVG
+ * fill XImage object by raster data described in SVG
  * caller should create the object with Width and Height and calculate scale
  * scale = 1 correspond to fill the rect with the image
  * scale = 0.5 will reduce image 
@@ -317,9 +334,8 @@ unsigned XImage::FromSVG(const CHAR8 *SVGData, UINTN FileDataLength, float scale
 // Screen operations
 /*
  * The function to get image from screen. Used in  screenshot (full screen), Pointer (small area) and Draw (small area)
- * XImage must be created with UGAWidth, UGAHeight as egGetScreenSize(&UGAWidth, &UGAHeight); with PixelData allocated
- *       egScreenWidth = GraphicsOutput->Mode->Info->HorizontalResolution;
- *       egScreenHeight = GraphicsOutput->Mode->Info->VerticalResolution;
+ * XImage must be created with Width, Height of Rect
+ * the rect will be clipped if it intersects the screen edge
  *
  * be careful about alpha. This procedure can produce alpha = 0 which means full transparent
  */
@@ -327,6 +343,7 @@ void XImage::GetArea(const EG_RECT& Rect)
 {
   GetArea(Rect.XPos, Rect.YPos, Rect.Width, Rect.Height);
 }
+
 
 void XImage::GetArea(INTN x, INTN y, UINTN W, UINTN H)
 {
@@ -347,48 +364,40 @@ void XImage::GetArea(INTN x, INTN y, UINTN W, UINTN H)
   if (W == 0) W = Width;
   if (H == 0) H = Height;
 
-  INTN AreaWidth = (x + W > Width) ? (Width - x) : W;
-  INTN AreaHeight = (y + H > Height) ? (Height - y) : H;
-  
+  Width = (x + W > (UINTN)UGAWidth) ? (UGAWidth - x) : W;
+  Height = (y + H > (UINTN)UGAHeight) ? ((UINTN)UGAHeight - y) : H;
+
+  PixelData.SetLength(Width * Height); // setLength BEFORE, so &PixelData[0]
+
   if (GraphicsOutput != NULL) {
-    INTN LineBytes = GraphicsOutput->Mode->Info->HorizontalResolution * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
     GraphicsOutput->Blt(GraphicsOutput,
       (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *)&PixelData[0],
       EfiBltVideoToBltBuffer,
-      x, y, 0, 0, AreaWidth, AreaHeight, LineBytes);
+      x, y, 0, 0, Width, Height, 0);
   }
   else if (UgaDraw != NULL) {
-    UINT32 LineWidth = 0;
-    UINT32 ScreenHeight = 0;
-    UINT32 Depth = 0;
-    UINT32 RefreshRate = 60;
-    Status = UgaDraw->GetMode(UgaDraw, &LineWidth, &ScreenHeight, &Depth, &RefreshRate);
-    if (EFI_ERROR(Status)) {
-      return;   // graphics not available
-    }
     UgaDraw->Blt(UgaDraw,
-      (EFI_UGA_PIXEL *)&PixelData[0],
+      (EFI_UGA_PIXEL *)GetPixelPtr(0,0),
       EfiUgaVideoToBltBuffer,
-      x, y, 0, 0, AreaWidth, AreaHeight, LineWidth * sizeof(EFI_UGA_PIXEL));
+      x, y, 0, 0, Width, Height, 0);
   }
-
-  Width = AreaWidth;
-  Height = AreaHeight;
 }
 
 void XImage::Draw(INTN x, INTN y, float scale)
 {
   //prepare images
-  INTN ScreenWidth = 0;
-  INTN ScreenHeight = 0;
-  egGetScreenSize(&ScreenWidth, &ScreenHeight);
-  XImage Background(ScreenWidth, ScreenHeight);
-  Background.GetArea(x, y, Width, Height);
+//  DBG("1\n");
   XImage Top(*this, scale);
-  Background.Compose(x, y, Top, true);
-  UINTN AreaWidth = (x + Width > Background.GetWidth()) ? (Background.GetWidth() - x) : Width;
-  UINTN AreaHeight = (y + Height > Background.GetHeight()) ? (Background.GetHeight() - y) : Height;
-
+//  DBG("2\n");
+  XImage Background(Width, Height);
+//  DBG("3\n");
+  Background.GetArea(x, y, Width, Height);
+//  DBG("4\n");
+  Background.Compose(0, 0, Top, true);
+//  DBG("5\n");
+  UINTN AreaWidth = (x + Width > (UINTN)UGAWidth) ? (UGAWidth - x) : Width;
+  UINTN AreaHeight = (y + Height > (UINTN)UGAHeight) ? (UGAHeight - y) : Height;
+//  DBG("area=%d,%d\n", AreaWidth, AreaHeight);
   // prepare protocols
   EFI_STATUS Status;
   EFI_GUID UgaDrawProtocolGuid = EFI_UGA_DRAW_PROTOCOL_GUID;
@@ -407,12 +416,10 @@ void XImage::Draw(INTN x, INTN y, float scale)
   if (GraphicsOutput != NULL) {
     GraphicsOutput->Blt(GraphicsOutput, (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *)Background.GetPixelPtr(0, 0),
       EfiBltBufferToVideo,
-      0, 0, x, y,
-      AreaWidth, AreaHeight, Background.GetWidth() * 4);
+      0, 0, x, y, AreaWidth, AreaHeight, 0);
   }
   else if (UgaDraw != NULL) {
     UgaDraw->Blt(UgaDraw, (EFI_UGA_PIXEL *)Background.GetPixelPtr(0, 0), EfiUgaBltBufferToVideo,
-      0, 0, x, y,
-      AreaWidth, AreaHeight, Background.GetWidth() * 4);
+      0, 0, x, y, AreaWidth, AreaHeight, 0);
   }
 }
