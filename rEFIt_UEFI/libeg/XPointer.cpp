@@ -26,9 +26,9 @@
 #define POINTER_HEIGHT 64
 
 XPointer::XPointer()
-            : PointerImage(NULL),
-              newImage(POINTER_WIDTH, POINTER_HEIGHT),
-              oldImage(POINTER_WIDTH, POINTER_HEIGHT)
+            : SimplePointerProtocol(NULL), PointerImage(NULL),
+//              newImage(POINTER_WIDTH, POINTER_HEIGHT),
+              oldImage(0, 0), Alive(false)
 {
 
 }
@@ -40,7 +40,7 @@ XPointer::~XPointer()
 void XPointer::Hide()
 {
   if (Alive) {
-    oldImage.Draw(oldPlace.XPos, oldPlace.YPos, 1.f);
+    oldImage.DrawWithoutCompose(oldPlace.XPos, oldPlace.YPos);
   }
 }
 
@@ -89,6 +89,7 @@ EFI_STATUS XPointer::MouseBirth()
   }
 //  Now update image because of other theme has other image
   PointerImage = new XImage(BuiltinIcon(BUILTIN_ICON_POINTER));
+  oldImage.setSizeInPixels(PointerImage->GetWidth(), PointerImage->GetHeight());
   LastClickTime = 0;
   oldPlace.XPos = (INTN)(UGAWidth >> 2);
   oldPlace.YPos = (INTN)(UGAHeight >> 2);
@@ -164,7 +165,7 @@ VOID XPointer::UpdatePointer()
     else
       MouseEvent = NoEvents;
 
-    CopyMem(&State, &tmpState, sizeof(EFI_SIMPLE_POINTER_STATE));
+    CopyMem(&State, &tmpState, sizeof(State));
     CurrentMode = SimplePointerProtocol->Mode;
 
     ScreenRelX = ((UGAWidth * State.RelativeMovementX / (INTN)CurrentMode->ResolutionX) * gSettings.PointerSpeed) >> 10;
@@ -183,8 +184,10 @@ VOID XPointer::UpdatePointer()
     if (newPlace.YPos < 0) newPlace.YPos = 0;
     if (newPlace.YPos > UGAHeight - 1) newPlace.YPos = UGAHeight - 1;
 
-    Hide();
-    Draw();
+    if ( CompareMem(&oldPlace, &newPlace, sizeof(__typeof(oldPlace))) != 0 ) {
+      Hide();
+      Draw();
+    }
   }
 }
 
