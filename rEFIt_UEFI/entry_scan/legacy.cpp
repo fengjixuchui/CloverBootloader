@@ -121,12 +121,12 @@ BOOLEAN AddLegacyEntry(IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
 //  Entry = (__typeof__(Entry))AllocateZeroPool(sizeof(LEGACY_ENTRY));
   Entry = new LEGACY_ENTRY();
   if (FullTitle) {
-    Entry->Title = EfiStrDuplicate(FullTitle);
+    Entry->Title.takeValueFrom(FullTitle);
   } else {
     if (GlobalConfig.BootCampStyle) {
-      Entry->Title = PoolPrint(L"%s", LoaderTitle);
+      Entry->Title.takeValueFrom(LoaderTitle);
     } else {
-      Entry->Title = PoolPrint(L"Boot %s from %s", LoaderTitle, VolDesc);
+		Entry->Title.SPrintf("Boot %ls from %ls", LoaderTitle, VolDesc);
     }
   }
 //  DBG("Title=%s\n", Entry->Title);
@@ -166,7 +166,7 @@ BOOLEAN AddLegacyEntry(IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
   // default entry
 //  SubEntry = (__typeof__(SubEntry))AllocateZeroPool(sizeof(LEGACY_ENTRY));
   SubEntry =  new LEGACY_ENTRY();
-  SubEntry->Title         = PoolPrint(L"Boot %s", LoaderTitle);
+  SubEntry->Title.SPrintf("Boot %ls", LoaderTitle);
 //  SubEntry->Tag           = TAG_LEGACY;
   SubEntry->Volume           = Entry->Volume;
   SubEntry->DevicePathString = Entry->DevicePathString;

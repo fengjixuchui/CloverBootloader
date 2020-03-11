@@ -28,11 +28,10 @@ public:
 	void Init(UINTN aSize=0);
 	XStringW();
 	XStringW(const XStringW &aString);
-	XStringW(const wchar_t *);
-	XStringW(const wchar_t* S, UINTN count);
-	XStringW(const wchar_t);
-
-	XStringW(const char*);
+//	XStringW(const wchar_t *);
+//	XStringW(const wchar_t* S, UINTN count);
+//	XStringW(const wchar_t);
+//	XStringW(const char*);
 
 	~XStringW();
 
@@ -48,10 +47,13 @@ public:
 	UINTN size() const { return m_len; }
 	UINTN allocatedSize() const { return m_allocatedSize; }
 	void SetLength(UINTN len);
+	const wchar_t* s() { return m_data; }
 
 	/* IsNull ? */
-	bool IsNull() const { return length() == 0 ; }
-	bool NotNull() const { return length() > 0 ; }
+	void setEmpty() { m_len = 0; }
+	bool isEmpty() const { return size() == 0; }
+//	bool IsNull() const { return size() == 0 ; }
+//	bool NotNull() const { return size() > 0 ; }
 
 	/* Cast */
 	operator const wchar_t *() const { return data(); }
@@ -96,8 +98,11 @@ public:
 
 
 	const XStringW &operator =(const XStringW &aString);
-	const XStringW &operator =(const wchar_t* S);
-	const XStringW &operator =(wchar_t);
+//	const XStringW &operator =(const wchar_t* S) {fdsf};
+//	const XStringW &operator =(wchar_t);
+
+	const XStringW& takeValueFrom(const wchar_t* S);
+	const XStringW& takeValueFrom(const char* S);
 
 	const XStringW &operator += (const XStringW &);
 	const XStringW &operator += (const wchar_t* S);
@@ -143,7 +148,7 @@ public:
 	friend XStringW operator + (const XStringW& p1, const XStringW& p2) { XStringW s; s=p1; s+=p2; return s; }
 	//    with const wchar_t
 	friend XStringW operator + (const XStringW& p1, const wchar_t *p2  ) { XStringW s; s=p1; s+=p2; return s; }
-	friend XStringW operator + (const wchar_t *p1,   const XStringW& p2) { XStringW s; s=p1; s+=p2; return s; }
+	friend XStringW operator + (const wchar_t *p1,   const XStringW& p2) { XStringW s; s.StrCat(p1); s.StrCat(p2); return s; }
 //	//    with wchar_t
 //	friend XStringW operator + (const XStringW& p1, wchar_t p2         ) { XStringW s; s=p1; s+=p2; return s; }
 //	friend XStringW operator + (wchar_t p1,   const XStringW& p2       ) { XStringW s; s=p1; s+=p2; return s; }

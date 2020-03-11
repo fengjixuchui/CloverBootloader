@@ -644,38 +644,37 @@ STATIC LOADER_ENTRY *CreateLoaderEntry(IN CONST CHAR16 *LoaderPath,
       break;
   }
 
-  Entry->Title = NULL;
-    
+
   if (FullTitle) {
-    Entry->Title = EfiStrDuplicate(FullTitle);
+    Entry->Title.takeValueFrom(FullTitle);
   }
-  if ( Entry->Title == NULL  &&  Volume->VolLabel != NULL ) {
+  if ( Entry->Title.isEmpty()  &&  Volume->VolLabel != NULL ) {
     if ( Volume->VolLabel[0] == L'#' ) {
-    	Entry->Title = PoolPrint(L"Boot %s from %s", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath), Volume->VolLabel+1);
+    	Entry->Title.SPrintf("Boot %ls from %ls", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath), Volume->VolLabel+1);
     }else{
-    	Entry->Title = PoolPrint(L"Boot %s from %s", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath), Volume->VolLabel);
+    	Entry->Title.SPrintf("Boot %ls from %ls", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath), Volume->VolLabel);
     }
   }
   
-  if ( Entry->Title == NULL  &&  ((Entry->VolName == NULL) || (StrLen(Entry->VolName) == 0)) ) {
+  if ( Entry->Title.isEmpty()  &&  ((Entry->VolName == NULL) || (StrLen(Entry->VolName) == 0)) ) {
     //DBG("encounter Entry->VolName ==%s and StrLen(Entry->VolName) ==%d\n",Entry->VolName, StrLen(Entry->VolName));
     if (GlobalConfig.BootCampStyle) {
-      Entry->Title = PoolPrint(L"%s", ((LoaderTitle != NULL) ? LoaderTitle : Basename(Volume->DevicePathString)));
+      Entry->Title.takeValueFrom(((LoaderTitle != NULL) ? LoaderTitle : Basename(Volume->DevicePathString)));
     } else {
-      Entry->Title = PoolPrint(L"Boot %s from %s", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath),
+      Entry->Title.SPrintf("Boot %ls from %ls", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath),
                                     Basename(Volume->DevicePathString));
     }
   }
-  if ( Entry->Title == NULL ) {
+  if ( Entry->Title.isEmpty() ) {
     //DBG("encounter LoaderTitle ==%s and Entry->VolName ==%s\n", LoaderTitle, Entry->VolName);
     if (GlobalConfig.BootCampStyle) {
       if ((StriCmp(LoaderTitle, L"macOS") == 0) || (StriCmp(LoaderTitle, L"Recovery") == 0)) {
-        Entry->Title = PoolPrint(L"%s", Entry->VolName);
+        Entry->Title.takeValueFrom(Entry->VolName);
       } else {
-        Entry->Title = PoolPrint(L"%s", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath));
+        Entry->Title.takeValueFrom((LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath));
       }
     } else {
-      Entry->Title = PoolPrint(L"Boot %s from %s", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath),
+      Entry->Title.SPrintf("Boot %ls from %ls", (LoaderTitle != NULL) ? LoaderTitle : Basename(LoaderPath),
                                     Entry->VolName);
     }
   }
@@ -683,7 +682,7 @@ STATIC LOADER_ENTRY *CreateLoaderEntry(IN CONST CHAR16 *LoaderPath,
   // just an example that UI can show hibernated volume to the user
   // should be better to show it on entry image
   if (OSFLAG_ISSET(Entry->Flags, OSFLAG_HIBERNATED)) {
-    Entry->Title = PoolPrint(L"%s (hibernated)", Entry->Title);
+    Entry->Title.SPrintf("%ls (hibernated)", Entry->Title.s());
   }
 
   Entry->ShortcutLetter = (Hotkey == 0) ? ShortcutLetter : Hotkey;
@@ -754,7 +753,7 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
   // create the submenu
 //  SubScreen = (__typeof__(SubScreen))AllocateZeroPool(sizeof(REFIT_MENU_SCREEN));
   SubScreen = new REFIT_MENU_SCREEN;
-  SubScreen->Title = PoolPrint(L"Options for %s", Entry->Title, Entry->VolName);
+  SubScreen->Title = PoolPrint(L"Options for %s", Entry->Title.s(), Entry->VolName);
   SubScreen->TitleImage = Entry->Image;
   SubScreen->ID = Entry->LoaderType + 20;
   //  DBG("get anime for os=%d\n", SubScreen->ID);
@@ -785,7 +784,7 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     if (OSFLAG_ISSET(Entry->Flags, OSFLAG_HIBERNATED)) {
       SubEntry = Entry->getPartiallyDuplicatedEntry();
       if (SubEntry) {
-        SubEntry->Title  = L"Cancel hibernate wake";
+        SubEntry->Title.takeValueFrom("Cancel hibernate wake");
         SubEntry->Flags     = OSFLAG_UNSET(SubEntry->Flags, OSFLAG_HIBERNATED);
         SubScreen->AddMenuEntry(SubEntry, true);
       }
@@ -794,11 +793,11 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
       if (os_version < AsciiOSVersionToUint64("10.8")) {
-        SubEntry->Title  = L"Boot Mac OS X with selected options";
+        SubEntry->Title.takeValueFrom("Boot Mac OS X with selected options");
       } else if (os_version < AsciiOSVersionToUint64("10.12")) {
-        SubEntry->Title  = L"Boot OS X with selected options";
+        SubEntry->Title.takeValueFrom("Boot OS X with selected options");
       } else {
-        SubEntry->Title  = L"Boot macOS with selected options";
+        SubEntry->Title.takeValueFrom("Boot macOS with selected options");
       }
       SubScreen->AddMenuEntry(SubEntry, true);
     }
@@ -806,11 +805,11 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
       if (os_version < AsciiOSVersionToUint64("10.8")) {
-        SubEntry->Title  = L"Boot Mac OS X with injected kexts";
+        SubEntry->Title.takeValueFrom("Boot Mac OS X with injected kexts");
       } else if (os_version < AsciiOSVersionToUint64("10.12")) {
-        SubEntry->Title  = L"Boot OS X with injected kexts";
+        SubEntry->Title.takeValueFrom("Boot OS X with injected kexts");
       } else {
-        SubEntry->Title  = L"Boot macOS with injected kexts";
+        SubEntry->Title.takeValueFrom("Boot macOS with injected kexts");
       }
       SubEntry->Flags       = OSFLAG_UNSET(SubEntry->Flags, OSFLAG_CHECKFAKESMC);
       SubEntry->Flags       = OSFLAG_SET(SubEntry->Flags, OSFLAG_WITHKEXTS);
@@ -819,11 +818,11 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
       if (os_version < AsciiOSVersionToUint64("10.8")) {
-        SubEntry->Title  = L"Boot Mac OS X without injected kexts";
+        SubEntry->Title.takeValueFrom("Boot Mac OS X without injected kexts");
       } else if (os_version < AsciiOSVersionToUint64("10.12")) {
-        SubEntry->Title  = L"Boot OS X without injected kexts";
+        SubEntry->Title.takeValueFrom("Boot OS X without injected kexts");
       } else {
-        SubEntry->Title  = L"Boot macOS without injected kexts";
+        SubEntry->Title.takeValueFrom("Boot macOS without injected kexts");
       }
       SubEntry->Flags       = OSFLAG_UNSET(SubEntry->Flags, OSFLAG_CHECKFAKESMC);
       SubEntry->Flags       = OSFLAG_UNSET(SubEntry->Flags, OSFLAG_WITHKEXTS);
@@ -877,7 +876,7 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     // default entry
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
-      SubEntry->Title = PoolPrint(L"Run %s", FileName);
+      SubEntry->Title.SPrintf("Run %ls", FileName);
       SubScreen->AddMenuEntry(SubEntry, true);
     }
 
@@ -885,10 +884,10 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     if (SubEntry) {
       FreePool(SubEntry->LoadOptions);
       if (Quiet) {
-        SubEntry->Title    = PoolPrint(L"%s verbose", Entry->Title);
+        SubEntry->Title.SPrintf("%ls verbose", Entry->Title.s());
         SubEntry->LoadOptions = RemoveLoadOption(Entry->LoadOptions, L"quiet");
       } else {
-        SubEntry->Title    = PoolPrint(L"%s quiet", Entry->Title);
+        SubEntry->Title.SPrintf("%ls quiet", Entry->Title.s());
         SubEntry->LoadOptions = AddLoadOption(Entry->LoadOptions, L"quiet");
       }
     }
@@ -897,10 +896,10 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     if (SubEntry) {
       FreePool(SubEntry->LoadOptions);
       if (WithSplash) {
-        SubEntry->Title    = PoolPrint(L"%s without splash", Entry->Title);
+        SubEntry->Title.SPrintf("%ls without splash", Entry->Title.s());
         SubEntry->LoadOptions = RemoveLoadOption(Entry->LoadOptions, L"splash");
       } else {
-        SubEntry->Title    = PoolPrint(L"%s with splash", Entry->Title);
+        SubEntry->Title.SPrintf("%ls with splash", Entry->Title.s());
         SubEntry->LoadOptions = AddLoadOption(Entry->LoadOptions, L"splash");
       }
     }
@@ -911,22 +910,22 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
       if (WithSplash) {
         if (Quiet) {
           TempOptions = RemoveLoadOption(Entry->LoadOptions, L"splash");
-          SubEntry->Title    = PoolPrint(L"%s verbose without splash", Entry->Title);
+          SubEntry->Title.SPrintf("%ls verbose without splash", Entry->Title.s());
           SubEntry->LoadOptions = RemoveLoadOption(TempOptions, L"quiet");
           FreePool(TempOptions);
         } else {
           TempOptions = RemoveLoadOption(Entry->LoadOptions, L"splash");
-          SubEntry->Title    = PoolPrint(L"%s quiet without splash", Entry->Title);
+          SubEntry->Title.SPrintf("%ls quiet without splash", Entry->Title.s());
           SubEntry->LoadOptions = AddLoadOption(TempOptions, L"quiet");
           FreePool(TempOptions);
         }
       } else if (Quiet) {
         TempOptions = RemoveLoadOption(Entry->LoadOptions, L"quiet");
-        SubEntry->Title    = PoolPrint(L"%s verbose with splash", Entry->Title);
+        SubEntry->Title.SPrintf("%ls verbose with splash", Entry->Title.s());
         SubEntry->LoadOptions = AddLoadOption(Entry->LoadOptions, L"splash");
         FreePool(TempOptions);
       } else {
-        SubEntry->Title    = PoolPrint(L"%s quiet with splash", Entry->Title);
+        SubEntry->Title.SPrintf("%ls quiet with splash", Entry->Title.s());
         SubEntry->LoadOptions = AddLoadOption(Entry->LoadOptions, L"quiet splash");
       }
     }
@@ -938,26 +937,26 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     // default entry
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
-      SubEntry->Title = PoolPrint(L"Run %s", FileName);
+      SubEntry->Title.SPrintf("Run %ls", FileName);
       SubScreen->AddMenuEntry(SubEntry, true);
     }
 
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
-      SubEntry->Title        = PoolPrint(L"Boot Windows from Hard Disk");
+      SubEntry->Title.takeValueFrom("Boot Windows from Hard Disk");
       SubScreen->AddMenuEntry(SubEntry, true);
     }
 
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
-      SubEntry->Title        = PoolPrint(L"Boot Windows from CD-ROM");
+      SubEntry->Title.takeValueFrom("Boot Windows from CD-ROM");
       SubEntry->LoadOptions     = PoolPrint(L"-s -c");
       SubScreen->AddMenuEntry(SubEntry, true);
     }
 
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
-      SubEntry->Title        = PoolPrint(L"Run %s in text mode", FileName);
+      SubEntry->Title.SPrintf("Run %ls in text mode", FileName);
       SubEntry->Flags           = OSFLAG_UNSET(SubEntry->Flags, OSFLAG_USEGRAPHICS);
       SubEntry->LoadOptions     = PoolPrint(L"-v");
       SubEntry->LoaderType      = OSTYPE_OTHER; // Sothor - Why are we using OSTYPE_OTHER here?

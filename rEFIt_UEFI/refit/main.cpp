@@ -565,7 +565,7 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
   CONST CHAR8                   *InstallerVersion;
   TagPtr                  dict = NULL;
   UINTN                   i;
-  NSVGfont                *font, *nextFont;
+  NSVGfont                *font; // , *nextFont;
 
 //  DBG("StartLoader() start\n");
   DbgHeader("StartLoader");
@@ -628,13 +628,16 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
   // mainParser
   // BuiltinIcons
   // OSIcons
-  font = fontsDB;
-  while (font) {
-    nextFont = font->next;
-    nsvg__deleteFont(font);
-    font = nextFont;
+  NSVGfontChain *fontChain = fontsDB;
+  while (fontChain) {
+    font = fontChain->font;
+    if (font) {
+      nsvg__deleteFont(font);
+      fontChain->font = NULL;
+    }
+    fontChain = fontChain->next;
   }
-  nsvg__deleteParser(mainParser);
+//  nsvg__deleteParser(mainParser); //temporary disabled
   //destruct_globals_objects(NULL); //we can't destruct our globals here. We need, for example, Volumes.
   
   //DumpKernelAndKextPatches(Entry->KernelAndKextPatches);
@@ -1071,7 +1074,7 @@ static VOID StartTool(IN REFIT_MENU_ENTRY_LOADER_TOOL *Entry)
   DBG("Start Tool: %s\n", Entry->LoaderPath);
   egClearScreen(&DarkBackgroundPixel);
 	// assumes "Start <title>" as assigned below
-	BeginExternalScreen(OSFLAG_ISSET(Entry->Flags, OSFLAG_USEGRAPHICS), Entry->Title + 6);
+	BeginExternalScreen(OSFLAG_ISSET(Entry->Flags, OSFLAG_USEGRAPHICS), &Entry->Title[6]); // Shouldn't we check that length of Title is at least 6 ?
     StartEFIImage(Entry->DevicePath, Entry->LoadOptions, Basename(Entry->LoaderPath), Basename(Entry->LoaderPath), NULL, NULL);
     FinishExternalScreen();
 	//ReinitSelfLib();
@@ -1581,7 +1584,7 @@ INTN FindDefaultEntry(VOID)
   Index = FindStartupDiskVolume(&MainMenu);
 
   if (Index >= 0) {
-    DBG("Boot redirected to Entry %d. '%s'\n", Index, MainMenu.Entries[Index].Title);
+    DBG("Boot redirected to Entry %d. '%s'\n", Index, MainMenu.Entries[Index].Title.s());
     // we got boot-device-data, no need to keep emulating anymore
     if (gEmuVariableControl != NULL) {
         gEmuVariableControl->UninstallEmulation(gEmuVariableControl);
@@ -1622,7 +1625,7 @@ INTN FindDefaultEntry(VOID)
         continue;
       }
 
-      DBG(" - found entry %d. '%s', Volume '%s', DevicePath '%s'\n", Index, Entry.Title, Volume->VolName, Entry.DevicePathString);
+      DBG(" - found entry %d. '%s', Volume '%s', DevicePath '%s'\n", Index, Entry.Title.s(), Volume->VolName, Entry.DevicePathString);
       // if first method failed and second succeeded - uninstall emulation
       if (gEmuVariableControl != NULL) {
         gEmuVariableControl->UninstallEmulation(gEmuVariableControl);
