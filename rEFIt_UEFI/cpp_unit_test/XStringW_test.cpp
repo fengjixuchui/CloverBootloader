@@ -11,15 +11,11 @@ int XStringW_tests()
 {
 
 #ifdef JIEF_DEBUG
-	DebugLog(2, "XStringW_tests -> Enter\n");
+//	DebugLog(2, "XStringW_tests -> Enter\n");
 #endif
-//XStringW a = " ";
-XStringW b;
-//b = a;
-//b = " ";
 
-	if ( global_str1 != L"global_str1" ) return 1;
-	if ( global_str2 != L"global_str2" ) return 2;
+	if ( global_str3 != L"global_str3" ) return 1;
+	if ( global_str4 != L"global_str4" ) return 2;
 
 #ifdef XSTRINGW_HAS_CTOR_LITTERAL
 	XStringW str(L"1");
