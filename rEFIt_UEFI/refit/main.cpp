@@ -631,17 +631,20 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
   NSVGfontChain *fontChain = fontsDB;
   while (fontChain) {
     font = fontChain->font;
+    NSVGfontChain *nextChain = fontChain->next;
     if (font) {
       nsvg__deleteFont(font);
       fontChain->font = NULL;
     }
-    fontChain = fontChain->next;
+    FreePool(fontChain);
+    fontChain = nextChain;
   }
+  fontsDB = NULL;
 //  nsvg__deleteParser(mainParser); //temporary disabled
   //destruct_globals_objects(NULL); //we can't destruct our globals here. We need, for example, Volumes.
   
   //DumpKernelAndKextPatches(Entry->KernelAndKextPatches);
-
+  DBG("start loader\n");
   // Load image into memory (will be started later)
   Status = LoadEFIImage(Entry->DevicePath, Basename(Entry->LoaderPath), NULL, &ImageHandle);
   if (EFI_ERROR(Status)) {

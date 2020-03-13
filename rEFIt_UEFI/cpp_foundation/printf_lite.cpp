@@ -889,10 +889,10 @@ void printf_with_callback(const __FlashStringHelper* format, transmitBufCallBack
 
 #if PRINTF_LITE_SNPRINTF_SUPPORT == 1
 
-char* sprintfBuf;
+printf_char_type* sprintfBuf;
 size_t sprintfBufLen;
 
-void transmitSprintf(const char* buf, size_t nbyte)
+void transmitSPrintf(const printf_char_type* buf, size_t nbyte)
 {
 	size_t i=0;
 	for ( ; sprintfBufLen>0  &&  i<nbyte ; i++) {
@@ -901,11 +901,11 @@ void transmitSprintf(const char* buf, size_t nbyte)
 	}
 }
 
-int vsnprintf(char *__restrict buf, size_t len, const char *__restrict format, va_list valist)
+int vsnprintf(printf_char_type* buf, size_t len, const char *__restrict format, va_list valist)
 {
 	sprintfBuf = buf;
 	sprintfBufLen = len-1;
-	vprintf_with_callback(format, valist, transmitSprintf
+	vprintf_with_callback(format, valist, transmitSPrintf
   #if PRINTF_LITE_TIMESTAMP_SUPPORT == 1
 									, NULL, 0
   #endif
@@ -914,7 +914,7 @@ int vsnprintf(char *__restrict buf, size_t len, const char *__restrict format, v
 	return 1;
 }
 
-int snprintf(char *__restrict buf, size_t len, const char *__restrict format, ...)
+int snprintf(printf_char_type*, size_t len, const char *__restrict format, ...)
 {
 	va_list valist;
 	va_start(valist, format);
@@ -929,7 +929,7 @@ int vsnprintf(char *__restrict buf, size_t len, const __FlashStringHelper *__res
 {
 	sprintfBuf = buf;
 	sprintfBufLen = len-1;
-	vprintf_with_callback(format, valist, transmitSprintf
+	vprintf_with_callback(format, valist, transmitSPrintf
   #if PRINTF_LITE_TIMESTAMP_SUPPORT == 1
 									, NULL, 0
   #endif
