@@ -11,6 +11,7 @@ Headers collection for procedures
 //#define DEBUG_ALL 2
 
 #include "Posix/posix.h"
+#define USE_XTHEME 0
 
 #ifdef __cplusplus
 extern "C" {
@@ -2174,7 +2175,7 @@ ParseXML (
         UINT32 bufSize
   );
 
-EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict, UINT32 bufSize);
+EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict);
 //VOID RenderSVGfont(NSVGfont  *fontSVG);
 
 TagPtr

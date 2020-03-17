@@ -1901,6 +1901,15 @@ VOID InitSelection(VOID)
   */
 
   // Radio buttons
+  //it was a nonsense egLoadImage is just inluded into egLoadIcon.
+  // will be corrected with XTheme support
+  //the procedure loadIcon should also check embedded icons
+#if USE_XTHEME
+  Button[0] = Theme.loadIcon("radio_button.png");
+  Button[1] = Theme.loadIcon("radio_button_selected.png");
+  Button[2] = Theme.loadIcon("checkbox.png");
+  Button[3] = Theme.loadIcon("checkbox_checked.png");
+#else
   Buttons[0] = egLoadImage(ThemeDir, GetIconsExt(L"radio_button", L"png"), TRUE); //memory leak
   Buttons[1] = egLoadImage(ThemeDir, GetIconsExt(L"radio_button_selected", L"png"), TRUE);
   if (!Buttons[0]) {
@@ -1938,8 +1947,21 @@ VOID InitSelection(VOID)
 //    DBG("embedded checkbox_checked\n");
     Buttons[3] = egDecodePNG(ACCESS_EMB_DATA(emb_checkbox_checked), ACCESS_EMB_SIZE(emb_checkbox_checked), TRUE);
   }
-
+#endif
   // non-selected background images
+#if USE_XTHEME
+  EFI_GRAPHICS_OUTPUT_BLT_PIXEL& BackgroundPixel;
+  if (Theme.SelectionBigFileName != NULL) {
+    BackgroundPixel = &MenuBackgroundPixel;
+  } else if (GlobalConfig.DarkEmbedded || GlobalConfig.TypeSVG) {
+    BackgroundPixel = &DarkEmbeddedBackgroundPixel;
+  } else {
+    BackgroundPixel = &StdBackgroundPixel;
+  }
+  SelectionImages[1] = XImage(row0TileSize, row0TileSize, BackgroundPixel);
+  SelectionImages[3] = XImage(row1TileSize, row1TileSize, BackgroundPixel);
+#else
+  //totally wrong
   if (GlobalConfig.SelectionBigFileName != NULL) {
     SelectionImages[1] = egCreateFilledImage(row0TileSize, row0TileSize,
                                              TRUE, &MenuBackgroundPixel);
@@ -1954,7 +1976,7 @@ VOID InitSelection(VOID)
       BackgroundPixel = StdBackgroundPixel;
       BackgroundPixel.a = 0xff;
     }
-    if (GlobalConfig.DarkEmbedded) {
+    if (GlobalConfig.DarkEmbedded) { //nonsense then equal else
       SelectionImages[1] = egCreateFilledImage(row0TileSize, row0TileSize,
                                                TRUE, &BackgroundPixel);
       SelectionImages[3] = egCreateFilledImage(row1TileSize, row1TileSize,
@@ -1968,6 +1990,7 @@ VOID InitSelection(VOID)
     }
   }
 //  DBG("selections inited\n");
+#endif
 }
 
 //
@@ -3807,7 +3830,7 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
   } else {
     MainImage = Entry->Image;
   }
-
+//this should be inited by the Theme
   if (!MainImage) {
     if (!IsEmbeddedTheme()) {
       MainImage = egLoadIcon(ThemeDir, GetIconsExt(L"icons\\os_mac", L"icns"), Scale << 3);
@@ -3820,14 +3843,40 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
     }
   }
   //  DBG("Entry title=%s; Width=%d\n", Entry->Title, MainImage->Width);
+#if USE_XTHEME
+  float fScale;
+  if (TypeSVG) {
+    fScale = (selected ? 1.f : -1.f);
+  } else {
+    fScale = ((Entry->Row == 0) ? (MainEntriesSize/128.f * (selected ? 1.f : -1.f)): 1.f) ;
+  }
+
+#else
   if (GlobalConfig.TypeSVG) {
     Scale = 16 * (selected ? 1 : -1);
   } else {
     Scale = ((Entry->Row == 0) ? (Scale * (selected ? 1 : -1)): 16) ;
   }
+#endif
+
   if (Entry->Row == 0) {
     BadgeImage = Entry->getBadgeImage();
   } //else null
+#if USE_XTHEME
+  INTN index = ((Entry->Row == 0) ? 0 : 2) + (selected ? 0 : 1);
+  XImage& TopImage = *SelectionImages[index];
+
+  if(SelectionOnTop) {
+    BaseImage.Draw(XPos, YPos, fScale);
+    BadgeImage.Draw(XPos, YPos, fScale);
+    TopImage.Draw(XPos, YPos, fScale);
+  } else {
+    TopImage.Draw(XPos, YPos, fScale);
+    BaseImage.Draw(XPos, YPos, fScale);
+    BadgeImage.Draw(XPos, YPos, fScale);
+  }
+
+#else
   if (GlobalConfig.SelectionOnTop) {
     SelectionImages[0]->HasAlpha = TRUE;
     SelectionImages[2]->HasAlpha = TRUE;
@@ -3842,13 +3891,13 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
                              BadgeImage,
                              XPos, YPos, Scale);
   }
-
+#endif
   // draw BCS indicator
   // Needy: if Labels (Titles) are hidden there is no point to draw the indicator
   if (GlobalConfig.BootCampStyle && !(GlobalConfig.HideUIFlags & HIDEUI_FLAG_LABEL)) {
     SelectionImages[4]->HasAlpha = TRUE;
 
-    // inidcator is for row 0, main entries, only
+    // indicator is for row 0, main entries, only
     if (Entry->Row == 0) {
       BltImageAlpha(SelectionImages[4 + (selected ? 0 : 1)],
                     XPos + (row0TileSize / 2) - (INTN)(INDICATOR_SIZE * 0.5f * GlobalConfig.Scale),
@@ -3867,7 +3916,16 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
     egFreeImage(MainImage);
   }
 }
-
+//the purpose of the procedure is restore Background in rect
+//XAlign is always centre, Color is the Backgrounf fill
+#if USE_XTHEME
+VOID XTheme::FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height)
+{
+  XImage TmpBuffer(Width, Height);
+  TmpBuffer.CopyScaled(Background, 1.f);
+  TmpBuffer.Draw(XPos, YPos);
+}
+#else
 VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height, IN EG_PIXEL *Color, IN UINT8 XAlign)
 {
   EG_IMAGE *TmpBuffer = NULL;
@@ -3888,6 +3946,7 @@ VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Hei
   BltImage(TmpBuffer, X, YPos);
   egFreeImage(TmpBuffer);
 }
+#endif
 
 VOID REFIT_MENU_SCREEN::DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos)
 {

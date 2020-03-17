@@ -36,7 +36,8 @@
 
 #include "../Platform/Platform.h"
 #include "screen.h"
-#include "../libeg/libegint.h"
+#include "../libeg/libegint.h" // included Platform.h
+#include "../libeg/XTheme.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_SCR 1
@@ -392,12 +393,16 @@ BOOLEAN CheckError(IN EFI_STATUS Status, IN CONST CHAR16 *where)
 // Graphics functions
 //
 
-VOID SwitchToGraphicsAndClear(VOID)
+VOID SwitchToGraphicsAndClear(VOID) //called from MENU_FUNCTION_INIT
 {
-    SwitchToGraphics();
-	if (GraphicsScreenDirty) {
-        BltClearScreen(TRUE);
+  SwitchToGraphics();
+#if USE_XTHEME
+  Theme.ClearScreen();
+#else
+	if (GraphicsScreenDirty) { //Invented in rEFIt 15 years ago
+    BltClearScreen();
 	}
+#endif
 }
 
 /*
@@ -407,10 +412,113 @@ typedef struct {
   INTN     Width;
   INTN     Height;
 } EG_RECT;
+ //same as EgRect but INTN <-> UINTN
 */
 
+#if USE_XTHEME
+VOID XTheme::ClearScreen()
+{
+  if (BanHeight < 2) {
+    BanHeight = ((UGAHeight - (int)(LayoutHeight * Scale)) >> 1);
+  }
+  if (!(HideUIFlags & HIDEUI_FLAG_BANNER)) {
+    //Banner image prepared before
+    if (!Banner.isEmpty()) {
+      BannerPlace.Width = Banner->Width;
+      BannerPlace.Height = (BanHeight >= Banner->Height) ? (INTN)Banner->Height : BanHeight;
+      BannerPlace.XPos = BannerPosX;
+      BannerPlace.YPos = BannerPosY;
+      if (!TypeSVG) {
+        // Check if new style placement value was used for banner in theme.plist
+        
+        if ((BannerPosX >=0 && BannerPosX <=1000) && (BannerPosY >=0 && BannerPosY <=1000)) {
+          // Check if screen size being used is different from theme origination size.
+          // If yes, then recalculate the placement % value.
+          // This is necessary because screen can be a different size, but banner is not scaled.
+          BannerPlace.XPos = HybridRepositioning(BannerEdgeHorizontal, BannerPosX, BannerPlace.Width,  UGAWidth,  ThemeDesignWidth );
+          BannerPlace.YPos = HybridRepositioning(BannerEdgeVertical, BannerPosY, BannerPlace.Height, UGAHeight, ThemeDesignHeight);
+          // Check if banner is required to be nudged.
+          BannerPlace.XPos = CalculateNudgePosition(BannerPlace.XPos, BannerNudgeX, Banner->Width,  UGAWidth);
+          BannerPlace.YPos = CalculateNudgePosition(BannerPlace.YPos, BannerNudgeY, Banner->Height, UGAHeight);
+          //         DBG("banner position new style\n");
+        } else {
+          // Use rEFIt default (no placement values speicifed)
+          BannerPlace.XPos = (UGAWidth - Banner->Width) >> 1;
+          BannerPlace.YPos = (BanHeight >= Banner->Height) ? (BanHeight - Banner->Height) : 0;
+          //        DBG("banner position old style\n");
+        }
+      }
 
-VOID BltClearScreen(IN BOOLEAN ShowBanner) //ShowBanner always TRUE
+    }
+  }
+  
+  //Then prepare Background from BigBack
+  if (!Background.isEmpty() && (Background.GetWidth() != UGAWidth || Background.GetHeight() != UGAHeight)) {
+    // Resolution changed
+    Background.setEmpty();
+  }
+  
+  if (Background.isEmpty()) {
+    Background = XImage(UGAWidth, UGAHeight);
+    Background.Fill(&BlueBackgroundPixel);
+  }
+  if (!BigBack.isEmpty()) {
+    switch (BackgroundScale) {
+    case imScale:
+      Background.CopyScaled(BigBack, Scale);
+      break;
+    case imCrop:
+      x = UGAWidth - BigBack.GetWidth();
+      if (x >= 0) {
+        x1 = x >> 1;
+        x2 = 0;
+        x = BigBack.GetWidth();
+      } else {
+        x1 = 0;
+        x2 = (-x) >> 1;
+        x = UGAWidth;
+      }
+      y = UGAHeight - BigBack.GetHeight();
+      if (y >= 0) {
+        y1 = y >> 1;
+        y2 = 0;
+        y = BigBack.GetHeight();
+      } else {
+        y1 = 0;
+        y2 = (-y) >> 1;
+        y = UGAHeight;
+      }
+      //the function can be in XImage class
+      egRawCopy(Background.GetPixelPtr(x1, y1),
+                BigBack.GetPixelPtr(x2, y2),
+                x, y, Background.GetWidth(), BigBack.GetWidth());
+      break;
+    case imTile:
+      x = (BigBack.GetWidth() * ((UGAWidth - 1) / BigBack.GetWidth() + 1) - UGAWidth) >> 1;
+      y = (BigBack.GetHeight() * ((UGAHeight - 1) / BigBack.GetHeight() + 1) - UGAHeight) >> 1;
+      p1 = Background.GetPixelPtr(0, 0)
+      for (j = 0; j < UGAHeight; j++) {
+ //       y2 = ((j + y) % BigBack.GetHeight()) * BigBack.GetWidth();
+        for (i = 0; i < UGAWidth; i++) {
+          *p1++ = BigBack.GetPixel((i + x) % BigBack.GetWidth(), (j + y) % BigBack.GetHeight());
+        }
+      }
+      break;
+    case imNone:
+    default:
+      // already scaled
+      break;
+    }
+  }
+  Background.Draw(0, 0, 1.f);
+//then draw banner
+  if (Banner) {
+    Banner.Draw(BannerPlace.XPos, BannerPlace.YPos, Scale);
+  }
+
+}
+#else
+VOID BltClearScreen() //ShowBanner always TRUE. Called from line 400
 {
   EG_PIXEL *p1;
   INTN i, j, x, x1, x2, y, y1, y2;
@@ -573,17 +681,17 @@ VOID BltClearScreen(IN BOOLEAN ShowBanner) //ShowBanner always TRUE
   }
   
   // Draw banner
-  if (Banner && ShowBanner) {
+  if (Banner) {
     BltImageAlpha(Banner, BannerPlace.XPos, BannerPlace.YPos, &MenuBackgroundPixel, 16);
   }
-  
+//what is the idea for the conversion?
   InputBackgroundPixel.r = (MenuBackgroundPixel.r + 0) & 0xFF;
   InputBackgroundPixel.g = (MenuBackgroundPixel.g + 0) & 0xFF;
   InputBackgroundPixel.b = (MenuBackgroundPixel.b + 0) & 0xFF;
   InputBackgroundPixel.a = (MenuBackgroundPixel.a + 0) & 0xFF;
   GraphicsScreenDirty = FALSE;
 }
-
+#endif
 VOID BltImage(IN EG_IMAGE *Image, IN INTN XPos, IN INTN YPos)
 {
   if (!Image) {
@@ -633,7 +741,8 @@ VOID BltImageAlpha(IN EG_IMAGE *Image, IN INTN XPos, IN INTN YPos, IN EG_PIXEL *
   egDrawImageArea(NewImage, 0, 0, 0, 0, XPos, YPos);
   egFreeImage(NewImage);
 }
-
+//not used
+/*
 VOID BltImageComposite(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN INTN XPos, IN INTN YPos)
 {
   INTN TotalWidth, TotalHeight, CompWidth, CompHeight, OffsetX, OffsetY;
@@ -665,7 +774,7 @@ VOID BltImageComposite(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN INTN XP
   egFreeImage(CompImage);
   GraphicsScreenDirty = TRUE;
 }
-
+*/
 /*
   --------------------------------------------------------------------
   Pos                           : Bottom    -> Mid        -> Top
@@ -677,6 +786,21 @@ VOID BltImageComposite(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN INTN XP
   BaseImage = MainImage, TopImage = Selection
 */
 
+#if USE_XTHEME
+/*
+// TopImage = SelectionImages[index]
+// The procedure will be replaced by
+if(SelectionOnTop) {
+  BaseImage.Draw(XPos, YPos, Scale/16.f);
+  BadgeImage.Draw(XPos, YPos, Scale/16.f);
+  TopImage.Draw(XPos, YPos, Scale/16.f);
+} else {
+  TopImage.Draw(XPos, YPos, Scale/16.f);
+  BaseImage.Draw(XPos, YPos, Scale/16.f);
+  BadgeImage.Draw(XPos, YPos, Scale/16.f);
+}
+ */
+#else
 VOID BltImageCompositeBadge(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN EG_IMAGE *BadgeImage, IN INTN XPos, IN INTN YPos, INTN Scale)
 {
   INTN TotalWidth, TotalHeight, CompWidth, CompHeight, OffsetX, OffsetY, OffsetXTmp, OffsetYTmp;
@@ -798,7 +922,8 @@ VOID BltImageCompositeBadge(IN EG_IMAGE *BaseImage, IN EG_IMAGE *TopImage, IN EG
   egFreeImage(NewTopImage);
   GraphicsScreenDirty = TRUE;
 }
-    
+#endif
+
 #define MAX_SIZE_ANIME 256
 
 VOID FreeAnime(GUI_ANIME *Anime)

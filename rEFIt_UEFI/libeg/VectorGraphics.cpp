@@ -5,7 +5,17 @@
  *
  */
 
+
+#define TEST_MATH 0
+#define TEST_SVG_IMAGE 1
+#define TEST_SIZEOF 0
+#define TEST_FONT 0
+#define TEST_DITHER 0
+
+
+
 #include "../Platform/Platform.h"
+
 #include "nanosvg.h"
 #include "FloatLib.h"
 #include "lodepng.h"
@@ -24,11 +34,11 @@
 #define DBG(...) DebugLog(DEBUG_VEC, __VA_ARGS__)
 #endif
 
-#define TEST_MATH 0
-#define TEST_SVG_IMAGE 1
-#define TEST_SIZEOF 0
-#define TEST_FONT 0
-#define TEST_DITHER 0
+#if USE_XTHEME
+#include "XTheme.h"
+XTheme Theme;  //later this definition will be global
+#endif
+
 
 #define NSVG_RGB(r, g, b) (((unsigned int)b) | ((unsigned int)g << 8) | ((unsigned int)r << 16))
 //#define NSVG_RGBA(r, g, b, a) (((unsigned int)b) | ((unsigned int)g << 8) | ((unsigned int)r << 16) | ((unsigned int)a << 24))
@@ -50,6 +60,136 @@ extern BOOLEAN DayLight;
 
 textFaces       textFace[4]; //0-help 1-message 2-menu 3-test
 NSVGparser      *mainParser = NULL;  //it must be global variable
+
+#if USE_XTHEME
+EFI_STATUS ParseSVGXIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float Scale, XImage&  Image)
+{
+  EFI_STATUS      Status = EFI_NOT_FOUND;
+  NSVGimage       *SVGimage;
+  NSVGrasterizer* rast = nsvgCreateRasterizer();
+  SVGimage = p->image;
+  NSVGshape   *shape;
+  NSVGgroup   *group;
+  NSVGimage *IconImage; 
+  NSVGshape *shapeNext, *shapesTail = NULL, *shapePrev;
+
+  NSVGparser* p2 = nsvg__createParser();
+  IconImage = p2->image;
+
+  shape = SVGimage->shapes;
+  shapePrev = NULL;
+  while (shape) {
+    group = shape->group;
+    shapeNext = shape->next;
+    while (group) {
+      if (strcmp(group->id, IconName) == 0) {
+        break;
+      }
+      group = group->next;
+    }
+
+    if (group) { //the shape is in the group
+      // keep this sample for debug purpose
+/*    DBG("found shape %a", shape->id);
+      DBG(" from group %a\n", group->id);
+      if ((Id == BUILTIN_SELECTION_BIG) ||
+          (Id == BUILTIN_ICON_BACKGROUND) ||
+          (Id == BUILTIN_ICON_BANNER)) {
+        shape->debug = TRUE;
+      } */
+      if (Theme.BootCampStyle && (strstr(IconName, "selection_big") != NULL)) {
+        shape->opacity = 0.f;
+      }
+      if (strstr(shape->id, "BoundingRect") != NULL) {
+        //there is bounds after nsvgParse()
+        IconImage->width = shape->bounds[2] - shape->bounds[0];
+        IconImage->height = shape->bounds[3] - shape->bounds[1];
+        if (!IconImage->height) {
+          IconImage->height = 200;
+        }
+
+        if ((strstr(IconName, "selection_big") != NULL) && (!Theme.SelectionOnTop)) {
+          Theme.MainEntriesSize = (int)(IconImage->width * Scale); //xxx
+          Theme.row0TileSize = Theme.MainEntriesSize + (int)(16.f * Scale);
+          DBG("main entry size = %d\n", Theme.MainEntriesSize);
+        }
+        if ((strstr(IconName, "selection_small") != NULL) && (!Theme.SelectionOnTop)) {
+          Theme.row1TileSize = (int)(IconImage->width * Scale);
+        }
+
+        // not exclude BoundingRect from IconImage?
+        shape->flags = 0;  //invisible
+        if (shapePrev) {
+          shapePrev->next = shapeNext;
+        }
+        else {
+          SVGimage->shapes = shapeNext;
+        }
+        shape = shapeNext;
+        continue; //while(shape) it is BoundingRect shape
+
+//        shape->opacity = 0.3f;
+      }
+      shape->flags = NSVG_VIS_VISIBLE;
+      // Add to tail
+//      ClipCount += shape->clip.count;
+      if (IconImage->shapes == NULL)
+        IconImage->shapes = shape;
+      else
+        shapesTail->next = shape;
+      shapesTail = shape;
+      if (shapePrev) {
+        shapePrev->next = shapeNext;
+      }
+      else {
+        SVGimage->shapes = shapeNext;
+      }
+      shapePrev->next = shapeNext;
+    } //the shape in the group
+    else {
+      shapePrev = shape;
+    }
+    shape = shapeNext;
+  } //while shape
+  shapesTail->next = NULL;
+
+  //add clipPaths  //xxx
+  NSVGclipPath* clipPaths = SVGimage->clipPaths;
+  NSVGclipPath* clipNext = NULL;
+  while (clipPaths) {
+    //   ClipCount += clipPaths->shapes->clip.count;
+    group = clipPaths->shapes->group;
+    clipNext = clipPaths->next;
+    while (group) {
+      if (strcmp(group->id, IconName) == 0) {
+        break;
+      }
+      group = group->parent;
+    }
+    if (group) {
+      DBG("found clipPaths for %a\n", IconName);
+      IconImage->clipPaths = SVGimage->clipPaths;
+      break;
+    }
+    clipPaths = clipNext;
+  }
+  //  DBG("found %d clips for %a\n", ClipCount, IconName);
+  //  if (ClipCount) { //Id == BUILTIN_ICON_BANNER) {
+  //    IconImage->clipPaths = SVGimage->clipPaths;
+  //  }
+
+
+  float bounds[4];
+  bounds[0] = FLT_MAX;
+  bounds[1] = FLT_MAX;
+  bounds[2] = -FLT_MAX;
+  bounds[3] = -FLT_MAX;
+  nsvg__imageBounds(p2, bounds);
+  CopyMem(IconImage->realBounds, bounds, 4 * sizeof(float));
+
+  return EFI_SUCCESS;
+}
+#endif
 
 
 EFI_STATUS ParseSVGIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float Scale, EG_IMAGE  **Image)
@@ -226,7 +366,7 @@ EFI_STATUS ParseSVGIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float Sc
   return EFI_SUCCESS;
 }
 
-EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict, UINT32 bufSize)
+EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict)
 {
   EFI_STATUS Status;
   NSVGimage       *SVGimage;
@@ -421,7 +561,7 @@ EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict, UINT32 bufSize)
     GlobalConfig.MainEntriesSize = (INTN)(128.f * Scale);
   }
   DBG("parsing theme finish\n");
-#if 1 //dump fonts
+#if 0 //dump fonts
   {
     NSVGfont        *fontSVG = NULL;
     NSVGfontChain   *fontChain = fontsDB;
@@ -440,6 +580,60 @@ EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict, UINT32 bufSize)
 #endif
   return EFI_SUCCESS;
 }
+
+#if USE_XTHEME
+EFI_STATUS ParseSVGXTheme(CONST CHAR8* buffer, TagPtr * dict)
+{
+  EFI_STATUS Status;
+  NSVGimage       *SVGimage;
+  NSVGrasterizer  *rast = nsvgCreateRasterizer();
+
+  // --- Parse theme.svg --- low case
+  mainParser = nsvgParse((CHAR8*)buffer, 72, 1.f);
+  SVGimage = mainParser->image;
+  if (!SVGimage) {
+    DBG("Theme not parsed!\n");
+    return EFI_NOT_STARTED;
+  }
+
+  // --- Get scale as theme design height vs screen height
+  float Scale;
+  // must be svg view-box
+  float vbx = mainParser->viewWidth;
+  float vby = mainParser->viewHeight;
+  DBG("Theme view-bounds: w=%d h=%d units=%a\n", (int)vbx, (int)vby, "px");
+  if (vby > 1.0f) {
+    SVGimage->height = vby;
+  }
+  else {
+    SVGimage->height = 768.f;  //default height
+  }
+  Scale = UGAHeight / SVGimage->height;
+  DBG("using scale %s\n", PoolPrintFloat(Scale));
+  Theme.Scale = Scale;
+  Theme.CentreShift = (vbx * Scale - (float)UGAWidth) * 0.5f;
+
+  if (mainParser->font) {
+    DBG("theme contains font-family=%a\n", mainParser->font->fontFamily);
+  }
+
+  Theme.Background = XImage(UGAWidth, UGAHeight);
+  if (!Theme.BigBack.isEmpty()) {
+    Theme.BigBack.setEmpty:
+  }
+  Status = EFI_NOT_FOUND;
+  if (!DayLight) {
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background_night", Scale, &Theme.BigBack);
+  }
+  if (EFI_ERROR(Status)) {
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background", Scale, &Theme.BigBack);
+  }
+  DBG("background parsed\n");
+
+
+
+}
+#endif
 
 EG_IMAGE * LoadSvgFrame(INTN i)
 {
