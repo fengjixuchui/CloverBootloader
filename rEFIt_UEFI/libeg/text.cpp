@@ -67,6 +67,17 @@ CONST EG_PIXEL SemiWhitePixel = {255, 255, 255, 210}; //semitransparent
 //
 // Text rendering
 //
+#if USE_XTHEME
+VOID egMeasureText(IN CONST CHAR16 *Text, OUT INTN *Width, OUT INTN *Height)
+{
+  INTN ScaledWidth = (INTN)(ThemeX.CharWidth * ThemeX.Scale);
+  if (Width != NULL)
+    *Width = StrLen(Text) * ((FontWidth > ScaledWidth)?FontWidth:ScaledWidth);
+  if (Height != NULL)
+    *Height = FontHeight;
+}
+#else
+
 
 VOID egMeasureText(IN CONST CHAR16 *Text, OUT INTN *Width, OUT INTN *Height)
 {
@@ -76,6 +87,7 @@ VOID egMeasureText(IN CONST CHAR16 *Text, OUT INTN *Width, OUT INTN *Height)
     if (Height != NULL)
         *Height = FontHeight;
 }
+#endif
 
 EG_IMAGE * egLoadFontImage(IN BOOLEAN UseEmbedded, IN INTN Rows, IN INTN Cols)
 {
@@ -266,9 +278,17 @@ INTN egRenderText(IN CONST CHAR16 *Text, IN OUT EG_IMAGE *CompImage,
   INTN            RealWidth = 0;
   INTN ScaledWidth = (INTN)(GlobalConfig.CharWidth * GlobalConfig.Scale);
 
-  if (GlobalConfig.TypeSVG) {
-    return drawSVGtext(CompImage, PosX, PosY, textType, Text, Cursor);
+#if USE_XTHEME
+  if (ThemeX.TypeSVG) {
+    XImage TextImage(CompImage);
+    return renderSVGtext(TextImage, PosX, PosY, textType, XStringW().takeValueFrom(Text), Cursor);
   }
+#else
+  if (GlobalConfig.TypeSVG) {
+    return renderSVGtext(CompImage, PosX, PosY, textType, Text, Cursor);
+  }
+#endif
+
   
   // clip the text
   TextLength = StrLen(Text);

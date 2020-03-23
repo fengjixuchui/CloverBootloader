@@ -93,9 +93,20 @@
   libeg/XImage.h
   libeg/XPointer.cpp
   libeg/XPointer.h
+  libeg/XTheme.h
   Platform/Posix/posix.h
+  Platform/Posix/limits.h
+  Platform/Posix/stdarg.h
+  Platform/Posix/stddef.h
+  Platform/Posix/stdint.h
+  Platform/Posix/stdlib.h
+  Platform/Posix/stdio.h
+  Platform/Posix/stdio.cpp
   Platform/Posix/strcmp.cpp
+  Platform/Posix/string.h
   Platform/Posix/strlen.cpp
+  Platform/Posix/wchar.h
+  Platform/Posix/wchar.cpp
   Platform/Posix/abort.cpp
   Platform/AcpiPatcher.cpp
 	Platform/ati_reg.h
@@ -107,6 +118,7 @@
 #	Platform/Bmp.h
 	Platform/boot.h
 	Platform/BootLog.cpp
+	Platform/BootLog.h
 	Platform/BootOptions.cpp
 	Platform/Console.cpp
 	Platform/cpu.cpp
@@ -188,8 +200,6 @@
   cpp_util/operatorNewDelete.cpp
   cpp_util/operatorNewDelete.h
   cpp_util/remove_ref.h
-  cpp_foundation/printf_lite.cpp
-  cpp_foundation/printf_lite.h
   cpp_foundation/utf8Conversion.cpp
   cpp_foundation/utf8Conversion.h
   cpp_foundation/XArray.h
@@ -210,6 +220,11 @@
   cpp_unit_test/all_tests.cpp
   cpp_unit_test/global_test.cpp
   cpp_unit_test/global_test.h
+  cpp_unit_test/unicode_conversions.cpp
+  cpp_unit_test/unicode_conversions.h
+  cpp_unit_test/printf_lite-test.cpp
+  cpp_unit_test/printf_lite-test.h
+  cpp_unit_test/printf_lite-test-cpp_conf.h
   cpp_unit_test/strlen_test.cpp
   cpp_unit_test/strlen_test.h
   cpp_unit_test/strcmp_test.cpp

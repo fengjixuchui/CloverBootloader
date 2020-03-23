@@ -35,14 +35,14 @@ typedef union {
   UINT32                        Raw;
 } EFI_GRAPHICS_OUTPUT_BLT_PIXEL_UNION;
 #endif
-
+/*
 typedef struct {
   UINTN Xpos;
   UINTN Ypos;
   UINTN Width;
   UINTN Height;
 } EgRect;
-
+*/
 class XImage
 {
 protected:
@@ -80,20 +80,24 @@ public:
 
 
   void Fill(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color = { 0, 0, 0, 0 });
-  void FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, const EgRect& Rect);
+  void FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, EG_RECT& Rect);
   void CopyScaled(const XImage& Image, float scale);
   void Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest); //instead of compose we often can Back.Draw(...) + Top.Draw(...)
   void FlipRB(bool WantAlpha);
-  unsigned FromPNG(const UINT8 * Data, UINTN Lenght);
-  unsigned ToPNG(UINT8** Data, UINTN& OutSize);
-  unsigned FromSVG(const CHAR8 *SVGData, float scale);
+  EFI_STATUS FromPNG(const UINT8 * Data, UINTN Lenght);
+  EFI_STATUS ToPNG(UINT8** Data, UINTN& OutSize);
+  EFI_STATUS FromSVG(const CHAR8 *SVGData, float scale);
+  EFI_STATUS FromEGImage(const EG_IMAGE* egImage);
   void GetArea(const EG_RECT& Rect);
   void GetArea(INTN x, INTN y, UINTN W, UINTN H);
   void Draw(INTN x, INTN y, float scale);
   void DrawWithoutCompose(INTN x, INTN y, UINTN width = 0, UINTN height = 0);
-  
-  EFI_STATUS LoadImage(EFI_FILE *Dir, const XStringW& FileName); //for example LoadImage(ThemeDir, L"icons\\" + Name);
+//I changed the name because LoadImage is too widely used
+// will be used instead of old egLoadImage
+  EFI_STATUS LoadXImage(EFI_FILE *Dir, const XStringW& FileName); //for example LoadImage(ThemeDir, L"icons\\" + Name);
+  EFI_STATUS LoadXImage(EFI_FILE *BaseDir, const char* IconName);
   void EnsureImageSize(IN UINTN Width, IN UINTN Height, IN CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color);
+  void DummyImage(IN UINTN PixelSize);
 
 };
 

@@ -55,8 +55,6 @@
     https://www.chromium.org/chromium-os
 */
 
-#define ADVLOG 1
-
 // Experimental <--
 
 #include "../libeg/libeg.h"
@@ -64,6 +62,11 @@
 #include "../cpp_foundation/XObjArray.h"
 #include "../cpp_foundation/XStringWArray.h"
 #include "../cpp_foundation/XStringW.h"
+#if USE_XTHEME
+#include "../libeg/XTheme.h"
+extern XTheme ThemeX; //global variable defined in lib.cpp
+#endif
+
 #endif
 
 #define REFIT_DEBUG (2)
@@ -324,7 +327,7 @@ typedef struct {
   BOOLEAN IsScrolling, PaintAll, PaintSelection;
 } SCROLL_STATE;
 
-extern BOOLEAN ScrollEnabled;
+//extern BOOLEAN ScrollEnabled;
 extern EG_RECT UpButton;
 extern EG_RECT DownButton;
 extern EG_RECT ScrollbarBackground;

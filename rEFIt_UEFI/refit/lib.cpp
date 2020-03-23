@@ -58,6 +58,11 @@ EFI_FILE         *SelfDir;
 CHAR16           *SelfDirPath;
 EFI_DEVICE_PATH  *SelfDevicePath;
 EFI_DEVICE_PATH  *SelfFullDevicePath;
+
+#if USE_XTHEME
+XTheme ThemeX;
+#endif
+
 EFI_FILE         *ThemeDir = NULL;
 CHAR16           *ThemePath;
 BOOLEAN          gThemeChanged = FALSE;
@@ -985,6 +990,10 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
           Status = FileHandle->Read(FileHandle, &BufferSize, Buffer);
           FileHandle->Close(FileHandle);
           if (!EFI_ERROR(Status)) {
+                // strip line endings
+                while (BufferSize > 0 && (Buffer[BufferSize-1]=='\n' || Buffer[BufferSize-1]=='\r')) {
+                  Buffer[--BufferSize]='\0';
+                }
           	Volume->VolLabel = PoolPrint(L"%a", Buffer);
           }
       }
@@ -1555,7 +1564,7 @@ MetaiMatch (
 	if (!mUnicodeCollation) {
 		// quick fix for driver loading on UEFIs without UnicodeCollation
 		//return FALSE;
-		return TRUE;
+		return TRUE; //this is wrong anyway
 	}
 	return mUnicodeCollation->MetaiMatch (mUnicodeCollation, String, Pattern);
 }

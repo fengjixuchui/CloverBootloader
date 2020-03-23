@@ -68,16 +68,21 @@ public:
   UINTN             ID;
 #if USE_XTHEME
   XStringW Title;
-  XImage TitleImage;
+  XImage  TitleImage;
 #else
-  CONST  CHAR16      *Title;  //Title is not const, but *Title is. It will be better to make it XStringW
+  CONST  CHAR16     *Title;  //Title is not const, but *Title is. It will be better to make it XStringW
   EG_IMAGE          *TitleImage;
 #endif
   XStringWArray     InfoLines;
   XObjArray<REFIT_ABSTRACT_MENU_ENTRY> Entries;
   INTN              TimeoutSeconds;
+#if USE_XTHEME
+  XStringW  TimeoutText;
+  XStringW  ThemeName;
+#else
   CONST CHAR16     *TimeoutText;
   CONST CHAR16     *Theme;
+#endif
   BOOLEAN           AnimeRun;
   BOOLEAN           Once;
   UINT64            LastDraw;
@@ -89,17 +94,63 @@ public:
   ACTION      mAction;
   UINTN       mItemID;
   SCROLL_STATE ScrollState;
+  BOOLEAN ScrollEnabled;
 //  MENU_STYLE_FUNC StyleFunc;
 
+  //TODO scroll positions should depends on REFIT_SCREEN?
+  // Or it just currently calculated to be global variables?
+  /*
+  EG_RECT BarStart;
+  EG_RECT BarEnd;
+  EG_RECT ScrollStart;
+  EG_RECT ScrollEnd;
+  EG_RECT ScrollTotal;
+  EG_RECT UpButton;
+  EG_RECT DownButton;
+  EG_RECT ScrollbarBackground;
+  EG_RECT Scrollbar;
+  EG_RECT ScrollbarOldPointerPlace;
+  EG_RECT ScrollbarNewPointerPlace;
+*/
 
+#if USE_XTHEME
   REFIT_MENU_SCREEN()
-						: ID(0), Title(0), TitleImage(0),
-						  TimeoutSeconds(0), TimeoutText(0), Theme(0), AnimeRun(0),
+						: ID(0), Title(), TitleImage(),
+						  TimeoutSeconds(0), TimeoutText(), ThemeName(), AnimeRun(0),
 						  Once(0), LastDraw(0), CurrentFrame(0),
 						  Frames(0), FrameTime(0),
 						  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
 						{};
+#else
+  REFIT_MENU_SCREEN()
+  : ID(0), Title(0), TitleImage(0),
+  TimeoutSeconds(0), TimeoutText(0), Theme(0), AnimeRun(0),
+  Once(0), LastDraw(0), CurrentFrame(0),
+  Frames(0), FrameTime(0),
+  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
+  {};
 
+#endif
+
+#if USE_XTHEME
+  REFIT_MENU_SCREEN(UINTN ID, XStringW Title, XStringW TimeoutText)
+  : ID(ID), Title(Title), TitleImage(),
+  TimeoutSeconds(0), TimeoutText(TimeoutText), ThemeName(), AnimeRun(0),
+  Once(0), LastDraw(0), CurrentFrame(0),
+  Frames(0), FrameTime(0),
+  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
+  {};
+  REFIT_MENU_SCREEN(UINTN ID, CONST CHAR16* TitleC, CONST CHAR16* TimeoutTextC)
+  : ID(ID), Title(), TitleImage(),
+  TimeoutSeconds(0), TimeoutText(), ThemeName(), AnimeRun(0),
+  Once(0), LastDraw(0), CurrentFrame(0),
+  Frames(0), FrameTime(0),
+  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
+  {
+    Title.takeValueFrom(TitleC);
+    TimeoutText.takeValueFrom(TimeoutTextC);
+  };
+#else
   REFIT_MENU_SCREEN(UINTN ID, CONST CHAR16* Title, CONST CHAR16* TimeoutText)
 						: ID(ID), Title(Title), TitleImage(0),
 						  TimeoutSeconds(0), TimeoutText(TimeoutText), Theme(0), AnimeRun(0),
@@ -107,6 +158,20 @@ public:
 						  Frames(0), FrameTime(0),
 						  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
 						{};
+#endif
+
+#if USE_XTHEME
+  REFIT_MENU_SCREEN(UINTN ID, XStringW  Title, XStringW  TimeoutText, REFIT_ABSTRACT_MENU_ENTRY* entry1, REFIT_ABSTRACT_MENU_ENTRY* entry2)
+  : ID(ID), Title(Title), TitleImage(),
+  TimeoutSeconds(0), TimeoutText(TimeoutText), ThemeName(), AnimeRun(0),
+  Once(0), LastDraw(0), CurrentFrame(0),
+  Frames(0), FrameTime(0),
+  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
+  {
+    Entries.AddReference(entry1, false);
+    Entries.AddReference(entry2, false);
+  };
+#else
   REFIT_MENU_SCREEN(UINTN ID, CONST CHAR16* Title, CONST CHAR16* TimeoutText, REFIT_ABSTRACT_MENU_ENTRY* entry1, REFIT_ABSTRACT_MENU_ENTRY* entry2)
 						: ID(ID), Title(Title), TitleImage(0),
 						  TimeoutSeconds(0), TimeoutText(TimeoutText), Theme(0), AnimeRun(0),
@@ -114,14 +179,16 @@ public:
 						  Frames(0), FrameTime(0),
 						  Film(0), mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
 						{
-	  	  	  	  	  	  	  Entries.AddReference(entry1, false);
-	  	  	  	  	  	  	  Entries.AddReference(entry2, false);
+	  	  	  	Entries.AddReference(entry1, false);
+              Entries.AddReference(entry2, false);
 						};
+#endif
 
   //Scroll functions
   VOID InitScroll(IN INTN ItemCount, IN UINTN MaxCount,
                   IN UINTN VisibleSpace, IN INTN Selected);
   VOID UpdateScroll(IN UINTN Movement);
+  VOID ScrollingBar();
   VOID HidePointer();
   EFI_STATUS MouseBirth();
   VOID KillMouse();
@@ -129,6 +196,7 @@ public:
   VOID AddMenuInfo(CONST char *Line);
   VOID AddMenuInfo_f(CONST char *format, ...);
   VOID AddMenuInfoLine(IN CONST CHAR16 *InfoLine);
+  VOID AddMenuInfoLine(IN XStringW& InfoLine);
   VOID AddMenuEntry(IN REFIT_ABSTRACT_MENU_ENTRY *Entry, bool freeIt);
   VOID AddMenuItemSwitch(INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);
   VOID AddMenuCheck(CONST CHAR8 *Text, UINTN Bit, INTN ItemNum);

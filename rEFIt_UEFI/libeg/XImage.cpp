@@ -2,6 +2,7 @@
 #include "lodepng.h"
 #include "nanosvg.h"
 
+
 #ifndef DEBUG_ALL
 #define DEBUG_XIMAGE 1
 #else
@@ -23,30 +24,44 @@ XImage::XImage()
 
 XImage::XImage(UINTN W, UINTN H)
 {
-  Width = W;
-  Height = H;
+//  Width = W;
+//  Height = H; //included below
   setSizeInPixels(W, H);
 }
 
 XImage::XImage(EG_IMAGE* egImage)
 {
   if ( egImage) {
-	  Width = egImage->Width;
-	  Height = egImage->Height;
-	  setSizeInPixels(GetWidth(), GetHeight()); // change the size, ie the number of element in the array. Reaalocate buffer if needed
+//	  Width = egImage->Width;
+//	  Height = egImage->Height;
+	  setSizeInPixels(egImage->Width, egImage->Height); // change the size, ie the number of element in the array. Reaalocate buffer if needed
 	  CopyMem(&PixelData[0], egImage->PixelData, GetSizeInBytes());
   }else{
-	  Width = 0;
-	  Height = 0;
-	  setSizeInPixels(GetWidth(), GetHeight()); // change the size, ie the number of element in the array. Reaalocate buffer if needed
+//	  Width = 0;
+//	  Height = 0;
+	  setSizeInPixels(0, 0); // change the size, ie the number of element in the array. Reallocate buffer if needed
   }
+}
+
+EFI_STATUS XImage::FromEGImage(const EG_IMAGE* egImage)
+{
+  if ( egImage) {
+    setSizeInPixels(egImage->Width, egImage->Height);
+    CopyMem(&PixelData[0], egImage->PixelData, GetSizeInBytes());
+  } else {
+    setSizeInPixels(0, 0);
+  }
+  if (GetSizeInBytes() == 0) {
+    return EFI_NOT_FOUND;
+  }
+  return EFI_SUCCESS;
 }
 
 XImage& XImage::operator= (const XImage& other)
 {
-	Width = other.GetWidth();
-	Height = other.GetHeight();
-	setSizeInPixels(GetWidth(), GetHeight()); // change the size, ie the number of element in the array. Reaalocate buffer if needed
+//	Width = other.GetWidth();
+//	Height = other.GetHeight();
+	setSizeInPixels(other.GetWidth(), other.GetHeight()); // change the size, ie the number of element in the array. Reaalocate buffer if needed
 	CopyMem(&PixelData[0], &other.PixelData[0], GetSizeInBytes());
 	return *this;
 }
@@ -63,17 +78,17 @@ XImage::XImage(const XImage& Image, float scale)
   UINTN SrcHeight = Image.GetHeight();
 
   if (scale < 1.e-4) {
-    Width = SrcWidth;
-    Height = SrcHeight;
-    setSizeInPixels(GetWidth(), GetHeight());
+//    Width = SrcWidth;
+//    Height = SrcHeight;
+    setSizeInPixels(SrcWidth, SrcHeight);
     for (UINTN y = 0; y < Height; ++y)
       for (UINTN x = 0; x < Width; ++x)
         PixelData[y * Width + x] = Image.GetPixel(x, y);
 
   } else {
-    Width = (UINTN)(SrcWidth * scale);
-    Height = (UINTN)(SrcHeight * scale);
-    setSizeInPixels(GetWidth(), GetHeight());
+//    Width = (UINTN)(SrcWidth * scale);
+//    Height = (UINTN)(SrcHeight * scale);
+    setSizeInPixels((UINTN)(SrcWidth * scale), (UINTN)(SrcHeight * scale));
     CopyScaled(Image, scale);
   }
 }
@@ -175,8 +190,10 @@ UINTN XImage::GetSizeInBytes() const
   return PixelData.size() * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
 }
 
-void XImage::setSizeInPixels(UINTN W, UINTN H)
+void XImage::setSizeInPixels(UINTN W, UINTN H) //unused arguments?
 {
+  Width = W;
+  Height = H;
 	PixelData.setSize(Width * Height);
 }
 
@@ -187,12 +204,11 @@ void XImage::Fill(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color)
       PixelData[y * Width + x] = Color;
 }
 
-void XImage::FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, const EgRect& Rect)
+
+void XImage::FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, EG_RECT& Rect)
 {
-  for (UINTN y = Rect.Ypos; y < Height && (y - Rect.Ypos) < Rect.Height; ++y) {
-//    EFI_GRAPHICS_OUTPUT_BLT_PIXEL* Ptr = PixelData + y * Width + Rect.Xpos;
-    for (UINTN x = Rect.Xpos; x < Width && (x - Rect.Xpos) < Rect.Width; ++x)
-//      *Ptr++ = Color;
+  for (INTN y = Rect.YPos; y < (INTN)Height && (y - Rect.YPos) < Rect.Height; ++y) {
+    for (INTN x = Rect.XPos; x < (INTN)Width && (x - Rect.XPos) < Rect.Width; ++x)
       PixelData[y * Width + x] = Color;
   }
 }
@@ -266,6 +282,14 @@ void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
   }
 }
 
+/* Place this image over Back image at PosX,PosY
+ * and result will be in this image
+ * But pixels will be moved anyway so it's impossible without double copy
+ *
+ */
+//void XImage::ComposeOnBack(INTN PosX, INTN PosY, const XImage& BackImage, bool Lowest)
+
+
 void XImage::FlipRB(bool WantAlpha)
 {
   UINTN ImageSize = (Width * Height);
@@ -284,13 +308,16 @@ void XImage::FlipRB(bool WantAlpha)
  * Error = 0 - Success
  * Error = 28 - invalid signature
  */
-unsigned XImage::FromPNG(const UINT8 * Data, UINTN Length)
+EFI_STATUS XImage::FromPNG(const UINT8 * Data, UINTN Length)
 {
+  if (Data == NULL) return EFI_INVALID_PARAMETER;
   UINT8 * PixelPtr = (UINT8 *)&PixelData[0];
   unsigned Error = eglodepng_decode(&PixelPtr, &Width, &Height, Data, Length);
-
+  if (Error != 0 && Error != 28) {
+    return EFI_NOT_FOUND;
+  }
   FlipRB(true);
-  return Error;
+  return EFI_SUCCESS;
 }
 
 /*
@@ -299,31 +326,33 @@ unsigned XImage::FromPNG(const UINT8 * Data, UINTN Length)
  * The caller is responsible to free the array.
  */
 
-unsigned XImage::ToPNG(UINT8** Data, UINTN& OutSize)
+EFI_STATUS XImage::ToPNG(UINT8** Data, UINTN& OutSize)
 {
   size_t           FileDataLength = 0;
   FlipRB(false);
   UINT8 * PixelPtr = (UINT8 *)&PixelData[0];
   unsigned Error = eglodepng_encode(Data, &FileDataLength, PixelPtr, Width, Height);
   OutSize = FileDataLength;
-  return Error;
+  if (Error) return EFI_UNSUPPORTED;
+  return EFI_SUCCESS;
 }
 
 /*
- * fill XImage object by raster data described in SVG
+ * fill XImage object by raster data described in SVG file
  * caller should create the object with Width and Height and calculate scale
  * scale = 1 correspond to fill the rect with the image
- * scale = 0.5 will reduce image 
+ * scale = 0.5 will reduce image
+ * but this procedure is mostly for testing purpose. Real SVG theme can't be divided to separate SVG files
  */
-unsigned XImage::FromSVG(const CHAR8 *SVGData, float scale)
+EFI_STATUS XImage::FromSVG(const CHAR8 *SVGData, float scale)
 {
   NSVGimage       *SVGimage;
   NSVGparser* p;
 
   NSVGrasterizer* rast = nsvgCreateRasterizer();
-  if (!rast) return 1;
+  if (!rast) return EFI_UNSUPPORTED;
   char *input = (__typeof__(input))AllocateCopyPool(AsciiStrSize(SVGData), SVGData);
-  if (!input) return 2;
+  if (!input) return EFI_DEVICE_ERROR;
 
   p = nsvgParse(input, 72, 1.f); //the parse will change input contents
   SVGimage = p->image;
@@ -340,7 +369,7 @@ unsigned XImage::FromSVG(const CHAR8 *SVGData, float scale)
 //  nsvg__deleteParser(p); //can't delete raster until we make imageChain
   nsvgDeleteRasterizer(rast);
   FreePool(input);
-  return 0;
+  return EFI_SUCCESS;
 }
 
 // Screen operations
@@ -381,33 +410,33 @@ void XImage::GetArea(INTN x, INTN y, UINTN W, UINTN H)
 
   setSizeInPixels(Width, Height); // setSizeInPixels BEFORE, so &PixelData[0]
   if ( Width == 0 || Height == 0 ) return; // nothing to get, area is zero. &PixelData[0] would crash
-
+/*
+ * Blt(...Width, Height, Delta);
+ * if (Delta == 0) {
+ *   Delta = Width * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
+ *  }
+ *
+ */
   if (GraphicsOutput != NULL) {
     GraphicsOutput->Blt(GraphicsOutput,
       &PixelData[0],
       EfiBltVideoToBltBuffer,
-      x, y, 0, 0, Width, Height, Width*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+      x, y, 0, 0, Width, Height, 0); // Width*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
   }
   else if (UgaDraw != NULL) {
     UgaDraw->Blt(UgaDraw,
       (EFI_UGA_PIXEL *)GetPixelPtr(0,0),
       EfiUgaVideoToBltBuffer,
-      x, y, 0, 0, Width, Height, Width*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+      x, y, 0, 0, Width, Height, 0); //Width*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
   }
 }
 
 void XImage::DrawWithoutCompose(INTN x, INTN y, UINTN width, UINTN height)
 {
-//  //prepare images
-////  DBG("1\n");
-//  XImage Top(*this, scale);
-////  DBG("2\n");
-//  XImage Background(Width, Height);
-////  DBG("3\n");
-//  Background.GetArea(x, y, Width, Height);
-////  DBG("4\n");
-//  Background.Compose(0, 0, Top, true);
-////  DBG("5\n");
+  if (isEmpty()) {
+    return;
+  }
+
   if ( width == 0 ) width = Width;
   if ( height == 0 ) height = Height;
   UINTN AreaWidth = (x + width > (UINTN)UGAWidth) ? (UGAWidth - x) : width;
@@ -442,6 +471,10 @@ void XImage::DrawWithoutCompose(INTN x, INTN y, UINTN width, UINTN height)
 void XImage::Draw(INTN x, INTN y, float scale)
 {
   //prepare images
+  if (isEmpty()) {
+    return;
+  }
+
   XImage Top(*this, scale);
   XImage Background(Width, Height);
   Background.GetArea(x, y, Width, Height);
@@ -471,56 +504,108 @@ void XImage::Draw(INTN x, INTN y, float scale)
   }
   else if (UgaDraw != NULL) {
     UgaDraw->Blt(UgaDraw, (EFI_UGA_PIXEL *)Background.GetPixelPtr(0, 0), EfiUgaBltBufferToVideo,
-      0, 0, x, y, AreaWidth, AreaHeight, 0);
+      0, 0, x, y, AreaWidth, AreaHeight, GetWidth()*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
   }
 }
 
-EFI_STATUS XImage::LoadImage(EFI_FILE *BaseDir, const XStringW& FileName)
+/*
+ * IconName is just func_about for example
+ * will search files
+ * icons/iconname.icns - existing themes
+ * icons/iconname.png - it will be more correct
+ * iconname.png - for example checkbox.png
+ * if not found use embedded. It should be decoded again after theme change
+ * SVG themes filled separately after ThemeName defined so the procedure just return EFI_SUCCESS
+ * The function always create new image and will not be used to get a link to existing image
+ */
+EFI_STATUS XImage::LoadXImage(EFI_FILE *BaseDir, const char* IconName)
+{
+  return LoadXImage(BaseDir, XStringWP(IconName));
+}
+//dont call this procedure for SVG theme BaseDir == NULL?
+EFI_STATUS XImage::LoadXImage(EFI_FILE *BaseDir, const XStringW& IconName)
 {
   EFI_STATUS      Status = EFI_NOT_FOUND;
   UINT8           *FileData = NULL;
   UINTN           FileDataLength = 0;
 
-//  if (TypeSVG) {
+//  if (TypeSVG) { //make a copy of SVG image
+//    XImage NewImage = Theme.GetIcon(IconName);
+//    setSizeInPixels(NewImage.GetWidth(), NewImage.GetHeight());
+//    CopyMem(&PixelData[0], &NewImage.PixelData[0], GetSizeInBytes());
 //    return EFI_SUCCESS;
 //  }
   
-  if (BaseDir == NULL || FileName.isEmpty())
+  if (BaseDir == NULL || IconName.isEmpty())
     return EFI_NOT_FOUND;
   
   // load file
+  XStringW FileName = L"icons\\" + IconName + L".icns";
   Status = egLoadFile(BaseDir, FileName.data(), &FileData, &FileDataLength);
-  if (EFI_ERROR(Status))
-    return Status;
-  
+  if (EFI_ERROR(Status)) {
+    FileName = L"icons\\" + IconName + L".png";
+    Status = egLoadFile(BaseDir, FileName.data(), &FileData, &FileDataLength);
+    if (EFI_ERROR(Status)) {
+      FileName = IconName + L".png";
+      if (EFI_ERROR(Status)) {
+        FileName = IconName; //may be it already contain extension, for example Logo.png
+        Status = egLoadFile(BaseDir, FileName.data(), &FileData, &FileDataLength);
+        if (EFI_ERROR(Status)) {
+          return Status;
+        }
+      }
+    }
+  }
+
   // decode it
-  unsigned ret = FromPNG(FileData, FileDataLength);
-  
-  if (ret) {
-    DBG("%s not decoded\n", FileName.data());
-    Status = EFI_UNSUPPORTED;
+  Status = FromPNG(FileData, FileDataLength);  
+  if (EFI_ERROR(Status)) {
+    DBG("%s not decoded\n", IconName.data());
   }
   FreePool(FileData);
   return Status;
 }
 
-
+//EnsureImageSize should create new object with new sizes
+//while compose uses old object
 void XImage::EnsureImageSize(IN UINTN NewWidth, IN UINTN NewHeight, IN CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color)
 {
-//    EG_IMAGE *NewImage;
-
-  if (isEmpty())
-    return;
   if (NewWidth == Width && NewHeight == Height)
     return;
 
-/*    NewImage = egCreateFilledImage(Width, Height, true, Color); // TODO : import that method to directly deal with XImage
-    if (NewImage == NULL) {
-        return; // panic instead ?
-    } */
   XImage NewImage(NewWidth, NewHeight);
   NewImage.Fill(Color);
+  NewImage.Compose(0, 0, (*this), false);
+  setSizeInPixels(NewWidth, NewHeight); //include reallocate but loose data
+  CopyMem(&PixelData[0], &NewImage.PixelData[0], GetSizeInBytes());
+  //we have to copy pixels twice? because we can't return newimage instead of this
+}
 
-  Compose(0, 0, NewImage, false);
-//    egFreeImage(NewImage);
+void XImage::DummyImage(IN UINTN PixelSize)
+{
+
+  UINTN           LineOffset;
+  CHAR8           *Ptr, *YPtr;
+
+  setSizeInPixels(PixelSize, PixelSize);
+
+  LineOffset = PixelSize * 4;
+
+  YPtr = (CHAR8 *)GetPixelPtr(0,0) + ((PixelSize - 32) >> 1) * (LineOffset + 4);
+  for (UINTN y = 0; y < 32; y++) {
+    Ptr = YPtr;
+    for (UINTN x = 0; x < 32; x++) {
+      if (((x + y) % 12) < 6) {
+        *Ptr++ = 0;
+        *Ptr++ = 0;
+        *Ptr++ = 0;
+      } else {
+        *Ptr++ = 0;
+        *Ptr++ = ~0; //yellow
+        *Ptr++ = ~0;
+      }
+      *Ptr++ = ~111;
+    }
+    YPtr += LineOffset;
+  }
 }

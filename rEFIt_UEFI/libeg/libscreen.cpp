@@ -387,13 +387,13 @@ VOID egInitScreen(IN BOOLEAN SetMaxResolution)
     if (egScreenWidth  != 0 && egScreenHeight != 0) {
  //       Resolution = PoolPrint(L"%dx%d",egScreenWidth,egScreenHeight);
       XStringW Resolution = WPrintf("%llux%llu", egScreenWidth, egScreenHeight);
-        if (Resolution) {
+//        if (Resolution) { //no sense
             Status = egSetScreenResolution(Resolution.data());
  //           FreePool(Resolution);
             if (!EFI_ERROR(Status)) {
                 return;
             }
-        }
+//        }
     }
 
     egDumpSetConsoleVideoModes();
@@ -637,7 +637,16 @@ EFI_STATUS egScreenShot(VOID)
   //convert to PNG
   UINT8           *FileData = NULL;
   UINTN           FileDataLength = 0U;
-  Screen.ToPNG(&FileData, FileDataLength);
+  Status = Screen.ToPNG(&FileData, FileDataLength);
+  if (EFI_ERROR(Status)) {
+    if (FileData != NULL) {
+      FreePool(FileData);
+    }
+    return Status;
+  }
+  if (!FileData) {
+    return EFI_NOT_READY;
+  }
   //save file with a first unoccupied name
   XStringWP CommonName(L"EFI\\CLOVER\\misc\\screenshot");
   for (UINTN Index = 0; Index < 60; Index++) {

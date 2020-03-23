@@ -59,9 +59,9 @@ CONST CHAR8* IconsNames[] = {
    "os_freedos",
    "os_win",
    "os_vista",
-   "radio_button",
+   "radio_button", //20
    "radio_button_selected",
-   "checkbox",
+   "checkbox",  //22
    "checkbox_checked",
    "scrollbar_background", //24
    "scrollbar_holder"
@@ -132,14 +132,15 @@ void XTheme::Init()
   Scale = 1.0f;
   CentreShift = 0.0f;
   Daylight = true;
+  LayoutHeight = 376;
 }
 
 XImage& XTheme::GetIcon(const char* Name)
 {
-  return GetIcon(XStringWP(Name));
+  return GetIcon(XStringW().takeValueFrom(Name));
 }
 
-XImage& XTheme::GetIcon(XStringW& Name)
+XImage& XTheme::GetIcon(const XStringW& Name)
 {
   XImage* TheIcon = NULL;
   for (size_t i = 0; i < Icons.size(); i++)
@@ -184,44 +185,106 @@ void XTheme::AddIcon(Icon& NewIcon)
 
 //if ImageNight is not set then Image should be used
 #define DEC_BUILTIN_ICON(id, ico) { \
-   Icon NewIcon(id); \
-   NewIcon.Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico)); \
-   Icons.AddCopy(NewIcon); \
+   Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico)); \
 }
 
 #define DEC_BUILTIN_ICON2(id, ico, dark) { \
-   Icon NewIcon(id); \
-   NewIcon.Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico)); \
-   NewIcon.ImageNight.FromPNG(ACCESS_EMB_DATA(dark), ACCESS_EMB_SIZE(dark)); \
-   Icons.AddCopy(NewIcon); \
+   Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico)); \
+   ImageNight.FromPNG(ACCESS_EMB_DATA(dark), ACCESS_EMB_SIZE(dark)); \
 }
+
+Icon::Icon(INTN Index, BOOLEAN Embedded) : Image(0), ImageNight(0)
+{
+  Id = Index;
+  if (Index < BUILTIN_ICON_FUNC_ABOUT || Index >=BUILTIN_ICON_COUNT || !Embedded) {
+    Name.setEmpty();
+    return;
+  }
+  Name.takeValueFrom(IconsNames[Index]);
+  switch (Id) {
+    case BUILTIN_ICON_FUNC_ABOUT:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_ABOUT, emb_func_about, emb_dark_func_about)
+      break;
+    case BUILTIN_ICON_FUNC_OPTIONS:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_OPTIONS, emb_func_options, emb_dark_func_options)
+      break;
+    case BUILTIN_ICON_FUNC_CLOVER:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_CLOVER, emb_func_clover, emb_dark_func_clover)
+      break;
+    case BUILTIN_ICON_FUNC_SECURE_BOOT:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_SECURE_BOOT, emb_func_secureboot, emb_dark_func_secureboot)
+      break;
+    case BUILTIN_ICON_FUNC_SECURE_BOOT_CONFIG:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_SECURE_BOOT_CONFIG, emb_func_secureboot_config, emb_dark_func_secureboot_config)
+      break;
+    case BUILTIN_ICON_FUNC_RESET:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_RESET, emb_func_reset, emb_dark_func_reset)
+      break;
+    case BUILTIN_ICON_FUNC_EXIT:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_EXIT, emb_func_exit, emb_dark_func_exit)
+      break;
+    case BUILTIN_ICON_FUNC_HELP:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_HELP, emb_func_help, emb_dark_func_help)
+      break;
+    case BUILTIN_ICON_TOOL_SHELL:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_TOOL_SHELL, emb_func_shell, emb_dark_func_shell)
+      break;
+    case BUILTIN_ICON_BANNER:
+      DEC_BUILTIN_ICON2(BUILTIN_ICON_BANNER, emb_logo, emb_dark_logo)
+      break;
+    case BUILTIN_SELECTION_SMALL:
+      DEC_BUILTIN_ICON2(BUILTIN_SELECTION_SMALL, emb_selection_small, emb_dark_selection_small)
+      break;
+    case BUILTIN_SELECTION_BIG:
+      DEC_BUILTIN_ICON2(BUILTIN_SELECTION_BIG, emb_selection_big, emb_dark_selection_big)
+      break;
+      //next icons have no dark image
+    case BUILTIN_ICON_POINTER:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_POINTER, emb_pointer)
+      break;
+    case BUILTIN_ICON_VOL_INTERNAL:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_INTERNAL, emb_vol_internal)
+      break;
+    case BUILTIN_ICON_VOL_EXTERNAL:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_EXTERNAL, emb_vol_external)
+      break;
+    case BUILTIN_ICON_VOL_OPTICAL:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_OPTICAL, emb_vol_optical)
+      break;
+    case BUILTIN_ICON_VOL_BOOTER:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_BOOTER, emb_vol_internal_booter)
+      break;
+    case BUILTIN_ICON_VOL_INTERNAL_HFS:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_INTERNAL_HFS, emb_vol_internal_hfs)
+      break;
+    case BUILTIN_ICON_VOL_INTERNAL_APFS:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_INTERNAL_APFS, emb_vol_internal_apfs)
+      break;
+    case BUILTIN_ICON_VOL_INTERNAL_NTFS:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_INTERNAL_NTFS, emb_vol_internal_ntfs)
+      break;
+    case BUILTIN_ICON_VOL_INTERNAL_EXT3:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_INTERNAL_EXT3, emb_vol_internal_ext)
+      break;
+    case BUILTIN_ICON_VOL_INTERNAL_REC:
+      DEC_BUILTIN_ICON(BUILTIN_ICON_VOL_INTERNAL_REC, emb_vol_internal_recovery)
+      break;
+
+    default:
+      Name.setEmpty();
+      break;
+  }
+//something to do else?
+}
+
 
 
 void XTheme::FillByEmbedded()
 {
-    DEC_BUILTIN_ICON2(0, emb_func_about, emb_dark_func_about)
-    DEC_BUILTIN_ICON2(1, emb_func_options, emb_dark_func_options)
-    DEC_BUILTIN_ICON2(2, emb_func_clover, emb_dark_func_clover)
-    DEC_BUILTIN_ICON2(3, emb_func_secureboot, emb_dark_func_secureboot)
-    DEC_BUILTIN_ICON2(4, emb_func_secureboot_config, emb_dark_func_secureboot_config)
-    DEC_BUILTIN_ICON2(5, emb_func_reset, emb_dark_func_reset)
-    DEC_BUILTIN_ICON2(6, emb_func_exit, emb_dark_func_exit)
-    DEC_BUILTIN_ICON2(7, emb_func_help, emb_dark_func_help)
-    DEC_BUILTIN_ICON2(8, emb_func_shell, emb_dark_func_shell)
-    DEC_BUILTIN_ICON(11, emb_pointer)
-    DEC_BUILTIN_ICON(12, emb_vol_internal)
-    DEC_BUILTIN_ICON(13, emb_vol_external)
-    DEC_BUILTIN_ICON(14, emb_vol_optical)
-    DEC_BUILTIN_ICON(16, emb_vol_internal_booter)
-    DEC_BUILTIN_ICON(17, emb_vol_internal_hfs)
-    DEC_BUILTIN_ICON(18, emb_vol_internal_apfs)
-    DEC_BUILTIN_ICON(19, emb_vol_internal_ntfs)
-    DEC_BUILTIN_ICON(20, emb_vol_internal_ext)
-    DEC_BUILTIN_ICON(21, emb_vol_internal_recovery)
-    DEC_BUILTIN_ICON2(22, emb_logo, emb_dark_logo)
-    DEC_BUILTIN_ICON2(23, emb_selection_small, emb_dark_selection_small)
-    DEC_BUILTIN_ICON2(24, emb_selection_big, emb_dark_selection_big)
-
+  for (INTN i = 0; i < BUILTIN_ICON_COUNT; ++i) {
+    Icon NewIcon(i, true);
+    Icons.AddCopy(NewIcon);
+  }
 }
 
 void XTheme::ClearScreen() //and restore background and banner
@@ -333,20 +396,21 @@ void XTheme::ClearScreen() //and restore background and banner
 
 void XTheme::InitSelection()
 {
-  
+  EFI_STATUS Status;
   if (!AllowGraphicsMode)
     return;
+  //used to fill TextBuffer if selected
   SelectionBackgroundPixel.r = (SelectionColor >> 24) & 0xFF;
   SelectionBackgroundPixel.g = (SelectionColor >> 16) & 0xFF;
   SelectionBackgroundPixel.b = (SelectionColor >> 8) & 0xFF;
   SelectionBackgroundPixel.a = (SelectionColor >> 0) & 0xFF;
   
-  if (!SelectionImages[0].isEmpty()) {
+  if (!SelectionImages[0].isEmpty()) { //already presents
     return;
   }
   // load small selection image
   if (SelectionSmallFileName.isEmpty()){
-    SelectionImages[2].LoadImage(ThemeDir, SelectionSmallFileName);
+    SelectionImages[2].LoadXImage(ThemeDir, SelectionSmallFileName);
   }
   if (SelectionImages[2].isEmpty()){
 //    SelectionImages[2] = BuiltinIcon(BUILTIN_SELECTION_SMALL);
@@ -367,7 +431,7 @@ void XTheme::InitSelection()
 
   // load big selection image
   if (!TypeSVG && !SelectionBigFileName.isEmpty()) {
-    SelectionImages[0].LoadImage(ThemeDir, SelectionBigFileName);
+    SelectionImages[0].LoadXImage(ThemeDir, SelectionBigFileName);
  //   SelectionImages[0].EnsureImageSize(row0TileSize, row0TileSize, &MenuBackgroundPixel);
   }
   if (SelectionImages[0].isEmpty()) {
@@ -394,7 +458,7 @@ void XTheme::InitSelection()
   if (BootCampStyle) {
     // load indicator selection image
     if (!SelectionIndicatorName.isEmpty()) {
-      SelectionImages[4].LoadImage(ThemeDir, SelectionIndicatorName);
+      SelectionImages[4].LoadXImage(ThemeDir, SelectionIndicatorName);
     }
     if (!SelectionImages[4].isEmpty()) {
       SelectionImages[4].FromPNG(ACCESS_EMB_DATA(emb_selection_indicator), ACCESS_EMB_SIZE(emb_selection_indicator));     
@@ -427,15 +491,33 @@ void XTheme::InitSelection()
   //it was a nonsense egLoadImage is just inluded into egLoadIcon.
   // will be corrected with XTheme support
   //the procedure loadIcon should also check embedded icons
+  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_radio_button_selected)
+  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_radio_button)
+  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_checkbox)
+  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_checkbox_checked)
+  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_dark_font_data)
 
-  Button[0] = GetIcon("radio_button");
-  Button[1] = GetIcon("radio_button_selected"));
-  Button[2] = GetIcon("checkbox");
-  Button[3] = GetIcon("checkbox_checked");
+
+  Status = Button[0].LoadXImage(ThemeDir, "radio_button");
+  if (EFI_ERROR(Status)) {
+    Button[0].FromPNG(ACCESS_EMB_DATA(emb_radio_button), ACCESS_EMB_SIZE(emb_radio_button));
+  }
+  Status = Button[1].LoadXImage(ThemeDir, "radio_button_selected");
+  if (EFI_ERROR(Status)) {
+    Button[1].FromPNG(ACCESS_EMB_DATA(emb_radio_button_selected), ACCESS_EMB_SIZE(emb_radio_button_selected));
+  }
+  Status = Button[2].LoadXImage(ThemeDir, "checkbox");
+  if (EFI_ERROR(Status)) {
+    Button[2].FromPNG(ACCESS_EMB_DATA(emb_checkbox), ACCESS_EMB_SIZE(emb_checkbox));
+  }
+  Status = Button[3].LoadXImage(ThemeDir, "checkbox_checked");
+  if (EFI_ERROR(Status)) {
+    Button[3].FromPNG(ACCESS_EMB_DATA(emb_checkbox_checked), ACCESS_EMB_SIZE(emb_checkbox_checked));
+  }
 
   // non-selected background images
 
-  EFI_GRAPHICS_OUTPUT_BLT_PIXEL& BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
+  EFI_GRAPHICS_OUTPUT_BLT_PIXEL BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
   if (!SelectionBigFileName.isEmpty()) {
     BackgroundPixel = { 0x00, 0x00, 0x00, 0x00 };
   } else if (DarkEmbedded || TypeSVG) {
@@ -444,19 +526,124 @@ void XTheme::InitSelection()
     BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
   }
   SelectionImages[1] = XImage(row0TileSize, row0TileSize);
-  SelectionImages[1].Fill((EFI_GRAPHICS_OUTPUT_BLT_PIXEL&)BackgroundPixel);
+  SelectionImages[1].Fill(BackgroundPixel);
   SelectionImages[3] = XImage(row1TileSize, row1TileSize);
-  SelectionImages[3].Fill((EFI_GRAPHICS_OUTPUT_BLT_PIXEL&)BackgroundPixel);
+  SelectionImages[3].Fill(BackgroundPixel);
 
 }
 
+//use this only for PNG theme
 void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
 {
-  for (INTN i=0; i<BUILTIN_ICON_COUNT; ++i) {
-    Icon NewIcon(i);
-    NewIcon.Image.LoadImage(ThemeDir, XStringWP(IconsNames[i]));
-    NewIcon.ImageNight.LoadImage(ThemeDir, XStringWP(IconsNames[i]) + "_night");
+  for (INTN i = 0; i < BUILTIN_ICON_COUNT; ++i) {
+    Icon NewIcon(i, true); //initialize with embedded but further replace by loaded
+    NewIcon.Image.LoadXImage(ThemeDir, IconsNames[i]);
+    NewIcon.ImageNight.LoadXImage(ThemeDir, XStringWP(IconsNames[i]) + XStringWP("_night"));
     Icons.AddCopy(NewIcon);
   }
-  //to be continued
+
+  for (INTN i = BUILTIN_ICON_COUNT; i < 45; ++i) {
+    Icon NewIcon(i); //there is no embedded
+    NewIcon.Image.LoadXImage(ThemeDir, IconsNames[i]); //all os_***
+    Icons.AddCopy(NewIcon);
+  }
+
+  InitSelection(); //initialize selections, buttons
+
+  //load banner and background
+  Banner.LoadXImage(ThemeDir, BannerFileName); 
+  BigBack.LoadXImage(ThemeDir, BackgroundFileName);
 }
+
+
+void XTheme::InitBar()
+{
+  if (!TypeSVG) {
+    ScrollbarBackgroundImage.LoadXImage(ThemeDir, "scrollbar\\bar_fill");
+    BarStartImage.LoadXImage(ThemeDir, "scrollbar\\bar_start");
+    BarEndImage.LoadXImage(ThemeDir, "scrollbar\\bar_end");
+    ScrollbarImage.LoadXImage(ThemeDir, "scrollbar\\scroll_fill");
+    ScrollStartImage.LoadXImage(ThemeDir, "scrollbar\\scroll_start");
+    ScrollEndImage.LoadXImage(ThemeDir, "scrollbar\\scroll_end");
+    UpButtonImage.LoadXImage(ThemeDir, "scrollbar\\up_button");
+    DownButtonImage.LoadXImage(ThemeDir, "scrollbar\\down_button");
+  }
+
+  //some help with embedded scroll
+  if (BarStartImage.isEmpty()  && !TypeSVG) {
+    BarStartImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_bar_start), ACCESS_EMB_SIZE(emb_scroll_bar_start));
+  }
+  if (BarEndImage.isEmpty() && !TypeSVG) {
+    BarEndImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_bar_end), ACCESS_EMB_SIZE(emb_scroll_bar_end));
+  }
+  if (ScrollbarBackgroundImage.isEmpty()) {
+    if (TypeSVG) {
+      //return OSIconsTable[i].image;
+      ScrollbarBackgroundImage.GetIcon("scrollbar_background");
+    }
+    if (ScrollbarBackgroundImage.isEmpty()) {
+      ScrollbarBackgroundImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_bar_fill), ACCESS_EMB_SIZE(emb_scroll_bar_fill));
+    }
+  }
+  if (ScrollbarImage.isEmpty()) {
+    if (TypeSVG) {
+      ScrollbarImage.GetIcon(ThemeDir, "scrollbar_holder"); //"_night" is already accounting
+    }
+    if (ScrollbarImage.isEmpty()) {
+      ScrollbarImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_scroll_fill), ACCESS_EMB_SIZE(emb_scroll_scroll_fill));
+    }
+  }
+  if (ScrollStartImage.isEmpty()) {
+    if (TypeSVG) {
+      ScrollStartImage.GetIcon(ThemeDir, "scrollbar_start");
+    }
+    if (ScrollStartImage.isEmpty()) {
+      ScrollStartImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_scroll_start), ACCESS_EMB_SIZE(emb_scroll_scroll_start));
+    }
+  }
+  if (ScrollEndImage.isEmpty()) {
+    if (TypeSVG) {
+      ScrollEndImage.GetIcon(ThemeDir, "scrollbar_end");
+    }
+    if (ScrollEndImage.isEmpty()) {
+      ScrollEndImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_scroll_end), ACCESS_EMB_SIZE(emb_scroll_scroll_end));
+    }
+  }
+  if (UpButtonImage.isEmpty()) {
+    if (TypeSVG) {
+      UpButtonImage.GetIcon(ThemeDir, "scrollbar_up_button");
+    }
+    UpButtonImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_up_button), ACCESS_EMB_SIZE(emb_scroll_up_button));
+  }
+  if (DownButtonImage.isEmpty()) {
+    if (TypeSVG) {
+      DownButtonImage.GetIcon(ThemeDir, "scrollbar_down_button");
+    }
+    if (DownButtonImage.isEmpty()) {
+      DownButtonImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_down_button), ACCESS_EMB_SIZE(emb_scroll_down_button));
+    }
+  }
+  if (!TypeSVG) {
+    UpButton.Width      = ScrollWidth; // 16
+    UpButton.Height     = ScrollButtonsHeight; // 20
+    DownButton.Width    = UpButton.Width;
+    DownButton.Height   = ScrollButtonsHeight;
+    BarStart.Height     = ScrollBarDecorationsHeight; // 5
+    BarEnd.Height       = ScrollBarDecorationsHeight;
+    ScrollStart.Height  = ScrollScrollDecorationsHeight; // 7
+    ScrollEnd.Height    = ScrollScrollDecorationsHeight;
+
+  } else {
+    UpButton.Width      = ScrollWidth; // 16
+    UpButton.Height     = 0; // 20
+    DownButton.Width    = UpButton.Width;
+    DownButton.Height   = 0;
+    BarStart.Height     = ScrollBarDecorationsHeight; // 5
+    BarEnd.Height       = ScrollBarDecorationsHeight;
+    ScrollStart.Height  = 0; // 7
+    ScrollEnd.Height    = 0;
+
+  }
+}
+
+
