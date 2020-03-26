@@ -154,7 +154,9 @@ INTN ScrollbarYMovement;
 
 //EG_IMAGE *SelectionImages[6] = {NULL, NULL, NULL, NULL, NULL, NULL};
 //EG_IMAGE *Buttons[4] = {NULL, NULL, NULL, NULL};
+#if !USE_XTHEME
 static EG_IMAGE *TextBuffer = NULL;
+#endif
 
 //EG_PIXEL SelectionBackgroundPixel = { 0xef, 0xef, 0xef, 0xff }; //non-trasparent
 
@@ -811,7 +813,7 @@ VOID ApplyInputs(VOID)
   }
   i++; //7
   if (InputItems[i].Valid) {
-//    DBG("InputItems[i]: %s\n", InputItems[i].SValue);
+//    DBG("InputItems[i]: %ls\n", InputItems[i].SValue);
     gSettings.PLimitDict = (UINT8)(StrDecimalToUintn(InputItems[i].SValue) & 0x7F);
 //    DBG("Item 7=PLimitDict %d\n", gSettings.PLimitDict);
  }
@@ -856,7 +858,7 @@ VOID ApplyInputs(VOID)
   i++; //17
   if (InputItems[i].Valid) {
     gPlatformFeature = (UINT64)StrHexToUint64(InputItems[i].SValue);
-    DBG("applied PlatformFeature=0x%x\n", gPlatformFeature);
+	  DBG("applied PlatformFeature=0x%llX\n", gPlatformFeature);
   }
   i++; //18 | Download-Fritz: There is no GUI element for BacklightLevel; please revise
   if (InputItems[i].Valid) {
@@ -896,7 +898,7 @@ VOID ApplyInputs(VOID)
       } else if (gGraphics[j].Vendor == Intel) {
         //ig-platform-id for Ivy+ and snb-platform-id for Sandy
         gSettings.IgPlatform = (UINT32)StrHexToUint64(InputItems[i].SValue);
-        DBG("applied *-platform-id=0x%x\n", gSettings.IgPlatform);
+        DBG("applied *-platform-id=0x%X\n", gSettings.IgPlatform);
       }
     }
 
@@ -1016,12 +1018,12 @@ VOID ApplyInputs(VOID)
   i++; //62
   if (InputItems[i].Valid) {
     gFwFeatures = (UINT32)StrHexToUint64(InputItems[i].SValue);
-    DBG("applied FirmwareFeatures=0x%x\n", gFwFeatures);
+    DBG("applied FirmwareFeatures=0x%X\n", gFwFeatures);
   }
   i++; //63
   if (InputItems[i].Valid) {
     gFwFeaturesMask = (UINT32)StrHexToUint64(InputItems[i].SValue);
-    DBG("applied FirmwareFeaturesMask=0x%x\n", gFwFeaturesMask);
+    DBG("applied FirmwareFeaturesMask=0x%X\n", gFwFeaturesMask);
   }
   i++; //64
   if (InputItems[i].Valid) {
@@ -1189,7 +1191,7 @@ VOID ApplyInputs(VOID)
   i++; //96
   if (InputItems[i].Valid) {
     gSettings.FakeIntel = (UINT32)StrHexToUint64(InputItems[i].SValue);
-    DBG("applied FakeIntel=0x%x\n", gSettings.FakeIntel);
+    DBG("applied FakeIntel=0x%X\n", gSettings.FakeIntel);
   }
   i++; //97
   if (InputItems[i].Valid) {
@@ -1227,7 +1229,7 @@ VOID ApplyInputs(VOID)
   i++; //104
   if (InputItems[i].Valid) {
     gSettings.KernelAndKextPatches.FakeCPUID = (UINT32)StrHexToUint64(InputItems[i].SValue);
-    DBG("applied FakeCPUID=%06x\n", gSettings.KernelAndKextPatches.FakeCPUID);
+    DBG("applied FakeCPUID=%06X\n", gSettings.KernelAndKextPatches.FakeCPUID);
     gBootChanged = TRUE;
   }
 
@@ -1257,7 +1259,7 @@ VOID ApplyInputs(VOID)
   i++; //109
   if (InputItems[i].Valid) {
     gSettings.DualLink = (UINT32)StrHexToUint64(InputItems[i].SValue);
-    DBG("applied DualLink=%x\n", gSettings.DualLink);
+    DBG("applied DualLink=%X\n", gSettings.DualLink);
   }
 
   i++; //110
@@ -1305,7 +1307,7 @@ VOID ApplyInputs(VOID)
   if (InputItems[i].Valid) {
     EFI_DEVICE_PATH_PROTOCOL*  DevicePath = NULL;
     UINT8 TmpIndex = OldChosenAudio & 0xFF;
-    DBG("Chosen output %d:%s_%a\n", OldChosenAudio, AudioList[OldChosenAudio].Name, AudioOutputNames[OldChosenAudio]);
+	  DBG("Chosen output %llu:%ls_%s\n", OldChosenAudio, AudioList[OldChosenAudio].Name, AudioOutputNames[OldChosenAudio]);
 
     DevicePath = DevicePathFromHandle(AudioList[OldChosenAudio].Handle);
     if (DevicePath != NULL) {
@@ -1345,7 +1347,7 @@ VOID ApplyInputs(VOID)
 VOID REFIT_MENU_SCREEN::AddMenuInfo(CONST char *Line)
 {
 
-//DBG("%a, %a : Line=%a\n", __FILE__, __LINE__, XString(Line).c);
+//DBG("%s, %s : Line=%s\n", __FILE__, __LINE__, XString(Line).c);
   REFIT_INFO_DIALOG *InputBootArgs;
 
   InputBootArgs = new REFIT_INFO_DIALOG;
@@ -1357,7 +1359,7 @@ VOID REFIT_MENU_SCREEN::AddMenuInfo(CONST char *Line)
 VOID REFIT_MENU_SCREEN::AddMenuInfo_f(CONST char *format, ...)
 {
 
-//DBG("%a, %a : Line=%a\n", __FILE__, __LINE__, XString(Line).c);
+//DBG("%s, %s : Line=%s\n", __FILE__, __LINE__, XString(Line).c);
   REFIT_INFO_DIALOG *InputBootArgs;
 
   InputBootArgs = new REFIT_INFO_DIALOG;
@@ -2485,7 +2487,7 @@ UINTN REFIT_MENU_SCREEN::InputDialog(IN MENU_STYLE_FUNC  StyleFunc)
   Item->Valid = FALSE;
   FreePool(Backup);
   if (Item->SValue) {
-    MsgLog("EDITED: %s\n", Item->SValue);
+    MsgLog("EDITED: %ls\n", Item->SValue);
   }
   return 0;
 }
@@ -2499,7 +2501,6 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
   INTN          ShortcutEntry;
   BOOLEAN       HaveTimeout = FALSE;
   INTN          TimeoutCountdown = 0;
-  CHAR16        *TimeoutMessage;
   UINTN         MenuExit;
 
   if (ChosenEntry == NULL) {
@@ -2583,11 +2584,11 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
     if (HaveTimeout) {
 #if USE_XTHEME
       //TimeoutMessage = PoolPrint(L"%s in %d seconds", TimeoutText.data(), TimeoutCountdown);
-      XStringW TOMessage = TimeoutText + L" in " + WPrintf("%d", TimeoutCountdown) + L" seconds";
+      XStringW TOMessage = TimeoutText + L" in " + WPrintf("%lld", TimeoutCountdown) + L" seconds";
       ((*this).*(StyleFunc))(MENU_FUNCTION_PAINT_TIMEOUT, TOMessage.data());
 //      FreePool(TimeoutMessage);
 #else
-      TimeoutMessage = PoolPrint(L"%s in %d seconds", TimeoutText, TimeoutCountdown);
+      CHAR16        *TimeoutMessage = PoolPrint(L"%s in %d seconds", TimeoutText, TimeoutCountdown);
       ((*this).*(StyleFunc))(MENU_FUNCTION_PAINT_TIMEOUT, TimeoutMessage);
       FreePool(TimeoutMessage);
 #endif
@@ -2762,10 +2763,10 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
 /* just a sample code
       case SCAN_F7:
         Status = egMkDir(SelfRootDir,  L"EFI\\CLOVER\\new_folder");
-        DBG("create folder %r\n", Status);
+        DBG("create folder %s\n", strerror(Status));
         if (!EFI_ERROR(Status)) {
           Status = egSaveFile(SelfRootDir,  L"EFI\\CLOVER\\new_folder\\new_file.txt", (UINT8*)SomeText, sizeof(*SomeText)+1);
-          DBG("create file %r\n", Status);
+          DBG("create file %s\n", strerror(Status));
         }
         break;
 */
@@ -2774,7 +2775,7 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
               OldChosenAudio = 0; //security correction
         }
         Status = gBS->HandleProtocol(AudioList[OldChosenAudio].Handle, &gEfiAudioIoProtocolGuid, (VOID**)&AudioIo);
-        DBG("open %d audio handle status=%r\n", OldChosenAudio, Status);
+			DBG("open %llu audio handle status=%s\n", OldChosenAudio, strerror(Status));
         if (!EFI_ERROR(Status)) {
           StartupSoundPlay(SelfRootDir, NULL); //play embedded sound
         }
@@ -3153,11 +3154,11 @@ INTN DrawTextXY(IN XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
     // shift 64 is prohibited
     XText = XPos - (TextWidth >> XAlign);  //X_IS_CENTER = 1
   }
-  //  DBG("draw text %s\n", Text);
+  //  DBG("draw text %ls\n", Text);
   //  DBG("pos=%d width=%d xtext=%d Height=%d Y=%d\n", XPos, TextWidth, XText, Height, YPos);
 //  BltImageAlpha(TextBufferXY, XText, YPos,  &MenuBackgroundPixel, 16);
 //  egFreeImage(TextBufferXY);
-  TextBufferXY.Draw(XText, YPos, 1.f);
+  TextBufferXY.Draw(XText, YPos);
   return TextWidth;
 }
 #else
@@ -3210,7 +3211,7 @@ INTN DrawTextXY(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAli
     // shift 64 is prohibited
     XText = XPos - (TextWidth >> XAlign);  //X_IS_CENTER = 1
   }
-//  DBG("draw text %s\n", Text);
+//  DBG("draw text %ls\n", Text);
 //  DBG("pos=%d width=%d xtext=%d Height=%d Y=%d\n", XPos, TextWidth, XText, Height, YPos);
   BltImageAlpha(TextBufferXY, XText, YPos,  &MenuBackgroundPixel, 16);
   egFreeImage(TextBufferXY);
@@ -3280,8 +3281,39 @@ VOID DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAl
   }
 }
 
+#if USE_XTHEME
+VOID DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor)
+{
+  XImage TextBufferX(UGAWidth-XPos, TextHeight);
+
+  if (Cursor != 0xFFFF) {
+    TextBufferX.Fill(&MenuBackgroundPixel);
+  } else {
+    TextBufferX.Fill(&InputBackgroundPixel);
+  }
 
 
+  if (SelectedWidth > 0) {
+    // fill selection bar background
+    EG_RECT TextRect;
+    TextRect.Width = SelectedWidth;
+    TextRect.Height = TextHeight;
+    TextBufferX.FillArea(&SelectionBackgroundPixel, TextRect);
+  }
+
+  // render the text
+  if (ThemeX.TypeSVG) {
+    //clovy - text veltically centred on Height
+    egRenderText(Text, TextBufferX, 0,
+                 (INTN)((TextHeight - (textFace[TextStyle].size * ThemeX.Scale)) / 2),
+                 Cursor, TextStyle);
+  } else {
+    egRenderText(Text, TextBufferX, TEXT_XMARGIN, TEXT_YMARGIN, Cursor, TextStyle);
+  }
+  TextBufferX.Draw((INTN)XPos, (INTN)YPos);
+}
+
+#else
 VOID DrawMenuText(IN CONST CHAR16 *Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor)
 {
   //use Text=null to reinit the buffer
@@ -3319,13 +3351,15 @@ VOID DrawMenuText(IN CONST CHAR16 *Text, IN INTN SelectedWidth, IN INTN XPos, IN
   if (GlobalConfig.TypeSVG) {
     //clovy - text veltically centred on Height
     egRenderText(Text, TextBuffer, 0,
-                    (INTN)((TextHeight - (textFace[TextStyle].size * GlobalConfig.Scale)) / 2),
-                    Cursor, TextStyle);
+                 (INTN)((TextHeight - (textFace[TextStyle].size * GlobalConfig.Scale)) / 2),
+                 Cursor, TextStyle);
   } else {
     egRenderText(Text, TextBuffer, TEXT_XMARGIN, TEXT_YMARGIN, Cursor, TextStyle);
   }
   BltImageAlpha(TextBuffer, (INTN)XPos, (INTN)YPos, &MenuBackgroundPixel, 16);
 }
+
+#endif
 
 
 VOID FreeScrollBar(VOID)
@@ -3652,7 +3686,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
         INTN FilmXPos = (INTN)(EntriesPosX - (TitleImage.GetWidth() + (int)(TITLEICON_SPACING * ThemeX.Scale)));
         INTN FilmYPos = (INTN)EntriesPosY;
     //    BltImageAlpha(TitleImage, FilmXPos, FilmYPos, &MenuBackgroundPixel, 16);
-        TitleImage.Draw(FilmXPos, FilmYPos, 1.f);
+        TitleImage.Draw(FilmXPos, FilmYPos);
 
         // update FilmPlace only if not set by InitAnime
         if (FilmPlace.Width == 0 || FilmPlace.Height == 0) {
@@ -3720,7 +3754,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
             DrawMenuText(ResultString, (i == ScrollState.CurrentSelection) ? (MenuWidth) : 0,
                          ctrlTextX,
                          Entry->Place.YPos, 0xFFFF);
-            ThemeX.Buttons[(((REFIT_INPUT_DIALOG*)(Entry))->Item->BValue)?3:2].Draw(ctrlX, ctrlY, 1.f);
+            ThemeX.Buttons[(((REFIT_INPUT_DIALOG*)(Entry))->Item->BValue)?3:2].Draw(ctrlX, ctrlY);
 
             //            DBG("X=%d, Y=%d, ImageY=%d\n", EntriesPosX + (INTN)(TEXT_XMARGIN * GlobalConfig.Scale),
             //                Entry->Place.YPos, Entry->Place.YPos + PlaceCentre);
@@ -3740,7 +3774,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
             DrawMenuText(ResultString, (i == ScrollState.CurrentSelection) ? (MenuWidth) : 0,
                          ctrlTextX,
                          Entry->Place.YPos, 0xFFFF);
-            ThemeX.Buttons[(((REFIT_INPUT_DIALOG*)(Entry))->Item->IValue & Entry->Row)?3:2].Draw(ctrlX, ctrlY, 1.f);
+            ThemeX.Buttons[(((REFIT_INPUT_DIALOG*)(Entry))->Item->IValue & Entry->Row)?3:2].Draw(ctrlX, ctrlY);
         } else if (Entry->getREFIT_MENU_SWITCH()) {
           if (Entry->getREFIT_MENU_SWITCH()->Item->IValue == 3) {
             //OldChosenItem = OldChosenTheme;
@@ -3758,9 +3792,9 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
                        // clovy                  EntriesPosX + (TextHeight + (INTN)(TEXT_XMARGIN * GlobalConfig.Scale)),
                        ctrlTextX,
                        Entry->Place.YPos, 0xFFFF);
-          ThemeX.Buttons[(Entry->Row == OldChosenItem)?1:0].Draw(ctrlX, ctrlY, 1.f);
+          ThemeX.Buttons[(Entry->Row == OldChosenItem)?1:0].Draw(ctrlX, ctrlY);
         } else {
-          //DBG("paint entry %d title=%s\n", i, Entries[i]->Title);
+          //DBG("paint entry %d title=%ls\n", i, Entries[i]->Title);
           DrawMenuText(ResultString,
                        (i == ScrollState.CurrentSelection) ? MenuWidth : 0,
                        EntriesPosX, Entry->Place.YPos, 0xFFFF);
@@ -3800,7 +3834,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
           DrawMenuText(ResultString, 0,
                        ctrlTextX,
                        EntryL->Place.YPos, 0xFFFF);
-            ThemeX.Buttons[(inputDialogEntry->Item->BValue)?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre, 1.f);
+            ThemeX.Buttons[(inputDialogEntry->Item->BValue)?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre);
           //          DBG("se:X=%d, Y=%d, ImageY=%d\n", EntriesPosX + (INTN)(TEXT_XMARGIN * GlobalConfig.Scale),
           //              EntryL->Place.YPos, EntryL->Place.YPos + PlaceCentre);
         } else {
@@ -3826,12 +3860,12 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
         // clovy
         DrawMenuText(ResultString, 0, ctrlTextX,
                      EntriesPosY + (ScrollState.LastSelection - ScrollState.FirstVisible) * TextHeight, 0xFFFF);
-        ThemeX.Buttons[(EntryL->Row == OldChosenItem)?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre1, 1.f);
+        ThemeX.Buttons[(EntryL->Row == OldChosenItem)?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre1);
       } else if (EntryL->getREFIT_MENU_CHECKBIT()) {
           // clovy
           DrawMenuText(ResultString, 0, ctrlTextX,
                        EntryL->Place.YPos, 0xFFFF);
-          ThemeX.Buttons[(EntryL->getREFIT_MENU_CHECKBIT()->Item->IValue & EntryL->Row) ?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre, 1.f);
+          ThemeX.Buttons[(EntryL->getREFIT_MENU_CHECKBIT()->Item->IValue & EntryL->Row) ?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre);
 
         //        DBG("ce:X=%d, Y=%d, ImageY=%d\n", EntriesPosX + (INTN)(TEXT_XMARGIN * GlobalConfig.Scale),
         //            EntryL->Place.YPos, EntryL->Place.YPos + PlaceCentre);
@@ -3861,7 +3895,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
           DrawMenuText(ResultString, MenuWidth,
                        ctrlTextX,
                        inputDialogEntry->Place.YPos, 0xFFFF);
-          ThemeX.Buttons[(inputDialogEntry->Item->BValue)?3:2].Draw(ctrlX, inputDialogEntry->Place.YPos + PlaceCentre, 1.f);
+          ThemeX.Buttons[(inputDialogEntry->Item->BValue)?3:2].Draw(ctrlX, inputDialogEntry->Place.YPos + PlaceCentre);
         } else {
           StrCatS(ResultString, TITLE_MAX_LEN, inputDialogEntry->Item->SValue +
                   inputDialogEntry->Item->LineShift);
@@ -3876,12 +3910,12 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
                      ctrlTextX,
                      EntriesPosY + (ScrollState.CurrentSelection - ScrollState.FirstVisible) * TextHeight,
                      0xFFFF);
-        ThemeX.Buttons[(EntryC->Row == OldChosenItem)?1:0].Draw(ctrlX, EntryC->Place.YPos + PlaceCentre1, 1.f);
+        ThemeX.Buttons[(EntryC->Row == OldChosenItem)?1:0].Draw(ctrlX, EntryC->Place.YPos + PlaceCentre1);
       } else if (EntryC->getREFIT_MENU_CHECKBIT()) {
         DrawMenuText(ResultString, MenuWidth,
                      ctrlTextX,
                      EntryC->Place.YPos, 0xFFFF);
-        ThemeX.Buttons[(EntryC->getREFIT_MENU_CHECKBIT()->Item->IValue & EntryC->Row)?3:2].Draw(ctrlX, EntryC->Place.YPos + PlaceCentre, 1.f);
+        ThemeX.Buttons[(EntryC->getREFIT_MENU_CHECKBIT()->Item->IValue & EntryC->Row)?3:2].Draw(ctrlX, EntryC->Place.YPos + PlaceCentre);
       }else{
         DrawMenuText(EntryC->Title, MenuWidth, EntriesPosX,
                      EntriesPosY + (ScrollState.CurrentSelection - ScrollState.FirstVisible) * TextHeight,
@@ -4096,7 +4130,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
                         ctrlY,
                         &MenuBackgroundPixel, 16);
         } else {
-					//DBG("paint entry %d title=%s\n", i, Entries[i]->Title);
+					//DBG("paint entry %d title=%ls\n", i, Entries[i]->Title);
           DrawMenuText(ResultString,
                        (i == ScrollState.CurrentSelection) ? MenuWidth : 0,
                        EntriesPosX, Entry->Place.YPos, 0xFFFF);
@@ -4277,7 +4311,8 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
   if (Entry->Row == 0 && Entry->getDriveImage()  &&  !(ThemeX.HideBadges & HDBADGES_SWAP)) {
     MainImage.FromEGImage(Entry->getDriveImage());
   } else {
-    MainImage.FromEGImage(Entry->Image);
+//    MainImage.FromEGImage(Entry->Image);
+    MainImage = Entry->Image;
   }
   //this should be inited by the Theme
   if (MainImage.isEmpty()) {
@@ -4292,7 +4327,7 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
       NewImageCreated = true;
     }
   }
-  //  DBG("Entry title=%s; Width=%d\n", Entry->Title, MainImage->Width);
+  //  DBG("Entry title=%ls; Width=%d\n", Entry->Title, MainImage->Width);
   float fScale;
   if (ThemeX.TypeSVG) {
     fScale = (selected ? 1.f : -1.f);
@@ -4366,7 +4401,7 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
       NewImageCreated = true;
     }
   }
-  //  DBG("Entry title=%s; Width=%d\n", Entry->Title, MainImage->Width);
+  //  DBG("Entry title=%ls; Width=%d\n", Entry->Title, MainImage->Width);
 
   if (GlobalConfig.TypeSVG) {
     Scale = 16 * (selected ? 1 : -1);
@@ -4423,8 +4458,10 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
 VOID XTheme::FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height)
 {
   XImage TmpBuffer(Width, Height);
-  TmpBuffer.CopyScaled(Background, 1.f);
-  TmpBuffer.Draw(XPos, YPos);
+//  TmpBuffer.CopyScaled(Background, 1.f);
+  INTN X = XPos - (Width >> 1);  //X_IS_CENTRE
+  TmpBuffer.CopyRect(Background, X, YPos);
+  TmpBuffer.Draw(X, YPos);
 }
 #else
 VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height, IN EG_PIXEL *Color, IN UINT8 XAlign)
@@ -4449,6 +4486,43 @@ VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Hei
 }
 #endif
 
+#if USE_XTHEME
+VOID REFIT_MENU_SCREEN::DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos)
+{
+  INTN TextWidth = 0;
+  INTN BadgeDim = (INTN)(BADGE_DIMENSION * ThemeX.Scale);
+
+  egMeasureText(Text, &TextWidth, NULL);
+
+  //Clear old text
+  if (OldTextWidth > TextWidth) {
+    ThemeX.FillRectAreaOfScreen(OldX, OldY, OldTextWidth, TextHeight);
+  }
+
+  if (!(ThemeX.BootCampStyle)
+      && (ThemeX.HideBadges & HDBADGES_INLINE) && (!OldRow)
+      && (OldTextWidth) && (OldTextWidth != TextWidth)) {
+    //Clear badge
+    ThemeX.FillRectAreaOfScreen((OldX - (OldTextWidth >> 1) - (BadgeDim + 16)),
+                                (OldY - ((BadgeDim - TextHeight) >> 1)), 128, 128);
+  }
+  DrawTextXY(XStringW().takeValueFrom(Text), XPos, YPos, X_IS_CENTER);
+
+  //show inline badge
+  if (!(ThemeX.BootCampStyle) &&
+      (ThemeX.HideBadges & HDBADGES_INLINE) &&
+      (Entries[ScrollState.CurrentSelection].Row == 0)) {
+    // Display Inline Badge: small icon before the text
+    Entries[ScrollState.CurrentSelection].Image.Draw((XPos - (TextWidth >> 1) - (BadgeDim + 16)),
+                                                     (YPos - ((BadgeDim - TextHeight) >> 1)));
+  }
+
+  OldX = XPos;
+  OldY = YPos;
+  OldTextWidth = TextWidth;
+  OldRow = Entries[ScrollState.CurrentSelection].Row;
+}
+#else
 VOID REFIT_MENU_SCREEN::DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos)
 {
   INTN TextWidth;
@@ -4485,7 +4559,7 @@ VOID REFIT_MENU_SCREEN::DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, I
   OldTextWidth = TextWidth;
   OldRow = Entries[ScrollState.CurrentSelection].Row;
 }
-
+#endif
 VOID REFIT_MENU_SCREEN::CountItems()
 {
   INTN i;
@@ -4558,7 +4632,7 @@ VOID DrawTextCorner(UINTN TextC, UINT8 Align)
     	if ( Text ) FreePool(Text);
       return;
   }
-  //  DBG("draw text %s at (%d, %d)\n", Text, Xpos, UGAHeight - 5 - TextHeight),
+  //  DBG("draw text %ls at (%d, %d)\n", Text, Xpos, UGAHeight - 5 - TextHeight),
 // clovy  DrawTextXY(Text, Xpos, UGAHeight - 5 - TextHeight, Align);
   DrawTextXY(Text, Xpos, UGAHeight - (INTN)(TextHeight * 1.5f), Align);
   if ( Text ) FreePool(Text);
@@ -4570,12 +4644,19 @@ VOID REFIT_MENU_SCREEN::MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16
   INTN row0PosYRunning;
   INTN VisibleHeight = 0; //assume vertical layout
   INTN MessageHeight = 20;
+#if USE_XTHEME
+  if (ThemeX.TypeSVG && textFace[1].valid) {
+    MessageHeight = (INTN)(textFace[1].size * RowHeightFromTextHeight * ThemeX.Scale);
+  } else {
+    MessageHeight = (INTN)(TextHeight * RowHeightFromTextHeight * ThemeX.Scale);
+  }
+#else
   if (GlobalConfig.TypeSVG && textFace[1].valid) {
     MessageHeight = (INTN)(textFace[1].size * RowHeightFromTextHeight * GlobalConfig.Scale);
-  }
-  else {
+  } else {
     MessageHeight = (INTN)(TextHeight * RowHeightFromTextHeight * GlobalConfig.Scale);
   }
+#endif
 
   switch (Function) {
 
@@ -4696,7 +4777,19 @@ VOID REFIT_MENU_SCREEN::MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16
       DrawTextCorner(TEXT_CORNER_OPTIMUS, X_IS_CENTER);
       MouseBirth();
       break;
+#if USE_XTHEME
+    case MENU_FUNCTION_PAINT_TIMEOUT:
+      i = (ThemeX.HideBadges & HDBADGES_INLINE)?3:1;
+      HidePointer();
+      if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL)){
+        ThemeX.FillRectAreaOfScreen((UGAWidth >> 1), textPosY + MessageHeight * i,
+                             OldTimeoutTextWidth, TextHeight);
+        OldTimeoutTextWidth = DrawTextXY(XStringW().takeValueFrom(ParamText), (UGAWidth >> 1), textPosY + MessageHeight * i, X_IS_CENTER);
+      }
 
+      DrawTextCorner(TEXT_CORNER_REVISION, X_IS_LEFT);
+      break;
+#else
     case MENU_FUNCTION_PAINT_TIMEOUT:
       i = (GlobalConfig.HideBadges & HDBADGES_INLINE)?3:1;
       HidePointer();
@@ -4708,6 +4801,7 @@ VOID REFIT_MENU_SCREEN::MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16
 
       DrawTextCorner(TEXT_CORNER_REVISION, X_IS_LEFT);
       break;
+#endif
   }
 }
 
@@ -4816,21 +4910,40 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
             DrawMainMenuEntry(&Entries[i], (i == ScrollState.CurrentSelection)?1:0,
                               itemPosX[i - ScrollState.FirstVisible], row0PosY);
             // draw static text for the boot options, BootCampStyle
-            if (GlobalConfig.BootCampStyle && !(GlobalConfig.HideUIFlags & HIDEUI_FLAG_LABEL)) {
+#if USE_XTHEME
+            if (ThemeX.BootCampStyle && !(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL)) {
               INTN textPosX = itemPosX[i - ScrollState.FirstVisible] + (row0TileSize / 2);
               // clear the screen
+
+              ThemeX.FillRectAreaOfScreen(textPosX, textPosY, EntriesWidth + GlobalConfig.TileXSpace,
+                                   MessageHeight);
+              DrawBCSText(Entries[i].Title, textPosX, textPosY, X_IS_CENTER);
+            }
+
+#else
+            if (GlobalConfig.BootCampStyle && !(GlobalConfig.HideUIFlags & HIDEUI_FLAG_LABEL)) {
+              INTN textPosX = itemPosX[i - ScrollState.FirstVisible] + (row0TileSize / 2);
               FillRectAreaOfScreen(textPosX, textPosY, EntriesWidth + GlobalConfig.TileXSpace,
                                    MessageHeight, &MenuBackgroundPixel, X_IS_CENTER);
+
               // draw the text
               DrawBCSText(Entries[i].Title, textPosX, textPosY, X_IS_CENTER);
             }
+#endif
           }
         } else {
           DrawMainMenuEntry(&Entries[i], (i == ScrollState.CurrentSelection)?1:0,
                             itemPosX[i], row1PosY);
         }
       }
-
+#if USE_XTHEME
+      // clear the text from the second row, required by the BootCampStyle
+      if ((ThemeX.BootCampStyle) && (Entries[ScrollState.LastSelection].Row == 1)
+          && (Entries[ScrollState.CurrentSelection].Row == 0) && !(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL)) {
+        ThemeX.FillRectAreaOfScreen((UGAWidth >> 1), FunctextPosY,
+                             OldTextWidth, MessageHeight);
+      }
+#else
       // clear the text from the second row, required by the BootCampStyle
       if ((GlobalConfig.BootCampStyle) && (Entries[ScrollState.LastSelection].Row == 1)
           && (Entries[ScrollState.CurrentSelection].Row == 0) && !(GlobalConfig.HideUIFlags & HIDEUI_FLAG_LABEL)) {
@@ -4838,10 +4951,20 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
 // clovy                               OldTextWidth, TextHeight, &MenuBackgroundPixel, X_IS_CENTER);
                                OldTextWidth, MessageHeight, &MenuBackgroundPixel, X_IS_CENTER);
       }
+#endif
 
-      // something is wrong with the DrawMainMenuLabel or Entries[ScrollState.CurrentSelection]
-      // and it's required to create the first selection text from here
-      // used for the second row entries, when BootCampStyle is used
+#if USE_XTHEME
+      if ((Entries[ScrollState.LastSelection].Row == 0) && (Entries[ScrollState.CurrentSelection].Row == 1)
+          && ThemeX.BootCampStyle && !(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL)) {
+        DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
+                          (UGAWidth >> 1), FunctextPosY);
+      }
+      if (!(ThemeX.BootCampStyle) && !(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL)) {
+        DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
+                          (UGAWidth >> 1), textPosY);
+      }
+
+#else
       if ((Entries[ScrollState.LastSelection].Row == 0) && (Entries[ScrollState.CurrentSelection].Row == 1)
           && GlobalConfig.BootCampStyle && !(GlobalConfig.HideUIFlags & HIDEUI_FLAG_LABEL)) {
           DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
@@ -4855,13 +4978,13 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
         DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
                             (UGAWidth >> 1), textPosY);
       }
-
+#endif
       DrawTextCorner(TEXT_CORNER_HELP, X_IS_LEFT);
       DrawTextCorner(TEXT_CORNER_OPTIMUS, X_IS_CENTER);
       DrawTextCorner(TEXT_CORNER_REVISION, X_IS_RIGHT);
       Status = MouseBirth();
       if(EFI_ERROR(Status)) {
-        DBG("can't bear mouse at all! Status=%r\n", Status);
+        DBG("can't bear mouse at all! Status=%s\n", strerror(Status));
       }
       break;
 
@@ -4882,7 +5005,17 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
         DrawMainMenuEntry(&Entries[ScrollState.CurrentSelection], TRUE,
                           itemPosX[ScrollState.CurrentSelection], row1PosY);
       }
-
+#if USE_XTHEME
+      if ((ThemeX.BootCampStyle) && (!(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL))
+          && Entries[ScrollState.CurrentSelection].Row == 1) {
+        DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
+                          (UGAWidth >> 1), FunctextPosY);
+      }
+      if ((!(ThemeX.BootCampStyle)) && (!(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL))) {
+        DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
+                          (UGAWidth >> 1), textPosY);
+      }
+#else
       // create dynamic text for the second row if BootCampStyle is used
       if ((GlobalConfig.BootCampStyle) && (!(GlobalConfig.HideUIFlags & HIDEUI_FLAG_LABEL))
           && Entries[ScrollState.CurrentSelection].Row == 1) {
@@ -4895,16 +5028,34 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
           DrawMainMenuLabel(Entries[ScrollState.CurrentSelection].Title,
                             (UGAWidth >> 1), textPosY);
       }
+#endif
+      DrawTextCorner(TEXT_CORNER_HELP, X_IS_LEFT);
+      DrawTextCorner(TEXT_CORNER_OPTIMUS, X_IS_CENTER);
+      DrawTextCorner(TEXT_CORNER_REVISION, X_IS_RIGHT);
+      Status = MouseBirth();
+      if(EFI_ERROR(Status)) {
+        DBG("can't bear mouse at sel! Status=%s\n", strerror(Status));
+      }
+      break;
+#if USE_XTHEME
+    case MENU_FUNCTION_PAINT_TIMEOUT:
+      i = (ThemeX.HideBadges & HDBADGES_INLINE)?3:1;
+      HidePointer();
+      if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_LABEL)){
+        ThemeX.FillRectAreaOfScreen((UGAWidth >> 1), FunctextPosY + MessageHeight * i,
+                             OldTimeoutTextWidth, MessageHeight);
+        OldTimeoutTextWidth = DrawTextXY(XStringW().takeValueFrom(ParamText), (UGAWidth >> 1), FunctextPosY + MessageHeight * i, X_IS_CENTER);
+      }
 
       DrawTextCorner(TEXT_CORNER_HELP, X_IS_LEFT);
       DrawTextCorner(TEXT_CORNER_OPTIMUS, X_IS_CENTER);
       DrawTextCorner(TEXT_CORNER_REVISION, X_IS_RIGHT);
       Status = MouseBirth();
       if(EFI_ERROR(Status)) {
-        DBG("can't bear mouse at sel! Status=%r\n", Status);
+        DBG("can't bear mouse at timeout! Status=%s\n", strerror(Status));
       }
       break;
-
+#else
     case MENU_FUNCTION_PAINT_TIMEOUT:
       i = (GlobalConfig.HideBadges & HDBADGES_INLINE)?3:1;
       HidePointer();
@@ -4919,10 +5070,10 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
       DrawTextCorner(TEXT_CORNER_REVISION, X_IS_RIGHT);
       Status = MouseBirth();
       if(EFI_ERROR(Status)) {
-        DBG("can't bear mouse at timeout! Status=%r\n", Status);
+        DBG("can't bear mouse at timeout! Status=%s\n", strerror(Status));
       }
       break;
-
+#endif
   }
 }
 
@@ -4955,7 +5106,8 @@ REFIT_ABSTRACT_MENU_ENTRY* NewEntry_(REFIT_ABSTRACT_MENU_ENTRY *Entry, REFIT_MEN
   // create the submenu
 //  *SubScreen = (__typeof_am__(*SubScreen))AllocateZeroPool(sizeof(**SubScreen));
   *SubScreen = new REFIT_MENU_SCREEN();
-  (*SubScreen)->Title = EfiStrDuplicate(Entry->Title);
+//  (*SubScreen)->Title = EfiStrDuplicate(Entry->Title);
+  (*SubScreen)->Title = Entry->Title;
   (*SubScreen)->TitleImage = Entry->Image;
   (*SubScreen)->ID = ID;
   (*SubScreen)->AnimeRun = (*SubScreen)->GetAnime();
@@ -5000,7 +5152,7 @@ VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
   if (ChosenEntry->SubScreen->ID == SCREEN_DSDT) {
 //    UnicodeSPrint((CHAR16*)ChosenEntry->Title, 128, L"DSDT fix mask [0x%08x]->", gSettings.FixDsdt); // TODO jief : cast to fix
     ChosenEntry->Title.SPrintf("DSDT fix mask [0x%08x]->", gSettings.FixDsdt); // TODO jief : cast to fix
-    //MsgLog("@ESC: %s\n", (*ChosenEntry)->Title);
+    //MsgLog("@ESC: %ls\n", (*ChosenEntry)->Title);
   } else if (ChosenEntry->SubScreen->ID == SCREEN_CSR) {
     // CSR
 //    UnicodeSPrint((CHAR16*)ChosenEntry->Title, 128, L"System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig); // TODO jief : cast to fix
@@ -5320,7 +5472,7 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 	NewEntry_(SubEntry, &SubScreen, ActionEnter, SCREEN_SYSTEM, "Block injected kexts->");
 	SubEntry->Flags = Entry->Flags;
 	if (ChosenOS) {
-//    DBG("chosen os %a\n", ChosenOS);
+//    DBG("chosen os %s\n", ChosenOS);
 		//shorten os version 10.11.6 -> 10.11
 		for (i = 0; i < 8; i++) {
 			ShortOSVersion[i] = ChosenOS[i];
@@ -5537,7 +5689,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropTables()
     while (DropTable) {
       CopyMem((CHAR8*)&sign, (CHAR8*)&(DropTable->Signature), 4);
       CopyMem((CHAR8*)&OTID, (CHAR8*)&(DropTable->TableId), 8);
-      //MsgLog("adding to menu %a (%x) %a (%lx) L=%d(0x%x)\n",
+      //MsgLog("adding to menu %s (%X) %s (%lx) L=%d(0x%X)\n",
       //       sign, DropTable->Signature,
       //       OTID, DropTable->TableId,
       //       DropTable->Length, DropTable->Length);
@@ -6273,16 +6425,16 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
       SubMenuIndex = -1;
 
       gSettings.OptionsBits = EncodeOptions(TmpArgs);
-//      DBG("main OptionsBits = 0x%x\n", gSettings.OptionsBits);
+//      DBG("main OptionsBits = 0x%X\n", gSettings.OptionsBits);
       if ( MainChosenEntry->getLOADER_ENTRY() ) gSettings.OptionsBits |= EncodeOptions(MainChosenEntry->getLOADER_ENTRY()->LoadOptions);
-//      DBG("add OptionsBits = 0x%x\n", gSettings.OptionsBits);
+//      DBG("add OptionsBits = 0x%X\n", gSettings.OptionsBits);
       if ( MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM() ) DecodeOptions(MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM());
-      //      DBG(" enter menu with LoadOptions: %s\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
+      //      DBG(" enter menu with LoadOptions: %ls\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
       if (MainChosenEntry->getLOADER_ENTRY()) {
         // Only for non-legacy entries, as LEGACY_ENTRY doesn't have Flags
         gSettings.FlagsBits = MainChosenEntry->getLOADER_ENTRY()->Flags;
       }
- //          DBG(" MainChosenEntry with FlagsBits = 0x%x\n", gSettings.FlagsBits);
+ //          DBG(" MainChosenEntry with FlagsBits = 0x%X\n", gSettings.FlagsBits);
 
       if (TmpArgs) {
         FreePool(TmpArgs);
@@ -6293,8 +6445,8 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
         //running details menu
         SubMenuExit = MainChosenEntry->SubScreen->RunGenericMenu(Style, &SubMenuIndex, &TempChosenEntry);
         if ( MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM() ) DecodeOptions(MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM());
-//        DBG("get OptionsBits = 0x%x\n", gSettings.OptionsBits);
-//        DBG(" TempChosenEntry FlagsBits = 0x%x\n", ((LOADER_ENTRY*)TempChosenEntry)->Flags);
+//        DBG("get OptionsBits = 0x%X\n", gSettings.OptionsBits);
+//        DBG(" TempChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)TempChosenEntry)->Flags);
         if (SubMenuExit == MENU_EXIT_ESCAPE || TempChosenEntry->getREFIT_MENU_ITEM_RETURN() ) {
           SubMenuExit = MENU_EXIT_ENTER;
           MenuExit = 0;
@@ -6303,11 +6455,11 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
         if (MainChosenEntry->getREFIT_MENU_ENTRY_CLOVER()) {
           MainChosenEntry->getREFIT_MENU_ENTRY_CLOVER()->LoadOptions = EfiStrDuplicate(((REFIT_MENU_ENTRY_CLOVER*)TempChosenEntry)->LoadOptions);
         }
-        //       DBG(" exit menu with LoadOptions: %s\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
+        //       DBG(" exit menu with LoadOptions: %ls\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
         if (SubMenuExit == MENU_EXIT_ENTER && MainChosenEntry->getLOADER_ENTRY() && TempChosenEntry->getLOADER_ENTRY()) {
           // Only for non-legacy entries, as LEGACY_ENTRY doesn't have Flags
           MainChosenEntry->getLOADER_ENTRY()->Flags = TempChosenEntry->getLOADER_ENTRY()->Flags;
-//           DBG(" get MainChosenEntry FlagsBits = 0x%x\n", ((LOADER_ENTRY*)MainChosenEntry)->Flags);
+//           DBG(" get MainChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)MainChosenEntry)->Flags);
         }
         if (/*MenuExit == MENU_EXIT_ENTER &&*/ MainChosenEntry->getLOADER_ENTRY()) {
           if (MainChosenEntry->getLOADER_ENTRY()->LoadOptions) {
@@ -6315,7 +6467,7 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
           } else {
             ZeroMem(&gSettings.BootArgs, 255);
           }
-          DBG(" boot with args: %a\n", gSettings.BootArgs);
+          DBG(" boot with args: %s\n", gSettings.BootArgs);
         }
         //---- Details submenu (kexts disabling etc)
         if (SubMenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
@@ -6329,7 +6481,7 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
                 NextMenuExit = MENU_EXIT_ENTER;
                 break;
               }
- //             DBG(" get NextChosenEntry FlagsBits = 0x%x\n", ((LOADER_ENTRY*)NextChosenEntry)->Flags);
+ //             DBG(" get NextChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)NextChosenEntry)->Flags);
               //---- Details submenu (kexts disabling etc) second level
               if (NextMenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
                 if (NextChosenEntry->SubScreen != NULL) {
@@ -6343,7 +6495,7 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
                       NextMenuExit = 0;
                       break;
                     }
- //                   DBG(" get DeepChosenEntry FlagsBits = 0x%x\n", ((LOADER_ENTRY*)DeepChosenEntry)->Flags);
+ //                   DBG(" get DeepChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)DeepChosenEntry)->Flags);
                   } //while(!DeepMenuExit)
                 }
               }
