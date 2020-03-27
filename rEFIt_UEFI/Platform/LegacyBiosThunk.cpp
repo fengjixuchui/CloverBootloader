@@ -13,6 +13,10 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 **/
 
 #include "LegacyBiosThunk.h"
+#include <posix.h>
+#include "BootLog.h" // for DebugLog
+#include "Platform.h"
+#include "../refit/screen.h" // just for PauseForKey
 
 #ifndef DEBUG_ALL
 #define DEBUG_LBTHUNK 0

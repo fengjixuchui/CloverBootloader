@@ -2753,15 +2753,15 @@ static void nsvg__parseTextSpan(NSVGparser* p, const char** dict)
     if (strcmp(dict[i], "x") == 0) {
       x = nsvg__parseCoordinate(p, dict[i+1], nsvg__actualOrigX(p), nsvg__actualWidth(p));
       text->x = x;
-//            DBG("span posX=%ls\n", PoolPrintFloat(x));
+//            DBG("span posX=%f\n", x);
     } else if (strcmp(dict[i], "y") == 0) {
       y = nsvg__parseCoordinate(p, dict[i+1], nsvg__actualOrigY(p), nsvg__actualHeight(p));
       text->y = y;
-//            DBG("span posY=%ls\n", PoolPrintFloat(y));
+//            DBG("span posY=%f\n", y);
     } else if (strcmp(dict[i], "font-size") == 0)  {
       r = nsvg__parseCoordinate(p, dict[i+1], 0.0f, nsvg__actualHeight(p));
       text->fontSize = r;
-//            DBG("span fontSize=%ls from=%s\n", PoolPrintFloat(r), dict[i+1]);
+//            DBG("span fontSize=%f from=%s\n", r, dict[i+1]);
     } else if (strcmp(dict[i], "font-style") == 0)  {
 //      DBG("span: attr=%s value=%s\n", dict[i], dict[i+1]);
       if (strstr(dict[i+1], "italic") != NULL)  {
@@ -2822,7 +2822,7 @@ static void nsvg__parseText(NSVGparser* p, const char** dict)
       nsvg__parseAttr(p, dict[i], dict[i + 1]);
     }
   }
-  DBG("text: x=%ls y=%ls attr:Style=%X, size=%ls, id=%s\n", PoolPrintFloat(x), PoolPrintFloat(y), attr->fontFace->fontStyle, PoolPrintFloat(attr->fontFace->fontSize), attr->id);
+  DBG("text: x=%f y=%f attr:Style=%X, size=%f, id=%s\n", x, y, attr->fontFace->fontStyle, attr->fontFace->fontSize, attr->id);
   text->x = x;
   text->y = y;
   text->fontSize = attr->fontFace->fontSize;
@@ -2914,7 +2914,7 @@ static void nsvg__parseText(NSVGparser* p, const char** dict)
           textFace[1].size = (INTN)text->fontSize;
           textFace[1].color = text->fontColor;
           textFace[1].valid = TRUE;
-          DBG("set message->font=%s color=%X size=%ls as in MessageRow\n", fontSVG->fontFamily, text->fontColor, PoolPrintFloat(text->fontSize));
+          DBG("set message->font=%s color=%X size=%f as in MessageRow\n", fontSVG->fontFamily, text->fontColor, text->fontSize);
         }
         break;
       } else if (!DayLight && strcmp(group->id, "MessageRow_night") == 0) {
@@ -2926,7 +2926,7 @@ static void nsvg__parseText(NSVGparser* p, const char** dict)
           textFace[1].size = (INTN)text->fontSize;
           textFace[1].color = text->fontColor;
           textFace[1].valid = TRUE;
-                 DBG("set message->font=%s color=%X size=%ls as in MessageRow\n", fontSVG->fontFamily, text->fontColor, PoolPrintFloat(text->fontSize));
+                 DBG("set message->font=%s color=%X size=%f as in MessageRow\n", fontSVG->fontFamily, text->fontColor, text->fontSize);
           break;
       } else if (strcmp(group->id, "MenuRows") == 0) {
         if (!textFace[2].valid) {
@@ -2934,7 +2934,7 @@ static void nsvg__parseText(NSVGparser* p, const char** dict)
           textFace[2].size = (INTN)text->fontSize;
           textFace[2].color = text->fontColor;
           textFace[2].valid = TRUE;
-          DBG("set menu->font=%s color=%X size=%ls as in MenuRows\n", fontSVG->fontFamily, text->fontColor, PoolPrintFloat(text->fontSize));
+          DBG("set menu->font=%s color=%X size=%f as in MenuRows\n", fontSVG->fontFamily, text->fontColor, text->fontSize);
         }
         break;
       } else if (!DayLight && strcmp(group->id, "MenuRows_night") == 0) {
@@ -2949,7 +2949,7 @@ static void nsvg__parseText(NSVGparser* p, const char** dict)
           textFace[0].size = (INTN)text->fontSize;
           textFace[0].color = text->fontColor;
           textFace[0].valid = TRUE;
-          DBG("set help->font=%s color=%X size=%ls as in HelpRows\n", fontSVG->fontFamily, text->fontColor, PoolPrintFloat(text->fontSize));
+          DBG("set help->font=%s color=%X size=%f as in HelpRows\n", fontSVG->fontFamily, text->fontColor, text->fontSize);
         }
         break;
       } else if (!DayLight && strstr(group->id, "HelpRows_night") != NULL) {
@@ -2957,7 +2957,7 @@ static void nsvg__parseText(NSVGparser* p, const char** dict)
           textFace[0].size = (INTN)text->fontSize;
           textFace[0].color = text->fontColor;
           textFace[0].valid = TRUE;
-                    DBG("set help->font=%s color=%X size=%ls as in HelpRows\n", fontSVG->fontFamily, text->fontColor, PoolPrintFloat(text->fontSize));
+                    DBG("set help->font=%s color=%X size=%f as in HelpRows\n", fontSVG->fontFamily, text->fontColor, text->fontSize);
           break;
       }
       group = group->next;
@@ -3475,6 +3475,80 @@ static void nsvg__parseGroup(NSVGparser* p, const char** dict)
 }
 
 //parse Clover settings for theme
+#if USE_XTHEME
+void XTheme::parseTheme(void* parser, const char** dict)
+{
+  NSVGparser* p = (NSVGparser*)parser;
+  BOOLEAN found = FALSE;
+  UINT32 Color = 0x80808080; //default value
+  for (int i = 0; dict[i]; i += 2) {
+    if (strcmp(dict[i], "SelectionOnTop") == 0) {
+      SelectionOnTop = getIntegerDict(dict[i+1]) > 0;
+    } else if (strcmp(dict[i], "BadgeOffsetX") == 0) {
+      BadgeOffsetX = getIntegerDict(dict[i + 1]);
+    } else if (strcmp(dict[i], "BadgeOffsetY") == 0) {
+      BadgeOffsetY = getIntegerDict(dict[i + 1]);
+    } else if (strcmp(dict[i], "NonSelectedGrey") == 0) {
+      NonSelectedGrey = getIntegerDict(dict[i + 1]) > 0;
+    } else if (strcmp(dict[i], "CharWidth") == 0) {
+      CharWidth = getIntegerDict(dict[i + 1]);
+    } else if (strcmp(dict[i], "BackgroundDark") == 0) {
+      BackgroundDark = getIntegerDict(dict[i + 1]) > 0;
+    } else if (strcmp(dict[i], "BackgroundSharp") == 0) {
+      BackgroundSharp = getIntegerDict(dict[i + 1]);
+    } else if (strcmp(dict[i], "BackgroundScale") == 0) {
+      BackgroundScale = imNone;
+      if (strstr(dict[i+1], "scale") != NULL)  {
+        BackgroundScale = imScale;
+      }
+      if (strstr(dict[i+1], "crop") != NULL)  {
+        BackgroundScale = imCrop;
+      }
+      if (strstr(dict[i+1], "tile") != NULL)  {
+        BackgroundScale = imTile;
+      }
+    } else if (strcmp(dict[i], "Badges") == 0) {
+      HideBadges = 0;
+      if (strstr(dict[i+1], "show") != NULL)  {
+        HideBadges |= HDBADGES_SHOW;
+      }
+      if (strstr(dict[i+1], "swap") != NULL)  {
+        HideBadges |= HDBADGES_SWAP;
+      }
+      if (strstr(dict[i+1], "inline") != NULL)  {
+        HideBadges |= HDBADGES_INLINE;
+      }
+    } else if (strcmp(dict[i], "BadgeScale") == 0) {
+      BadgeScale = getIntegerDict(dict[i + 1]);
+    } else if (strcmp(dict[i], "SelectionColor") == 0) {
+      Color = getIntegerDict(dict[i + 1]);
+      if (DayLight) {
+        SelectionColor = Color;
+      }
+    } else if (strcmp(dict[i], "SelectionColor_night") == 0) {
+      found = TRUE;
+      if (!DayLight) {
+        SelectionColor = getIntegerDict(dict[i + 1]);
+      }
+    } else if (strcmp(dict[i], "VerticalLayout") == 0) {
+      VerticalLayout = getIntegerDict(dict[i + 1]) > 0;
+    } else if (strcmp(dict[i], "BootCampStyle") == 0) {
+      BootCampStyle = getIntegerDict(dict[i + 1]) > 0;
+    } else if (strcmp(dict[i], "AnimeFrames") == 0) {
+      NumFrames = getIntegerDict(dict[i + 1]);
+      if (NumFrames == 0xFFFF) {
+        NumFrames = 0;
+      }
+    } else if (strcmp(dict[i], "FrameTime") == 0) {
+      FrameTime = getIntegerDict(dict[i + 1]);
+    } else nsvg__parseAttr(p, dict[i], dict[i + 1]);
+  }
+  if (!found) {
+    SelectionColor = Color;
+  }
+}
+
+#else
 static void parseTheme(NSVGparser* p, const char** dict)
 {
   int i;
@@ -3483,70 +3557,72 @@ static void parseTheme(NSVGparser* p, const char** dict)
   for (i = 0; dict[i]; i += 2) {
     if (strcmp(dict[i], "SelectionOnTop") == 0) {
       GlobalConfig.SelectionOnTop = getIntegerDict(dict[i+1])>0;    } else if (strcmp(dict[i], "BadgeOffsetX") == 0) {
-      GlobalConfig.BadgeOffsetX = getIntegerDict(dict[i + 1]);
-    } else if (strcmp(dict[i], "BadgeOffsetY") == 0) {
-      GlobalConfig.BadgeOffsetY = getIntegerDict(dict[i + 1]);
-    } else if (strcmp(dict[i], "NonSelectedGrey") == 0) {
-      GlobalConfig.NonSelectedGrey = getIntegerDict(dict[i + 1])>0;    } else if (strcmp(dict[i], "CharWidth") == 0) {
-      GlobalConfig.CharWidth = getIntegerDict(dict[i + 1]);
-    } else if (strcmp(dict[i], "BackgroundDark") == 0) {
-      GlobalConfig.BackgroundDark = getIntegerDict(dict[i + 1])>0;    } else if (strcmp(dict[i], "BackgroundSharp") == 0) {
-      GlobalConfig.BackgroundSharp = getIntegerDict(dict[i + 1]);
-    } else if (strcmp(dict[i], "BackgroundScale") == 0) {
-      GlobalConfig.BackgroundScale = imNone;
-      if (strstr(dict[i+1], "scale") != NULL)  {
-        GlobalConfig.BackgroundScale = imScale;
-      }
-      if (strstr(dict[i+1], "crop") != NULL)  {
-        GlobalConfig.BackgroundScale = imCrop;
-      }
-      if (strstr(dict[i+1], "tile") != NULL)  {
-        GlobalConfig.BackgroundScale = imTile;
-      }
+        GlobalConfig.BadgeOffsetX = getIntegerDict(dict[i + 1]);
+      } else if (strcmp(dict[i], "BadgeOffsetY") == 0) {
+        GlobalConfig.BadgeOffsetY = getIntegerDict(dict[i + 1]);
+      } else if (strcmp(dict[i], "NonSelectedGrey") == 0) {
+        GlobalConfig.NonSelectedGrey = getIntegerDict(dict[i + 1])>0;    } else if (strcmp(dict[i], "CharWidth") == 0) {
+          GlobalConfig.CharWidth = getIntegerDict(dict[i + 1]);
+        } else if (strcmp(dict[i], "BackgroundDark") == 0) {
+          GlobalConfig.BackgroundDark = getIntegerDict(dict[i + 1])>0;    } else if (strcmp(dict[i], "BackgroundSharp") == 0) {
+            GlobalConfig.BackgroundSharp = getIntegerDict(dict[i + 1]);
+          } else if (strcmp(dict[i], "BackgroundScale") == 0) {
+            GlobalConfig.BackgroundScale = imNone;
+            if (strstr(dict[i+1], "scale") != NULL)  {
+              GlobalConfig.BackgroundScale = imScale;
+            }
+            if (strstr(dict[i+1], "crop") != NULL)  {
+              GlobalConfig.BackgroundScale = imCrop;
+            }
+            if (strstr(dict[i+1], "tile") != NULL)  {
+              GlobalConfig.BackgroundScale = imTile;
+            }
 
-    } else if (strcmp(dict[i], "Badges") == 0) {
-      GlobalConfig.HideBadges = 0;
-      if (strstr(dict[i+1], "show") != NULL)  {
-        GlobalConfig.HideBadges |= HDBADGES_SHOW;
-      }
-      if (strstr(dict[i+1], "swap") != NULL)  {
-        GlobalConfig.HideBadges |= HDBADGES_SWAP;
-      }
-      if (strstr(dict[i+1], "inline") != NULL)  {
-        GlobalConfig.HideBadges |= HDBADGES_INLINE;
-      }
-    } else if (strcmp(dict[i], "BadgeScale") == 0) {
-      GlobalConfig.BadgeScale = getIntegerDict(dict[i + 1]);
-    } else if (strcmp(dict[i], "SelectionColor") == 0) {
-      Color = getIntegerDict(dict[i + 1]);
-      if (DayLight) {
-        GlobalConfig.SelectionColor = Color;
-      }
-    } else if (strcmp(dict[i], "SelectionColor_night") == 0) {
-      found = TRUE;
-      if (!DayLight) {
-        GlobalConfig.SelectionColor = getIntegerDict(dict[i + 1]);
-      }
-    } else if (strcmp(dict[i], "VerticalLayout") == 0) {
-      GlobalConfig.VerticalLayout = getIntegerDict(dict[i + 1])>0;
+          } else if (strcmp(dict[i], "Badges") == 0) {
+            GlobalConfig.HideBadges = 0;
+            if (strstr(dict[i+1], "show") != NULL)  {
+              GlobalConfig.HideBadges |= HDBADGES_SHOW;
+            }
+            if (strstr(dict[i+1], "swap") != NULL)  {
+              GlobalConfig.HideBadges |= HDBADGES_SWAP;
+            }
+            if (strstr(dict[i+1], "inline") != NULL)  {
+              GlobalConfig.HideBadges |= HDBADGES_INLINE;
+            }
+          } else if (strcmp(dict[i], "BadgeScale") == 0) {
+            GlobalConfig.BadgeScale = getIntegerDict(dict[i + 1]);
+          } else if (strcmp(dict[i], "SelectionColor") == 0) {
+            Color = getIntegerDict(dict[i + 1]);
+            if (DayLight) {
+              GlobalConfig.SelectionColor = Color;
+            }
+          } else if (strcmp(dict[i], "SelectionColor_night") == 0) {
+            found = TRUE;
+            if (!DayLight) {
+              GlobalConfig.SelectionColor = getIntegerDict(dict[i + 1]);
+            }
+          } else if (strcmp(dict[i], "VerticalLayout") == 0) {
+            GlobalConfig.VerticalLayout = getIntegerDict(dict[i + 1])>0;
 
-    } else if (strcmp(dict[i], "BootCampStyle") == 0) {
-      GlobalConfig.BootCampStyle = getIntegerDict(dict[i + 1])>0;
+          } else if (strcmp(dict[i], "BootCampStyle") == 0) {
+            GlobalConfig.BootCampStyle = getIntegerDict(dict[i + 1])>0;
 
-    } else if (strcmp(dict[i], "AnimeFrames") == 0) {
-      NumFrames = getIntegerDict(dict[i + 1]);
-      if (NumFrames == 0xFFFF) {
-        NumFrames = 0;
-      }
-    } else if (strcmp(dict[i], "FrameTime") == 0) {
-      FrameTime = getIntegerDict(dict[i + 1]);
+          } else if (strcmp(dict[i], "AnimeFrames") == 0) {
+            NumFrames = getIntegerDict(dict[i + 1]);
+            if (NumFrames == 0xFFFF) {
+              NumFrames = 0;
+            }
+          } else if (strcmp(dict[i], "FrameTime") == 0) {
+            FrameTime = getIntegerDict(dict[i + 1]);
 
-    } else nsvg__parseAttr(p, dict[i], dict[i + 1]);
+          } else nsvg__parseAttr(p, dict[i], dict[i + 1]);
   }
   if (!found) {
     GlobalConfig.SelectionColor = Color;
   }
 }
+
+#endif
 
 // parse embedded font
 static void nsvg__parseFont(NSVGparser* p, const char** dict)
@@ -3893,7 +3969,12 @@ static void nsvg__startElement(void* ud, const char* el, const char** dict)
     p->patternFlag = 1;
 
   } else if (strcmp(el, "clover:theme") == 0) {
+#if USE_XTHEME
+    ThemeX.parseTheme((void*)p, dict);
+#else
     parseTheme(p, dict);
+#endif
+
   } else {
     strncpy(p->unknown, el, 63);
   }
@@ -4038,15 +4119,15 @@ float addLetter(NSVGparser* p, CHAR16 letter, float x, float y, float scale, UIN
 // then apply text transform
   nsvg__xformMultiply(shape->xform, p->text->xform);
 
-/*
-   if (letter == L'C') {
-     DBG("bbox0=%ls ", PoolPrintFloat(p->text->font->bbox[0]));
-     DBG("bbox3=%ls \n", PoolPrintFloat(p->text->font->bbox[3]));
-     DumpFloat2("glyph xform:", shape->xform, 6);
-     DBG("stroke-color=%X ", shape->stroke.color);
-     DBG("stroke-width=%ls\n", PoolPrintFloat(shape->strokeWidth));
-   }
-*/
+
+//   if (letter == L'C') {
+//	 DBG("bbox0=%f ", p->text->font->bbox[0]);
+//     DBG("bbox3=%f \n", p->text->font->bbox[3]);
+//     DumpFloat2("glyph xform:", shape->xform, 6);
+//     DBG("stroke-color=%X ", shape->stroke.paint.color);
+//     DBG("stroke-width=%f\n", shape->strokeWidth);
+//   }
+
   //in glyph units
   shape->bounds[0] = p->text->font->bbox[0] + x/scale; //x + p->font->bbox[0] * scale;
   shape->bounds[1] = p->text->font->bbox[1] + y/scale; //y + p->font->bbox[1] * scale;
@@ -4348,8 +4429,7 @@ NSVGparser* nsvgParse(char* input, /* const char* units,*/ float dpi, float opac
   p->image->width = bounds[2] - bounds[0];
   p->image->height = bounds[3] - bounds[1];
 #endif
-   DBG("scaled width=%ls height=%ls\n", PoolPrintFloat(p->image->width),
-        PoolPrintFloat(p->image->height));
+   DBG("scaled width=%f height=%f\n", p->image->width, p->image->height);
   return p;
 }
 
