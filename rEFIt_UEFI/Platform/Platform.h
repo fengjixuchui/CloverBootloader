@@ -1007,8 +1007,8 @@ typedef struct {
 
   // GUI parameters
   BOOLEAN                 Debug;
-  BOOLEAN                 Proportional;
-//  UINT8                   Pad22[1];
+//  BOOLEAN                 Proportional; //never used
+  UINT8                   Pad22[1];
   UINT32                  DefaultBackgroundColor;
 
   //ACPI
@@ -2177,7 +2177,12 @@ ParseXML (
         UINT32 bufSize
   );
 
+#if USE_XTHEME
+EFI_STATUS ParseSVGXTheme(CONST CHAR8* buffer, TagPtr * dict);
+#else
 EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict);
+#endif
+
 //VOID RenderSVGfont(NSVGfont  *fontSVG);
 
 TagPtr

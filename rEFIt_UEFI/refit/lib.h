@@ -70,8 +70,7 @@ extern XTheme ThemeX; //global variable defined in lib.cpp
 #endif
 
 #define REFIT_DEBUG (2)
-#define Print if ((!GlobalConfig.Quiet) || (GlobalConfig.TextOnly)) Print
-//#include "GenericBdsLib.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -313,8 +312,10 @@ extern INTN ScrollbarYMovement;
 typedef struct {
   INTN        Timeout;
   UINTN       DisableFlags;
+#if !USE_XTHEME
   UINTN       HideBadges;
   UINTN       HideUIFlags;
+#endif
   BOOLEAN     TextOnly;
   BOOLEAN     Quiet;
   BOOLEAN     LegacyFirst;
@@ -324,6 +325,9 @@ typedef struct {
   BOOLEAN     NeverHibernate;
   BOOLEAN     StrictHibernate;
   BOOLEAN     RtcHibernateAware;
+  BOOLEAN     HibernationFixup;
+  BOOLEAN     SignatureFixup;
+#if !USE_XTHEME
   FONT_TYPE   Font;
   INTN        CharWidth;
   UINTN       SelectionColor;
@@ -334,13 +338,15 @@ typedef struct {
   CHAR16      *SelectionBigFileName;
   CHAR16      *SelectionIndicatorName;
   CHAR16      *DefaultSelection;
+#endif
   CHAR16      *ScreenResolution;
   INTN        ConsoleMode;
+  BOOLEAN     CustomIcons;
+#if !USE_XTHEME
   CHAR16      *BackgroundName;
   SCALING     BackgroundScale;
   UINTN       BackgroundSharp;
   BOOLEAN     BackgroundDark;
-  BOOLEAN     CustomIcons;
   BOOLEAN     SelectionOnTop;
   BOOLEAN     BootCampStyle;
   INTN        BadgeOffsetX;
@@ -359,19 +365,20 @@ typedef struct {
   INTN        MainEntriesSize;
   INTN        TileXSpace;
   INTN        TileYSpace;
+#endif
   INTN        IconFormat;
-  BOOLEAN     Proportional;
   BOOLEAN     NoEarlyProgress;
+  INT32       Timezone;
   BOOLEAN     ShowOptimus;
-  BOOLEAN     HibernationFixup;
-  BOOLEAN     SignatureFixup;
+#if !USE_XTHEME
+  BOOLEAN     Proportional;
   BOOLEAN     DarkEmbedded;
   BOOLEAN     TypeSVG;
-  INT32       Timezone;
   INTN        Codepage;
   INTN        CodepageSize;
   float       Scale;
   float       CentreShift;
+#endif
 } REFIT_CONFIG;
 
 // types
