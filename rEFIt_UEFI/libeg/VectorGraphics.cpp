@@ -37,6 +37,7 @@
 #if USE_XTHEME
 #include "XTheme.h"
 extern XTheme ThemeX;
+extern CONST CHAR8* IconsNames[];
 #endif
 
 
@@ -47,22 +48,25 @@ extern VOID
 WaitForKeyPress(CHAR16 *Message);
 
 extern void DumpFloat2 (CONST char* s, float* t, int N);
+#if !USE_XTHEME
 extern EG_IMAGE *BackgroundImage;
 extern EG_IMAGE *Banner;
 extern EG_IMAGE *BigBack;
 extern INTN BanHeight;
 extern INTN row0TileSize;
 extern INTN row1TileSize;
-extern INTN FontWidth;
+//extern INTN FontWidth;
+#endif
 extern UINTN NumFrames;
 extern UINTN FrameTime;
 extern BOOLEAN DayLight;
 
-textFaces       textFace[4]; //0-help 1-message 2-menu 3-test
+
+textFaces       textFace[4]; //0-help 1-message 2-menu 3-test, far future it will be infinite list with id
 NSVGparser      *mainParser = NULL;  //it must be global variable
 
 #if USE_XTHEME
-EFI_STATUS ParseSVGXIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float Scale, OUT XImage&  Image)
+EFI_STATUS ParseSVGXIcon(NSVGparser  *p, INTN Id, const XString& IconNameX, float Scale, XImage* Image)
 {
   EFI_STATUS      Status = EFI_NOT_FOUND;
   NSVGimage       *SVGimage;
@@ -72,6 +76,7 @@ EFI_STATUS ParseSVGXIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float S
   NSVGgroup   *group;
   NSVGimage   *IconImage;
   NSVGshape   *shapeNext, *shapesTail = NULL, *shapePrev;
+  CONST CHAR8 *IconName = IconNameX.c_str();
 
   NSVGparser* p2 = nsvg__createParser();
   IconImage = p2->image;
@@ -200,7 +205,7 @@ EFI_STATUS ParseSVGXIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float S
 //  EG_IMAGE  *NewImage = egCreateFilledImage(iWidth, iHeight, TRUE, &MenuBackgroundPixel);
   XImage NewImage(iWidth, iHeight); //empty
   if (IconImage->shapes == NULL) {
-    Image = NewImage;
+    *Image = NewImage;
     return Status;
   }
 
@@ -221,7 +226,7 @@ EFI_STATUS ParseSVGXIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float S
   nsvgDeleteRasterizer(rast);
   //  nsvg__deleteParser(p2);
   //  nsvgDelete(p2->image);
-  Image = NewImage;
+  *Image = NewImage;
 
   return EFI_SUCCESS;
 }
@@ -446,74 +451,74 @@ EFI_STATUS ParseSVGXTheme(CONST CHAR8* buffer, TagPtr * dict)
   }
   Status = EFI_NOT_FOUND;
   if (!DayLight) {
-    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background_night", Scale, ThemeX.BigBack);
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background_night"_XS, Scale, &ThemeX.BigBack);
   }
   if (EFI_ERROR(Status)) {
-    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background", Scale, ThemeX.BigBack);
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background"_XS, Scale, &ThemeX.BigBack);
   }
   DBG(" Background parsed\n");
   // --- Make Banner
   ThemeX.Banner.setEmpty(); //for the case of theme switch
   Status = EFI_NOT_FOUND;
   if (!DayLight) {
-    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BANNER, "Banner_night", Scale, ThemeX.Banner);
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BANNER, "Banner_night"_XS, Scale, &ThemeX.Banner);
   }
   if (EFI_ERROR(Status)) {
-    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BANNER, "Banner", Scale, ThemeX.Banner);
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BANNER, "Banner"_XS, Scale, &ThemeX.Banner);
   }
   DBG("Banner parsed\n");
-  BanHeight = (int)(ThemeX.Banner.GetHeight() * Scale + 1.f);
+  ThemeX.BanHeight = (int)(ThemeX.Banner.GetHeight() * Scale + 1.f);
   DBG(" parsed banner->width=%lld\n", ThemeX.Banner.GetWidth());
   
   // --- Make other icons
-  INTN i = BUILTIN_ICON_FUNC_ABOUT;
-  CHAR8           *IconName;
-  while (BuiltinIconTable[i].Path) {
+
+  for (INTN i = BUILTIN_ICON_FUNC_ABOUT; i < BUILTIN_CHECKBOX_CHECKED; ++i) {
     if (i == BUILTIN_ICON_BANNER) {
-      i++;
       continue;
     }
-    CONST CHAR16 *IconPath = BuiltinIconTable[i].Path;
-    //    DBG("next table icon=%ls\n", IconPath);
-    CONST CHAR16 *ptr = StrStr(IconPath, L"\\");
-    if (!ptr) {
-      ptr = IconPath;
-    } else {
-      ptr++;
-    }
-    //   DBG("next icon=%ls Len=%d\n", ptr, StrLen(ptr));
-    UINTN Size = StrLen(ptr)+1;
-    IconName = (__typeof__(IconName))AllocateZeroPool(Size);
-    UnicodeStrToAsciiStrS(ptr, IconName, Size);
-    //    DBG("search for icon name %s\n", IconName);
-    CHAR8 IconNight[64];
-    AsciiStrCpyS(IconNight, 64, IconName);
-    AsciiStrCatS(IconNight, 64, "_night");
-    Status = EFI_NOT_FOUND;
-    if (!DayLight) {
-      Status = ParseSVGIcon(mainParser, i, IconNight, Scale, &BuiltinIconTable[i].Image);
-    }
-    if (EFI_ERROR(Status)) {
-      Status = ParseSVGIcon(mainParser, i, IconName, Scale, &BuiltinIconTable[i].Image);
-    }
-    if (EFI_ERROR(Status)) {
-      DBG(" icon %lld not parsed take common %ls\n", i, BuiltinIconTable[i].Path);
-      if ((i >= BUILTIN_ICON_VOL_EXTERNAL) && (i <= BUILTIN_ICON_VOL_INTERNAL_REC)) {
-        if (BuiltinIconTable[BUILTIN_ICON_VOL_INTERNAL].Image) {
-          BuiltinIconTable[i].Image = egCopyImage(BuiltinIconTable[BUILTIN_ICON_VOL_INTERNAL].Image);
-        }
-      }
-    }
-    if (i == BUILTIN_SELECTION_BIG) {
-      DBG("icon main size=[%lld,%lld]\n", BuiltinIconTable[i].Image->Width,
-          BuiltinIconTable[i].Image->Height);
-    }
-    i++;
-    FreePool(IconName);
+    Icon NewIcon(i); //initialize with embedded but further replace by loaded
+    ParseSVGXIcon(mainParser, i, NewIcon.Name, Scale, &NewIcon.Image);
+    ParseSVGXIcon(mainParser, i, NewIcon.Name + "_night", Scale, &NewIcon.ImageNight);
+    ThemeX.Icons.AddCopy(NewIcon);
+  }
+
+
+  //selection for bootcamp style
+  Status = EFI_NOT_FOUND;
+  if (!DayLight) {
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_SELECTION, "selection_indicator_night"_XS, Scale, SelectionImages[4]);
+  }
+  if (EFI_ERROR(Status)) {
+    Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_SELECTION, "selection_indicator"_XS, Scale, SelectionImages[4]);
   }
   
-
+  //banner animation
+  GUI_ANIME *Anime = (__typeof__(Anime))AllocateZeroPool (sizeof(GUI_ANIME));
+  Anime->ID = 1; //main screen
+                 //there is no Anime->Path in vectors
+  Anime->Frames = NumFrames;
+  Anime->FrameTime = FrameTime;
+  Anime->Next = GuiAnime;
+  Anime->FilmX = INITVALUE;
+  Anime->FilmY = INITVALUE;
+  Anime->NudgeX = INITVALUE;
+  Anime->NudgeY = INITVALUE;
+  GuiAnime = Anime;
   
+  nsvgDeleteRasterizer(rast);
+  
+  *dict = (__typeof_am__(*dict))AllocateZeroPool(sizeof(TagStruct));
+  (*dict)->type = kTagTypeNone;
+  ThemeX.TypeSVG = TRUE;
+  ThemeX.ThemeDesignHeight = (int)SVGimage->height;
+  ThemeX.ThemeDesignWidth = (int)SVGimage->width;
+  if (ThemeX.SelectionOnTop) {
+    ThemeX.row0TileSize = (INTN)(144.f * Scale);
+    ThemeX.row1TileSize = (INTN)(64.f * Scale);
+    ThemeX.MainEntriesSize = (INTN)(128.f * Scale);
+  }
+  DBG("parsing svg theme finished\n");
+
   return Status;
 }
 #else
@@ -550,22 +555,6 @@ EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict)
   if (mainParser->font) {
     DBG("theme contains font-family=%s\n", mainParser->font->fontFamily);
   }
-  
-#if 0
-  // --- Create rastered font
-  if (fontSVG) {
-    if (p->font) {
-      FontHeight = (int)(textFace[2].size * Scale); //as in MenuRows
-      DBG("Menu font scaled height=%d color=%X\n", FontHeight, textFace[2].color);
-    }
-    if (!FontHeight) FontHeight = 16;  //xxx
-    if (fontSVG->fontFamily[0] < 0x30) {
-      AsciiStrCpyS(fontSVG->fontFamily, 64, fontSVG->id);
-    }
-    RenderSVGfont(fontSVG, p->fontColor);
-    DBG("font %s parsed\n", fontSVG->fontFamily);
-  }
-#endif
   
   // --- Make background
   BackgroundImage = egCreateFilledImage(UGAWidth, UGAHeight, TRUE, &BlackPixel);
@@ -712,23 +701,7 @@ EFI_STATUS ParseSVGTheme(CONST CHAR8* buffer, TagPtr * dict)
     GlobalConfig.MainEntriesSize = (INTN)(128.f * Scale);
   }
   DBG("parsing theme finish\n");
-#if 0 //dump fonts
-  {
-    NSVGfont        *fontSVG = NULL;
-    NSVGfontChain   *fontChain = fontsDB;
-    
-    while (fontChain) {
-      fontSVG = fontChain->font;
-      if (fontSVG) {
-        DBG("probe fontFamily=%s fontStyle=%c\n", fontSVG->fontFamily, fontSVG->fontStyle);
-      }
-      else {
-        DBG("nextChain is empty\n");
-      }
-      fontChain = fontChain->next;
-    }
-  }
-#endif
+
   return EFI_SUCCESS;
 }
 
@@ -741,109 +714,13 @@ EG_IMAGE * LoadSvgFrame(INTN i)
   CHAR8 FrameName[64];
   //TODO if extend SVG syntax then we can use dynamic SVG with parameter Frame
   // for example use variable instead of constant like javascript
-  AsciiSPrint(FrameName, 63, "frame_%d", i+1);
+  snprintf(FrameName, 63, "frame_%lld", i+1);
   Status = ParseSVGIcon(mainParser, BUILTIN_ICON_ANIME, FrameName, GlobalConfig.Scale, &Frame);
   if (EFI_ERROR(Status)) {
     DBG("icon '%s' not loaded, status=%s\n", FrameName, strerror(Status));
   }
   return Frame;
 }
-
-#if 0
-VOID RenderSVGfont(NSVGfont  *fontSVG, UINT32 color)
-{
-//  EFI_STATUS      Status;
-  float           FontScale;
-  NSVGparser      *p;
-  NSVGrasterizer  *rast;
-  INTN i;
-  if (!fontSVG) {
-    return;
-  }
-  //free old font
-  if (FontImage != NULL) {
-    egFreeImage (FontImage);
-    FontImage = NULL;
-  }
-  INTN Height = FontHeight + 4;
-//  DBG("load font %s\n", fontSVG->fontFamily);
-  if (fontSVG->unitsPerEm < 1.f) {
-    fontSVG->unitsPerEm = 1000.f;
-  }
-  float fH = fontSVG->bbox[3] - fontSVG->bbox[1];
-  if (fH == 0.f) {
-    fH = fontSVG->unitsPerEm;
-  }
-  FontScale = (float)FontHeight / fH;
-  DBG("font scale %ls\n", FontScale);
-  FontWidth = (int)(fontSVG->horizAdvX * FontScale);
-  INTN Width = FontWidth * (AsciiPageSize + GlobalConfig.CodepageSize);
-  FontImage = egCreateImage(Width, Height, TRUE);
-
-  p = nsvg__createParser();
-  if (!p) {
-    return;
-  }
-//  p->font = fontSVG;
-  p->image->height = (float)Height;
-  p->image->width = (float)Width;
-
-  NSVGtext* text = (NSVGtext*)AllocateZeroPool(sizeof(NSVGtext));
-  if (!text) {
-    return;
-  }
-  text->fontSize = (float)FontHeight;
-  text->font = fontSVG;
-  text->fontColor = color;
-
-//  DBG("RenderSVGfont: fontID=%s\n", text->font->id);
-//  DBG("RenderSVGfont:  family=%s\n", text->font->fontFamily);
-  //add to head
-  text->next = p->text;
-  p->text = text;
-  //for each letter rasterize glyph into FontImage
-  //0..0xC0 == AsciiPageSize
-  // cyrillic 0x410..0x450 at 0xC0
-  float x = 0.f;
-  float y = fontSVG->bbox[1] * FontScale;; //(float)Height;
-  p->isText = TRUE;
-  for (i = 0; i < AsciiPageSize; i++) {
-    addLetter(p, i, x, y, FontScale, color);
-    x += (float)FontWidth;
-  }
-  x = AsciiPageSize * FontWidth;
-  for (i = GlobalConfig.Codepage; i < GlobalConfig.Codepage+GlobalConfig.CodepageSize; i++) {
-    addLetter(p, i, x, y, FontScale, color);
-    x += (float)FontWidth;
-  }
-  p->image->realBounds[0] = fontSVG->bbox[0] * FontScale;
-  p->image->realBounds[1] = fontSVG->bbox[1] * FontScale;
-  p->image->realBounds[2] = fontSVG->bbox[2] * FontScale + x; //last bound
-  p->image->realBounds[3] = fontSVG->bbox[3] * FontScale;
-
-  //We made an image, then rasterize it
-  rast = nsvgCreateRasterizer();
-  nsvgRasterize(rast, p->image, 0, 0, 1.0f, 1.0f, (UINT8*)FontImage->PixelData, (int)Width, (int)Height, (int)(Width*4));
-
-#if 0 //DEBUG_FONT
-  //save font as png yyyyy
-  UINT8           *FileData = NULL;
-  UINTN           FileDataLength = 0U;
-
-  EFI_UGA_PIXEL *ImagePNG = (EFI_UGA_PIXEL *)FontImage->PixelData;
-
-  unsigned lode_return =
-    eglodepng_encode(&FileData, &FileDataLength, (CONST UINT8*)ImagePNG, (UINTN)FontImage->Width, (UINTN)FontImage->Height);
-
-  if (!lode_return) {
-    egSaveFile(SelfRootDir, L"\\FontSVG.png", FileData, FileDataLength);
-  }
-#endif
-  nsvgDeleteRasterizer(rast);
-//  nsvg__deleteParser(p);
-  return;
-}
-#endif
 
 // it is not draw, it is render and mainly used in egRenderText
 // which is used in icns.cpp as an icon rplacement if no image found, looks like not used

@@ -15,12 +15,11 @@ class Icon
 {
 public:
   INTN Id;  //for example BUILTIN_ICON_POINTER
-  XStringW Name; //for example "os_moja", "vol_internal"
+  XString Name; //for example "os_moja", "vol_internal"
   XImage Image;
   XImage ImageNight;
 
   Icon(INTN Id);
-  Icon(INTN Index, BOOLEAN Embedded);
   ~Icon();
 
 };
@@ -103,9 +102,9 @@ public:
   XImage  DownButtonImage;
 
   //fill the theme
-  XImage& GetIcon(const XStringW& Name);  //get by name
-  XImage& GetIcon(const char* Name);
-  XImage& GetIcon(INTN Id); //get by id
+  const XImage& GetIcon(const XString& Name);  //get by name
+  const XImage& GetIcon(const char* Name);
+  const XImage& GetIcon(INTN Id); //get by id
 
   void AddIcon(Icon& NewIcon);  //return EFI_STATUS?
   void FillByEmbedded();

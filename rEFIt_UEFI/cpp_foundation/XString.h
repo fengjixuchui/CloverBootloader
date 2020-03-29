@@ -43,6 +43,8 @@ class XString
 	void Init(xsize aSize=0);
 	XString();
 	XString(const XString &aString);
+    XString(XString&& aString); // Move constructor
+
 
 //	XString(const XConstString &aConstString);
 //	XString(const char *S);
@@ -124,7 +126,8 @@ class XString
 	const XString& takeValueFrom(const char* S, xsize count) { StrnCpy(S, count); return *this; }
 	const XString& takeValueFrom(const wchar_t* S) { SPrintf("%ls", S); return *this; }
 
-	const XString &operator =(const XString &aString);
+	const XString& operator =(const XString& aString);
+	XString& operator =(XString&& aString);
 //	const XString &operator =(const XConstString &aConstString);
 
 // Deactivate assignment during refactoring to avoid confusion
@@ -170,7 +173,7 @@ class XString
 	void Replace(char c1, char c2);
 	XString SubStringReplace(char c1, char c2);
 
-//	int Compare(const char* S) const { return (int)AsciiStrCmp(data(), (S ? S : "")); }// AsciiStrCmp return 0 or !0, not usual strcmp
+	int Compare(const char* S) const { return strcmp(data(), (S ? S : "")); }// AsciiStrCmp return 0 or !0, not usual strcmp
 #ifdef TODO_skqdjfhksqjhfksjqdf
 	//IC
 	int CompareIC(const char* S) const { return StringCompareIC(data(), (S ? S : "")); }
@@ -226,7 +229,9 @@ class XString
 	// OpÈrateur +
 	// Chaines
 	friend XString operator + (const XString& p1, const XString& p2) { XString s; s=p1; s+=p2; return s; }
-	friend XString operator + (const XString& p1, const char *p2  ) { XString s; s=p1; s+=p2; return s; }
+//	friend XString operator + (const XString& p1, const char *p2  ) { XString s; s=p1; s+=p2; return s; }
+	XString operator + (const char *p2 ) { XString s(*this); s+=p2; return s; }
+
 	friend XString operator + (const char *p1,   const XString& p2) { XString s; s.takeValueFrom(p1); s+=p2; return s; }
 //	friend XString operator + (const XConstString& p1,   const XString& p2) { XString s; s=p1; s+=p2; return s; }
 //	friend XString operator + (const XString& p1,   const XConstString& p2) { XString s; s=p1; s+=p2; return s; }
@@ -283,6 +288,8 @@ class XString
 };
 
 extern const XString NullXString;
+
+XString operator"" _XS ( const char* s, size_t len);
 
 XString SPrintf(const char *format, ...)
 	#ifndef _MSC_VER

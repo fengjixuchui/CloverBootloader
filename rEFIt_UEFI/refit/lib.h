@@ -76,10 +76,6 @@ extern XTheme ThemeX; //global variable defined in lib.cpp
 extern "C" {
 #endif
 
-extern EFI_HANDLE             gImageHandle;
-extern EFI_SYSTEM_TABLE*			gST;
-extern EFI_BOOT_SERVICES*			gBS;
-extern EFI_RUNTIME_SERVICES*	gRT;
 
 #include <Protocol/SimpleFileSystem.h>
 
@@ -508,8 +504,9 @@ EFI_STATUS InitializeUnicodeCollationProtocol (VOID);
 #define LAYOUT_X_EDGE    (20)
 #define BAR_WIDTH         (16)
 
-extern INTN FontWidth;
-extern INTN FontHeight;
+// local variables
+//extern INTN FontWidth;
+//extern INTN FontHeight;
 extern INTN TextHeight;
 extern INTN row0TileSize;
 extern INTN row1TileSize;
@@ -593,6 +590,10 @@ EG_IMAGE * GetSmallHover(IN UINTN Id);
 #define BUILTIN_SELECTION_SMALL                (23)
 #define BUILTIN_SELECTION_BIG                  (24)
 #define BUILTIN_ICON_COUNT                     (25)
+#define BUILTIN_RADIO_BUTTON                   (45)
+#define BUILTIN_RADIO_BUTTON_SELECTED          (46)
+#define BUILTIN_CHECKBOX                       (47)
+#define BUILTIN_CHECKBOX_CHECKED               (48)
 #define BUILTIN_ICON_BACKGROUND                (100)
 #define BUILTIN_ICON_SELECTION                 (101)
 #define BUILTIN_ICON_ANIME                     (102)
