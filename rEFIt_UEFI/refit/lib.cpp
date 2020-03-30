@@ -328,7 +328,15 @@ EFI_STATUS FinishInitRefitLib(VOID)
   CheckFatalError(Status, L"while opening our installation directory");
   return Status;
 }
-
+#if USE_XTHEME
+BOOLEAN IsEmbeddedTheme()
+{
+  if (ThemeX.embedded) {
+    ThemeDir = NULL;
+  }
+  return ThemeDir == NULL;
+}
+#else
 BOOLEAN IsEmbeddedTheme()
 {
   if (!GlobalConfig.Theme || !StriCmp(GlobalConfig.Theme, L"embedded")) {
@@ -336,6 +344,8 @@ BOOLEAN IsEmbeddedTheme()
   }
   return ThemeDir == NULL;
 }
+#endif
+
 
 //
 // list functions
@@ -1690,7 +1700,7 @@ CHAR16 *FileDevicePathToStr(IN EFI_DEVICE_PATH_PROTOCOL *DevPath)
   while (Char != NULL) {
 //    StrCpyS(Char, 4, Char + 1);  //can't overlap
     Tail = Char + 1;
-    while (*Tail != 0) {
+    while (*Char != 0) {
       *(Char++) = *(Tail++);
     }
     Char = (CHAR16*)StrStr(FilePath, L"\\\\"); // cast is ok because FilePath is not const, and we know that StrStr returns a pointer in FilePath. Will disappear when using a string object instead of CHAR16*
