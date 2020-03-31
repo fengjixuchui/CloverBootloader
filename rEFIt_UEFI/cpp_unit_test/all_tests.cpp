@@ -16,8 +16,8 @@
 #include "strlen_test.h"
 #include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "printf_lite-test.h"
-#include "poolprint-test.h"
-#include "printlib-test.h"
+//#include "poolprint-test.h"
+//#include "printlib-test.h"
 
 bool all_tests()
 {
@@ -26,16 +26,16 @@ bool all_tests()
 
 #ifdef JIEF_DEBUG
 	#if defined(CLOVER_BUILD)
-	    ret = printlib_tests();
-	    if ( ret != 0 ) {
-		    DebugLog(2, "printlib_tests() failed at test %d\n", ret);
-		    all_ok = false;
-    	}
-    	ret = poolprint_tests();
-    	if ( ret != 0 ) {
-	    	DebugLog(2, "poolprint_tests() failed at test %d\n", ret);
-		    all_ok = false;
-	    }
+//	    ret = printlib_tests();
+//	    if ( ret != 0 ) {
+//		    DebugLog(2, "printlib_tests() failed at test %d\n", ret);
+//		    all_ok = false;
+//    	}
+//    	ret = poolprint_tests();
+//    	if ( ret != 0 ) {
+//	    	DebugLog(2, "poolprint_tests() failed at test %d\n", ret);
+//		    all_ok = false;
+//	    }
 	#endif
 #endif
 #ifndef _MSC_VER

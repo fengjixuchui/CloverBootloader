@@ -127,13 +127,13 @@ BOOLEAN AddLegacyEntry(IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
     if (ThemeX.BootCampStyle) {
       Entry->Title.takeValueFrom(LoaderTitle);
     } else {
-      Entry->Title.SPrintf("Boot %ls from %ls", LoaderTitle, VolDesc);
+      Entry->Title.SWPrintf("Boot %ls from %ls", LoaderTitle, VolDesc);
     }
 #else
     if (GlobalConfig.BootCampStyle) {
       Entry->Title.takeValueFrom(LoaderTitle);
     } else {
-      Entry->Title.SPrintf("Boot %ls from %ls", LoaderTitle, VolDesc);
+      Entry->Title.SWPrintf("Boot %ls from %ls", LoaderTitle, VolDesc);
     }
 #endif
 
@@ -147,12 +147,15 @@ BOOLEAN AddLegacyEntry(IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
   if (Image) {
     Entry->Image.FromEGImage(Image);
   } else {
-    UINTN Size = StrLen(Volume->LegacyOS->IconName) + 1;
-    CHAR8 *IconName = (__typeof__(IconName))AllocateZeroPool(Size);
-    UnicodeStrToAsciiStrS(Volume->LegacyOS->IconName, IconName, Size - 1);
+//    UINTN Size = StrLen(Volume->LegacyOS->IconName) + 1;
+//    CHAR8 *IconName = (__typeof__(IconName))AllocateZeroPool(Size);
+//    UnicodeStrToAsciiStrS(Volume->LegacyOS->IconName, IconName, Size - 1);
+//
+//    Entry->Image = ThemeX.GetIcon(IconName);
+//
+//    FreePool(IconName);
 
-    Entry->Image = ThemeX.GetIcon(IconName);
-    FreePool(IconName);
+    Entry->Image = ThemeX.GetIcon(XString().takeValueFrom(Volume->LegacyOS->IconName));
   }
 #else
   if (Image) {
@@ -194,7 +197,7 @@ BOOLEAN AddLegacyEntry(IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
 //  SubScreen = (__typeof__(SubScreen))AllocateZeroPool(sizeof(REFIT_MENU_SCREEN));
   SubScreen = new REFIT_MENU_SCREEN();
 #if USE_XTHEME
-  SubScreen->Title = XStringWP(L"Boot Options for ") + LoaderTitle + L" on " + VolDesc;
+	SubScreen->Title.SWPrintf("Boot Options for %ls on %ls", LoaderTitle, VolDesc);
 #else
   SubScreen->Title = PoolPrint(L"Boot Options for %s on %s", LoaderTitle, VolDesc);
 #endif
@@ -203,7 +206,7 @@ BOOLEAN AddLegacyEntry(IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
   // default entry
 //  SubEntry = (__typeof__(SubEntry))AllocateZeroPool(sizeof(LEGACY_ENTRY));
   SubEntry =  new LEGACY_ENTRY();
-  SubEntry->Title.SPrintf("Boot %ls", LoaderTitle);
+  SubEntry->Title.SWPrintf("Boot %ls", LoaderTitle);
 //  SubEntry->Tag           = TAG_LEGACY;
   SubEntry->Volume           = Entry->Volume;
   SubEntry->DevicePathString = Entry->DevicePathString;

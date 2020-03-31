@@ -48,6 +48,7 @@
 #include "screen.h"
 #include "../cpp_foundation/XString.h"
 #include "../libeg/XTheme.h"
+#include "../libeg/VectorGraphics.h" // for testSVG
 
 #ifndef DEBUG_ALL
 #define DEBUG_MENU 1
@@ -215,11 +216,11 @@ BOOLEAN mGuiReady = FALSE;
 
 
 //REFIT_MENU_ITEM_OPTIONS(CONST CHAR16 *Title_, UINTN Row_, CHAR16 ShortcutDigit_, CHAR16 ShortcutLetter_, ACTION AtClick_)
-REFIT_MENU_ITEM_OPTIONS  MenuEntryOptions (XStringWP("Options"),          1, 0, 'O', ActionEnter);
-REFIT_MENU_ITEM_ABOUT    MenuEntryAbout   (XStringWP("About Clover"),     1, 0, 'A', ActionEnter);
-REFIT_MENU_ITEM_RESET    MenuEntryReset   (XStringWP("Restart Computer"), 1, 0, 'R', ActionSelect);
-REFIT_MENU_ITEM_SHUTDOWN MenuEntryShutdown(XStringWP("Exit Clover"),      1, 0, 'U', ActionSelect);
-REFIT_MENU_ITEM_RETURN   MenuEntryReturn  (XStringWP("Return"),           0, 0,  0,  ActionEnter);
+REFIT_MENU_ITEM_OPTIONS  MenuEntryOptions (L"Options"_XSW,          1, 0, 'O', ActionEnter);
+REFIT_MENU_ITEM_ABOUT    MenuEntryAbout   (L"About Clover"_XSW,     1, 0, 'A', ActionEnter);
+REFIT_MENU_ITEM_RESET    MenuEntryReset   (L"Restart Computer"_XSW, 1, 0, 'R', ActionSelect);
+REFIT_MENU_ITEM_SHUTDOWN MenuEntryShutdown(L"Exit Clover"_XSW,      1, 0, 'U', ActionSelect);
+REFIT_MENU_ITEM_RETURN   MenuEntryReturn  (L"Return"_XSW,           0, 0,  0,  ActionEnter);
 
 
 
@@ -1376,7 +1377,7 @@ VOID REFIT_MENU_SCREEN::AddMenuInfo_f(CONST char *format, ...)
   InputBootArgs = new REFIT_INFO_DIALOG;
   VA_LIST va;
 	VA_START(va, format);
-  InputBootArgs->Title.vSPrintf(format, va);
+  InputBootArgs->Title.vSWPrintf(format, va);
   VA_END(va);
   InputBootArgs->AtClick = ActionLight;
   AddMenuEntry(InputBootArgs, true);
@@ -1445,7 +1446,7 @@ VOID AboutRefit(VOID)
       EntryCount instead of InfoLineCount. Lastline == return/back. Is necessary recheck screen res here?
     */
     FreePool(AboutMenu.Entries[AboutMenu.Entries.size()-2].Title);
-    AboutMenu.Entries[AboutMenu.Entries.size()-2].Title.SPrintf(" Screen Output: %ls", egScreenDescription());
+    AboutMenu.Entries[AboutMenu.Entries.size()-2].Title.SWPrintf(" Screen Output: %ls", egScreenDescription());
   }
 
   AboutMenu.RunMenu(NULL);
@@ -2611,7 +2612,7 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
     if (HaveTimeout) {
 #if USE_XTHEME
       //TimeoutMessage = PoolPrint(L"%s in %d seconds", TimeoutText.data(), TimeoutCountdown);
-      XStringW TOMessage = TimeoutText + L" in " + WPrintf("%lld", TimeoutCountdown) + L" seconds";
+      XStringW TOMessage = SWPrintf("%ls in %lld seconds", TimeoutText.wc_str(), TimeoutCountdown);
       ((*this).*(StyleFunc))(MENU_FUNCTION_PAINT_TIMEOUT, TOMessage.data());
 //      FreePool(TimeoutMessage);
 #else
@@ -3131,7 +3132,7 @@ VOID REFIT_MENU_SCREEN::TextMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
 
 
 #if USE_XTHEME
-INTN DrawTextXY(IN XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
+INTN DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
 {
   INTN      TextWidth = 0;
   INTN      XText = 0;
@@ -3175,7 +3176,7 @@ INTN DrawTextXY(IN XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
   TextBufferXY.Fill(&MenuBackgroundPixel);
 
   // render the text
-  TextWidth = egRenderText(Text, TextBufferXY, 0, 0, 0xFFFF, TextXYStyle);
+  TextWidth = egRenderText(Text, &TextBufferXY, 0, 0, 0xFFFF, TextXYStyle);
 
   if (XAlign != X_IS_LEFT) {
     // shift 64 is prohibited
@@ -3360,11 +3361,11 @@ VOID DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INT
   // render the text
   if (ThemeX.TypeSVG) {
     //clovy - text veltically centred on Height
-    egRenderText(Text, TextBufferX, 0,
+    egRenderText(Text, &TextBufferX, 0,
                  (INTN)((TextHeight - (textFace[TextStyle].size * ThemeX.Scale)) / 2),
                  Cursor, TextStyle);
   } else {
-    egRenderText(Text, TextBufferX, TEXT_XMARGIN, TEXT_YMARGIN, Cursor, TextStyle);
+    egRenderText(Text, &TextBufferX, TEXT_XMARGIN, TEXT_YMARGIN, Cursor, TextStyle);
   }
   TextBufferX.Draw((INTN)XPos, (INTN)YPos);
 }
@@ -3773,11 +3774,11 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
 
     case MENU_FUNCTION_PAINT_ALL:
   //    DrawMenuText(NULL, 0, 0, 0, 0); //should clean every line to avoid artefacts
-      //    DBG("PAINT_ALL: EntriesPosY=%d MaxVisible=%d\n", EntriesPosY, ScrollState.MaxVisible);
-      //    DBG("DownButton.Height=%d TextHeight=%d\n", DownButton.Height, TextHeight);
+          DBG("PAINT_ALL: EntriesPosY=%lld MaxVisible=%lld\n", EntriesPosY, ScrollState.MaxVisible);
+          DBG("DownButton.Height=%lld TextHeight=%lld\n", DownButton.Height, TextHeight);
       t2 = EntriesPosY + (ScrollState.MaxVisible + 1) * TextHeight - DownButton.Height;
       t1 = EntriesPosX + TextHeight + MenuWidth  + (INTN)((TEXT_XMARGIN + 16) * ThemeX.Scale);
-      //    DBG("PAINT_ALL: %d %d\n", t1, t2);
+          DBG("PAINT_ALL: %lld %lld\n", t1, t2);
       SetBar(t1, EntriesPosY, t2, &ScrollState); //823 302 554
 
       // blackosx swapped this around so drawing of selection comes before drawing scrollbar.
@@ -4536,7 +4537,7 @@ VOID XTheme::FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN 
 //  TmpBuffer.CopyScaled(Background, 1.f);
   INTN X = XPos - (Width >> 1);  //X_IS_CENTRE
   TmpBuffer.CopyRect(Background, X, YPos);
-  TmpBuffer.Draw(X, YPos);
+  TmpBuffer.DrawWithoutCompose(X, YPos);
 }
 #else
 VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height, IN EG_PIXEL *Color, IN UINT8 XAlign)
@@ -5572,12 +5573,12 @@ VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
 {
   if (ChosenEntry->SubScreen->ID == SCREEN_DSDT) {
 //    UnicodeSPrint((CHAR16*)ChosenEntry->Title, 128, L"DSDT fix mask [0x%08x]->", gSettings.FixDsdt); // TODO jief : cast to fix
-    ChosenEntry->Title.SPrintf("DSDT fix mask [0x%08x]->", gSettings.FixDsdt); // TODO jief : cast to fix
+    ChosenEntry->Title.SWPrintf("DSDT fix mask [0x%08x]->", gSettings.FixDsdt); // TODO jief : cast to fix
     //MsgLog("@ESC: %ls\n", (*ChosenEntry)->Title);
   } else if (ChosenEntry->SubScreen->ID == SCREEN_CSR) {
     // CSR
 //    UnicodeSPrint((CHAR16*)ChosenEntry->Title, 128, L"System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig); // TODO jief : cast to fix
-    ChosenEntry->Title.SPrintf("System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig); // TODO jief : cast to fix
+    ChosenEntry->Title.SWPrintf("System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig); // TODO jief : cast to fix
     // check for the right booter flag to allow the application
     // of the new System Integrity Protection configuration.
     if (gSettings.CsrActiveConfig != 0 && gSettings.BooterConfig == 0) {
@@ -5586,10 +5587,10 @@ VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
 
   } else if (ChosenEntry->SubScreen->ID == SCREEN_BLC) {
 //    UnicodeSPrint((CHAR16*)ChosenEntry->Title, 128, L"boot_args->flags [0x%04x]->", gSettings.BooterConfig); // TODO jief : cast to fix
-    ChosenEntry->Title.SPrintf("boot_args->flags [0x%04x]->", gSettings.BooterConfig); // TODO jief : cast to fix
+    ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04x]->", gSettings.BooterConfig); // TODO jief : cast to fix
   } else if (ChosenEntry->SubScreen->ID == SCREEN_DSM) {
 //    UnicodeSPrint((CHAR16*)ChosenEntry->Title, 128, L"Drop OEM _DSM [0x%04x]->", dropDSM); // TODO jief : cast to fix
-    ChosenEntry->Title.SPrintf("Drop OEM _DSM [0x%04x]->", dropDSM); // TODO jief : cast to fix
+    ChosenEntry->Title.SWPrintf("Drop OEM _DSM [0x%04x]->", dropDSM); // TODO jief : cast to fix
   }
 }
 
@@ -5809,7 +5810,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextPatches()
   for (Index = 0; Index < NrKexts; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SPrintf("%30s", KextPatchesMenu[Index].Label);
+    InputBootArgs->Title.SWPrintf("%30s", KextPatchesMenu[Index].Label);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &(KextPatchesMenu[Index].MenuItem);
@@ -5850,7 +5851,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextBlockInjection(CONST CHAR16* UniSysVer)
     	}
 //      InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
       InputBootArgs = new REFIT_INPUT_DIALOG;
-      InputBootArgs->Title.SPrintf("%ls, v.%ls", Kext->FileName, Kext->Version);
+      InputBootArgs->Title.SWPrintf("%ls, v.%ls", Kext->FileName, Kext->Version);
 //      InputBootArgs->Tag = TAG_INPUT;
       InputBootArgs->Row = 0xFFFF; //cursor
       InputBootArgs->Item = &(Kext->MenuItem);
@@ -5862,7 +5863,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextBlockInjection(CONST CHAR16* UniSysVer)
       while (plugInKext) {
 //        InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
         InputBootArgs = new REFIT_INPUT_DIALOG;
-        InputBootArgs->Title.SPrintf("  |-- %ls, v.%ls", plugInKext->FileName, plugInKext->Version);
+        InputBootArgs->Title.SWPrintf("  |-- %ls, v.%ls", plugInKext->FileName, plugInKext->Version);
 //        InputBootArgs->Tag = TAG_INPUT;
         InputBootArgs->Row = 0xFFFF; //cursor
         InputBootArgs->Item = &(plugInKext->MenuItem);
@@ -6016,7 +6017,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKernelPatches()
   for (Index = 0; Index < NrKernels; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SPrintf("%30s", KernelPatchesMenu[Index].Label);
+    InputBootArgs->Title.SWPrintf("%30s", KernelPatchesMenu[Index].Label);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &(KernelPatchesMenu[Index].MenuItem);
@@ -6043,7 +6044,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuBootPatches()
   for (Index = 0; Index < NrBoots; Index++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SPrintf("%30s", BootPatchesMenu[Index].Label);
+    InputBootArgs->Title.SWPrintf("%30s", BootPatchesMenu[Index].Label);
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
     InputBootArgs->Item = &(BootPatchesMenu[Index].MenuItem);
@@ -6116,7 +6117,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropTables()
       //       DropTable->Length, DropTable->Length);
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-      InputBootArgs->Title.SPrintf("Drop \"%4.4s\" \"%8.8s\" %d", sign, OTID, DropTable->Length);
+      InputBootArgs->Title.SWPrintf("Drop \"%4.4s\" \"%8.8s\" %d", sign, OTID, DropTable->Length);
 //      InputBootArgs->Tag = TAG_INPUT;
       InputBootArgs->Row = 0xFFFF; //cursor
       InputBootArgs->Item = &(DropTable->MenuItem);
@@ -6137,7 +6138,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropTables()
     while (ACPIPatchedAMLTmp) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-      InputBootArgs->Title.SPrintf("Drop \"%ls\"", ACPIPatchedAMLTmp->FileName);
+      InputBootArgs->Title.SWPrintf("Drop \"%ls\"", ACPIPatchedAMLTmp->FileName);
 //      InputBootArgs->Tag = TAG_INPUT;
       InputBootArgs->Row = 0xFFFF; //cursor
       InputBootArgs->Item = &(ACPIPatchedAMLTmp->MenuItem);
@@ -6360,7 +6361,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuAudioPort()
   for (i = 0; i < AudioNum; i++) {
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_MENU_SWITCH;
-    InputBootArgs->Title.SPrintf("%ls_%s", AudioList[i].Name, AudioOutputNames[AudioList[i].Device]);
+    InputBootArgs->Title.SWPrintf("%ls_%s", AudioList[i].Name, AudioOutputNames[AudioList[i].Device]);
 //    InputBootArgs->Tag = TAG_SWITCH_OLD;
     InputBootArgs->Row = i;
     InputBootArgs->Item = &InputItems[119];
@@ -6379,7 +6380,7 @@ VOID CreateMenuProps(REFIT_MENU_SCREEN   *SubScreen, DEV_PROPERTY *Prop)
 
 //    InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
     InputBootArgs = new REFIT_INPUT_DIALOG;
-	InputBootArgs->Title.SPrintf("  key: %s", Prop->Key);
+	InputBootArgs->Title.SWPrintf("  key: %s", Prop->Key);
 //	InputBootArgs->Tag = TAG_INPUT;
 	InputBootArgs->Row = 0xFFFF; //cursor
 									   //     InputBootArgs->Item = ADDRESS_OF(DEV_PROPERTY, Prop, INPUT_ITEM, MenuItem);
@@ -6873,9 +6874,11 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
 
       gSettings.OptionsBits = EncodeOptions(TmpArgs);
 //      DBG("main OptionsBits = 0x%X\n", gSettings.OptionsBits);
-      if ( MainChosenEntry->getLOADER_ENTRY() ) gSettings.OptionsBits |= EncodeOptions(MainChosenEntry->getLOADER_ENTRY()->LoadOptions);
+      if (MainChosenEntry->getLOADER_ENTRY())
+        gSettings.OptionsBits |= EncodeOptions(MainChosenEntry->getLOADER_ENTRY()->LoadOptions);
 //      DBG("add OptionsBits = 0x%X\n", gSettings.OptionsBits);
-      if ( MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM() ) DecodeOptions(MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM());
+      if (MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM())
+        DecodeOptions(MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM());
       //      DBG(" enter menu with LoadOptions: %ls\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
       if (MainChosenEntry->getLOADER_ENTRY()) {
         // Only for non-legacy entries, as LEGACY_ENTRY doesn't have Flags

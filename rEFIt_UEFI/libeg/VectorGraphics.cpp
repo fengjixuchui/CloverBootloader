@@ -12,7 +12,7 @@
 #define TEST_FONT 0
 #define TEST_DITHER 0
 
-
+#include "VectorGraphics.h"
 
 #include "../Platform/Platform.h"
 
@@ -438,7 +438,7 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   }
   float ScaleF = UGAHeight / SVGimage->height;
   DBG("using scale %f\n", ScaleF);
-  /*ThemeX.*/ Scale = ScaleF;
+  Scale = ScaleF;
   CentreShift = (vbx * Scale - (float)UGAWidth) * 0.5f;
 
   if (mainParser->font) {
@@ -456,7 +456,7 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   if (EFI_ERROR(Status)) {
     Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_BACKGROUND, "Background"_XS, Scale, &BigBack);
   }
-  DBG(" Background parsed\n");
+  DBG(" Background parsed [%lld, %lld]\n", BigBack.GetWidth(), BigBack.GetHeight());
   // --- Make Banner
   Banner.setEmpty(); //for the case of theme switch
   Status = EFI_NOT_FOUND;
@@ -479,7 +479,7 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
     Icon NewIcon(i); //initialize with embedded but further replace by loaded
     ParseSVGXIcon(mainParser, i, NewIcon.Name, Scale, &NewIcon.Image);
     ParseSVGXIcon(mainParser, i, NewIcon.Name + "_night", Scale, &NewIcon.ImageNight);
-    ThemeX.Icons.AddCopy(NewIcon);
+    Icons.AddCopy(NewIcon);
   }
 
 
@@ -747,8 +747,9 @@ EG_IMAGE * LoadSvgFrame(INTN i)
 //textType = 0-help 1-message 2-menu 3-test
 //return text width in pixels
 #if USE_XTHEME
-INTN renderSVGtext(XImage& TextBufferXY, INTN posX, INTN posY, INTN textType, XStringW string, UINTN Cursor)
+INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType, const XStringW& string, UINTN Cursor)
 {
+  XImage& TextBufferXY = *TextBufferXY_ptr;
   INTN Width;
   UINTN i;
   UINTN len;
@@ -1085,7 +1086,7 @@ VOID testSVG()
       FreePool(FileData);
       //   Scale = Height / fontSVG->unitsPerEm;
 #if USE_XTHEME
-      renderSVGtext(TextBufferXY, 0, 0, 3, XStringW().takeValueFrom("Clover Кловер"), 1);
+      renderSVGtext(&TextBufferXY, 0, 0, 3, XStringW().takeValueFrom("Clover Кловер"), 1);
 #else
       renderSVGtext(TextBufferXY, 0, 0, 3, L"Clover Кловер", 1);
 #endif
