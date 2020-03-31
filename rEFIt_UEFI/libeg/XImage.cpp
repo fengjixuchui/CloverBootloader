@@ -59,10 +59,8 @@ EFI_STATUS XImage::FromEGImage(const EG_IMAGE* egImage)
 
 XImage& XImage::operator= (const XImage& other)
 {
-//	Width = other.GetWidth();
-//	Height = other.GetHeight();
 	setSizeInPixels(other.GetWidth(), other.GetHeight()); // change the size, ie the number of element in the array. Reaalocate buffer if needed
-	CopyMem(&PixelData[0], &other.PixelData[0], GetSizeInBytes());
+	PixelData = other.PixelData;
 	return *this;
 }
 
@@ -319,12 +317,19 @@ void XImage::FlipRB(bool WantAlpha)
  */
 EFI_STATUS XImage::FromPNG(const UINT8 * Data, UINTN Length)
 {
+//  DBG("XImage len=%llu\n", Length);
   if (Data == NULL) return EFI_INVALID_PARAMETER;
-  UINT8 * PixelPtr = (UINT8 *)&PixelData[0];
+  UINT8 * PixelPtr; // = (UINT8 *)&PixelData[0];
   unsigned Error = eglodepng_decode(&PixelPtr, &Width, &Height, Data, Length);
   if (Error != 0 && Error != 28) {
     return EFI_NOT_FOUND;
   }
+  setSizeInPixels(Width, Height);
+  //now we have a new pointer and want to move data
+  INTN NewLength = Width * Height * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
+  CopyMem(GetPixelPtr(0,0), PixelPtr, NewLength);
+  FreePool(PixelPtr); //allocated by lodepng
+
   FlipRB(true);
   return EFI_SUCCESS;
 }
@@ -540,6 +545,11 @@ void XImage::Draw(INTN x, INTN y, float scale, bool Opaque)
 EFI_STATUS XImage::LoadXImage(EFI_FILE *BaseDir, const char* IconName)
 {
   return LoadXImage(BaseDir, XStringWP(IconName));
+}
+
+EFI_STATUS XImage::LoadXImage(EFI_FILE *BaseDir, const wchar_t* LIconName)
+{
+  return LoadXImage(BaseDir, XStringWP(LIconName));
 }
 //dont call this procedure for SVG theme BaseDir == NULL?
 EFI_STATUS XImage::LoadXImage(EFI_FILE *BaseDir, const XStringW& IconName)
