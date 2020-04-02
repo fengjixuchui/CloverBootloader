@@ -209,8 +209,9 @@ INTN OldChosenDsdt;
 UINTN OldChosenAudio;
 UINT8 DefaultAudioVolume = 70;
 //INTN NewChosenTheme;
-INTN TextStyle; //why global?
-
+#if !USE_XTHEME
+INTN TextStyle; //why global? It will be class SCREEN member
+#endif
 BOOLEAN mGuiReady = FALSE;
 
 
@@ -1445,7 +1446,8 @@ VOID AboutRefit(VOID)
     /*
       EntryCount instead of InfoLineCount. Lastline == return/back. Is necessary recheck screen res here?
     */
-    FreePool(AboutMenu.Entries[AboutMenu.Entries.size()-2].Title);
+ //   FreePool(AboutMenu.Entries[AboutMenu.Entries.size()-2].Title); //what is FreePool(XStringW)?
+
     AboutMenu.Entries[AboutMenu.Entries.size()-2].Title.SWPrintf(" Screen Output: %ls", egScreenDescription());
   }
 
@@ -3132,7 +3134,7 @@ VOID REFIT_MENU_SCREEN::TextMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
 
 
 #if USE_XTHEME
-INTN DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
+INTN REFIT_MENU_SCREEN::DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
 {
   INTN      TextWidth = 0;
   INTN      XText = 0;
@@ -3144,6 +3146,8 @@ INTN DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XA
   if (Text.isEmpty()) {
     return 0;
   }
+  //TODO assume using embedded font for BootScreen
+  //messages must be TextXYStyle = 1 if it is provided by theme
   if (!textFace[1].valid) {
     if (textFace[2].valid) {
       TextXYStyle = 2;
@@ -3151,7 +3155,12 @@ INTN DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XA
       TextXYStyle = 0;
     }
   }
-
+/*
+ * here we want to know how many place is needed for the graphical text
+ * the procedure worked for fixed width font but the problem appears with proportional fonts
+ * as well we not know yet the font using but egRenderText calculate later real width
+ * so make a place to be large enoungh
+ */
   egMeasureText(Text.data(), &TextWidth, NULL);
 
   if (XAlign == X_IS_LEFT) {
@@ -3159,7 +3168,7 @@ INTN DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XA
     XText = XPos;
   }
 
-  if (ThemeX.TypeSVG) {
+  if (!isBootScreen && ThemeX.TypeSVG) {
     TextWidth += TextHeight * 2; //give more place for buffer
     if (!textFace[TextXYStyle].valid) {
       DBG("no vaid text face for message!\n");
@@ -3173,21 +3182,39 @@ INTN DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XA
 
 //  TextBufferXY = egCreateFilledImage(TextWidth, Height, TRUE, &MenuBackgroundPixel);
   TextBufferXY.setSizeInPixels(TextWidth, Height);
-  TextBufferXY.Fill(&MenuBackgroundPixel);
+//  TextBufferXY.Fill(MenuBackgroundPixel);
 
   // render the text
-  TextWidth = egRenderText(Text, &TextBufferXY, 0, 0, 0xFFFF, TextXYStyle);
+  INTN TextWidth2 = egRenderText(Text, &TextBufferXY, 0, 0, 0xFFFF, TextXYStyle);
+  // there is real text width but we already have an array with Width = TextWidth
+  //
+//  TextBufferXY.EnsureImageSize(TextWidth2, Height); //assume color = MenuBackgroundPixel
 
   if (XAlign != X_IS_LEFT) {
     // shift 64 is prohibited
-    XText = XPos - (TextWidth >> XAlign);  //X_IS_CENTER = 1
+    XText = XPos - (TextWidth2 >> XAlign);  //X_IS_CENTER = 1
   }
+
+  OldTextBufferRect.XPos = XText;
+  OldTextBufferRect.YPos = YPos;
+  OldTextBufferRect.Width = TextWidth2;
+  OldTextBufferRect.Height = Height;
+
+  OldTextBufferImage.GetArea(OldTextBufferRect);
+  //GetArea may change sizes
+  OldTextBufferRect.Width = OldTextBufferImage.GetWidth();
+  OldTextBufferRect.Height = OldTextBufferImage.GetHeight();
+
   //  DBG("draw text %ls\n", Text);
   //  DBG("pos=%d width=%d xtext=%d Height=%d Y=%d\n", XPos, TextWidth, XText, Height, YPos);
-//  BltImageAlpha(TextBufferXY, XText, YPos,  &MenuBackgroundPixel, 16);
-//  egFreeImage(TextBufferXY);
-  TextBufferXY.Draw(XText, YPos);
-  return TextWidth;
+  TextBufferXY.Draw(XText, YPos, 0, false);
+//  TextBufferXY.DrawWithoutCompose(XText, YPos);
+  return TextWidth2;
+}
+
+void REFIT_MENU_SCREEN::EraseTextXY()
+{
+  OldTextBufferImage.Draw(OldTextBufferRect.XPos, OldTextBufferRect.YPos);
 }
 #else
 
@@ -3251,7 +3278,7 @@ INTN DrawTextXY(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAli
  * Helper function to draw text for Boot Camp Style.
  * @author: Needy
  */
-VOID DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
+VOID REFIT_MENU_SCREEN::DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign)
 {
   // check if text was provided
   if (!Text) {
@@ -3339,14 +3366,14 @@ VOID DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAl
 }
 
 #if USE_XTHEME
-VOID DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor)
+VOID REFIT_MENU_SCREEN::DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor)
 {
   XImage TextBufferX(UGAWidth-XPos, TextHeight);
 
-  if (Cursor != 0xFFFF) {
-    TextBufferX.Fill(&MenuBackgroundPixel);
+  if (Cursor == 0xFFFF) { //InfoLine = 0xFFFF
+    TextBufferX.Fill(MenuBackgroundPixel);
   } else {
-    TextBufferX.Fill(&InputBackgroundPixel);
+    TextBufferX.Fill(InputBackgroundPixel);
   }
 
 
@@ -3355,12 +3382,12 @@ VOID DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INT
     EG_RECT TextRect;
     TextRect.Width = SelectedWidth;
     TextRect.Height = TextHeight;
-    TextBufferX.FillArea(&SelectionBackgroundPixel, TextRect);
+    TextBufferX.FillArea(SelectionBackgroundPixel, TextRect);
   }
 
   // render the text
   if (ThemeX.TypeSVG) {
-    //clovy - text veltically centred on Height
+    //clovy - text vertically centred on Height
     egRenderText(Text, &TextBufferX, 0,
                  (INTN)((TextHeight - (textFace[TextStyle].size * ThemeX.Scale)) / 2),
                  Cursor, TextStyle);
@@ -3758,6 +3785,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
 
       if (InfoLines.size() > 0) {
  //       DrawMenuText(NULL, 0, 0, 0, 0);
+        //EraseTextXY(); //but we should make it complementare to DrawMenuText
         for (UINTN i = 0; i < InfoLines.size(); i++) {
           DrawMenuText(InfoLines[i], 0, EntriesPosX, EntriesPosY, 0xFFFF);
           EntriesPosY += TextHeight;
@@ -3774,11 +3802,11 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
 
     case MENU_FUNCTION_PAINT_ALL:
   //    DrawMenuText(NULL, 0, 0, 0, 0); //should clean every line to avoid artefacts
-          DBG("PAINT_ALL: EntriesPosY=%lld MaxVisible=%lld\n", EntriesPosY, ScrollState.MaxVisible);
-          DBG("DownButton.Height=%lld TextHeight=%lld\n", DownButton.Height, TextHeight);
+ //         DBG("PAINT_ALL: EntriesPosY=%lld MaxVisible=%lld\n", EntriesPosY, ScrollState.MaxVisible);
+ //         DBG("DownButton.Height=%lld TextHeight=%lld\n", DownButton.Height, TextHeight);
       t2 = EntriesPosY + (ScrollState.MaxVisible + 1) * TextHeight - DownButton.Height;
       t1 = EntriesPosX + TextHeight + MenuWidth  + (INTN)((TEXT_XMARGIN + 16) * ThemeX.Scale);
-          DBG("PAINT_ALL: %lld %lld\n", t1, t2);
+//          DBG("PAINT_ALL: %lld %lld\n", t1, t2);
       SetBar(t1, EntriesPosY, t2, &ScrollState); //823 302 554
 
       // blackosx swapped this around so drawing of selection comes before drawing scrollbar.
@@ -3834,10 +3862,11 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
           }
         } else if (Entry->getREFIT_MENU_CHECKBIT()) {
      //       DrawMenuText(XStringW().takeValueFrom(" "), 0, EntriesPosX, Entry->Place.YPos, 0xFFFF); //clean the place
-            DrawMenuText(ResultString, (i == ScrollState.CurrentSelection) ? (MenuWidth) : 0,
+          ThemeX.FillRectAreaOfScreen(ctrlTextX, Entry->Place.YPos, MenuWidth, TextHeight);
+          DrawMenuText(ResultString, (i == ScrollState.CurrentSelection) ? (MenuWidth) : 0,
                          ctrlTextX,
                          Entry->Place.YPos, 0xFFFF);
-            ThemeX.Buttons[(((REFIT_INPUT_DIALOG*)(Entry))->Item->IValue & Entry->Row)?3:2].Draw(ctrlX, ctrlY);
+          ThemeX.Buttons[(((REFIT_INPUT_DIALOG*)(Entry))->Item->IValue & Entry->Row)?3:2].Draw(ctrlX, ctrlY);
         } else if (Entry->getREFIT_MENU_SWITCH()) {
           if (Entry->getREFIT_MENU_SWITCH()->Item->IValue == 3) {
             //OldChosenItem = OldChosenTheme;
@@ -3898,7 +3927,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
           DrawMenuText(ResultString, 0,
                        ctrlTextX,
                        EntryL->Place.YPos, 0xFFFF);
-            ThemeX.Buttons[(inputDialogEntry->Item->BValue)?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre);
+          ThemeX.Buttons[(inputDialogEntry->Item->BValue)?3:2].Draw(ctrlX, EntryL->Place.YPos + PlaceCentre);
           //          DBG("se:X=%d, Y=%d, ImageY=%d\n", EntriesPosX + (INTN)(TEXT_XMARGIN * GlobalConfig.Scale),
           //              EntryL->Place.YPos, EntryL->Place.YPos + PlaceCentre);
         } else {
@@ -4418,13 +4447,13 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
   XImage& TopImage = ThemeX.SelectionImages[((Entry->Row == 0) ? 0 : 2) + (selected ? 0 : 1)];
 
   if(ThemeX.SelectionOnTop) {
-    MainImage.Draw(XPos, YPos, fScale);
-    BadgeImage.Draw(XPos, YPos, fScale);
-    TopImage.Draw(XPos, YPos, fScale);
+    MainImage.Draw(XPos, YPos, fScale, false);
+    BadgeImage.Draw(XPos, YPos, fScale, false);
+    TopImage.Draw(XPos, YPos, fScale, false);
   } else {
-    TopImage.Draw(XPos, YPos, fScale);
-    MainImage.Draw(XPos, YPos, fScale);
-    BadgeImage.Draw(XPos, YPos, fScale);
+    TopImage.Draw(XPos, YPos, fScale, false);
+    MainImage.Draw(XPos, YPos, fScale, false);
+    BadgeImage.Draw(XPos, YPos, fScale, false);
   }
 
   // draw BCS indicator
@@ -4440,7 +4469,7 @@ VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN 
 //                    &MenuBackgroundPixel, Scale);
       TopImage = ThemeX.SelectionImages[4 + (selected ? 0 : 1)];
       TopImage.Draw(XPos + (ThemeX.row0TileSize / 2) - (INTN)(INDICATOR_SIZE * 0.5f * ThemeX.Scale),
-                    row0PosY + ThemeX.row0TileSize + TextHeight + (INTN)((BCSMargin * 2) * ThemeX.Scale), fScale);
+                    row0PosY + ThemeX.row0TileSize + TextHeight + (INTN)((BCSMargin * 2) * ThemeX.Scale), fScale, false);
     }
   }
 
@@ -4536,8 +4565,9 @@ VOID XTheme::FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN 
   XImage TmpBuffer(Width, Height);
 //  TmpBuffer.CopyScaled(Background, 1.f);
   INTN X = XPos - (Width >> 1);  //X_IS_CENTRE
-  TmpBuffer.CopyRect(Background, X, YPos);
+  TmpBuffer.CopyRect(Background, X, YPos); //a part of BackGround image
   TmpBuffer.DrawWithoutCompose(X, YPos);
+//  TmpBuffer.Draw(X, YPos, 0, true);
 }
 #else
 VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height, IN EG_PIXEL *Color, IN UINT8 XAlign)
@@ -4563,28 +4593,29 @@ VOID FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Hei
 #endif
 
 #if USE_XTHEME
-VOID REFIT_MENU_SCREEN::DrawMainMenuLabel(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos)
+VOID REFIT_MENU_SCREEN::DrawMainMenuLabel(IN CONST XStringW& Text, IN INTN XPos, IN INTN YPos)
 {
   INTN TextWidth = 0;
   INTN BadgeDim = (INTN)(BADGE_DIMENSION * ThemeX.Scale);
 
-  egMeasureText(Text, &TextWidth, NULL);
+  egMeasureText(Text.wc_str(), &TextWidth, NULL);
 
   //Clear old text
-  if (OldTextWidth > TextWidth) {
+//  if (OldTextWidth > TextWidth) {
     ThemeX.FillRectAreaOfScreen(OldX, OldY, OldTextWidth, TextHeight);
-  }
+//  }
 
   if (!(ThemeX.BootCampStyle)
       && (ThemeX.HideBadges & HDBADGES_INLINE) && (!OldRow)
-      && (OldTextWidth) && (OldTextWidth != TextWidth)) {
+//      && (OldTextWidth) && (OldTextWidth != TextWidth)
+      ) {
     //Clear badge
     ThemeX.FillRectAreaOfScreen((OldX - (OldTextWidth >> 1) - (BadgeDim + 16)),
                                 (OldY - ((BadgeDim - TextHeight) >> 1)), 128, 128);
   }
-  XStringW TextX;
-  TextX.takeValueFrom(Text);
-  DrawTextXY(TextX, XPos, YPos, X_IS_CENTER);
+//  XStringW TextX;
+//  TextX.takeValueFrom(Text);
+  DrawTextXY(Text, XPos, YPos, X_IS_CENTER);
 
   //show inline badge
   if (!(ThemeX.BootCampStyle) &&
@@ -4657,7 +4688,7 @@ VOID REFIT_MENU_SCREEN::CountItems()
   }
 }
 #if USE_XTHEME
-VOID DrawTextCorner(UINTN TextC, UINT8 Align)
+VOID REFIT_MENU_SCREEN::DrawTextCorner(UINTN TextC, UINT8 Align)
 {
   INTN    Xpos;
 //  CHAR16  *Text = NULL;
@@ -4843,7 +4874,7 @@ VOID REFIT_MENU_SCREEN::MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16
       // Update FilmPlace only if not set by InitAnime
       if (FilmPlace.Width == 0 || FilmPlace.Height == 0) {
      //   CopyMem(&FilmPlace, &BannerPlace, sizeof(BannerPlace));
-        FilmPlace = BannerPlace;
+        FilmPlace = ThemeX.BannerPlace;
       }
 
       ThemeX.InitBar();
@@ -5169,7 +5200,7 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
       // Update FilmPlace only if not set by InitAnime
       if (FilmPlace.Width == 0 || FilmPlace.Height == 0) {
 //        CopyMem(&FilmPlace, &BannerPlace, sizeof(BannerPlace));
-        FilmPlace = BannerPlace;
+        FilmPlace = ThemeX.BannerPlace;
       }
 
       //DBG("main menu inited\n");

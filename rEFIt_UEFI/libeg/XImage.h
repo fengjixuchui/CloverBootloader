@@ -87,7 +87,7 @@ public:
   void CopyScaled(const XImage& Image, float scale);
   void CopyRect(const XImage& Image, INTN X, INTN Y);
   void Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest); //instead of compose we often can Back.Draw(...) + Top.Draw(...)
-  void FlipRB(bool WantAlpha);
+  void FlipRB();
   EFI_STATUS FromPNG(const UINT8 * Data, UINTN Lenght);
   EFI_STATUS ToPNG(UINT8** Data, UINTN& OutSize);
   EFI_STATUS FromSVG(const CHAR8 *SVGData, float scale);
@@ -106,8 +106,10 @@ public:
   EFI_STATUS LoadXImage(EFI_FILE *Dir, const char* IconName);
   EFI_STATUS LoadIcns(IN EFI_FILE *Dir, IN CONST CHAR16 *FileName, IN UINTN PixelSize);
   void EnsureImageSize(IN UINTN Width, IN UINTN Height, IN CONST EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color);
+  void EnsureImageSize(IN UINTN NewWidth, IN UINTN NewHeight);
   void DummyImage(IN UINTN PixelSize);
-
+protected:
+  UINT8 Smooth(const UINT8* p, int a01, int a10, int a21, int a12,  int dx, int dy, float scale);
 };
 
 #endif //__XSTRINGW_H__
