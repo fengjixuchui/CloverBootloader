@@ -22,6 +22,9 @@ public:
   Icon(INTN Id);
   ~Icon();
 
+  // Default are not valid, as usual. We delete them. If needed, proper ones can be created
+  Icon(const Icon&) = delete;
+  Icon& operator=(const Icon&) = delete;
 };
 
 class XTheme
@@ -79,12 +82,17 @@ public:
   float       CentreShift;
   INTN        row0TileSize;
   INTN        row1TileSize;
-  UINTN       BanHeight;
+  INTN        BanHeight;
   INTN        LayoutHeight; //it was 376 before
   INTN        LayoutBannerOffset;
   INTN        LayoutButtonOffset;
   INTN        LayoutTextOffset;
   INTN        LayoutAnimMoveForMenuX;
+  INTN        ScrollWidth;
+  INTN        ScrollButtonsHeight;
+  INTN        ScrollBarDecorationsHeight;
+  INTN        ScrollScrollDecorationsHeight;
+
 
   BOOLEAN     Daylight;
 
@@ -102,7 +110,7 @@ public:
   XImage  UpButtonImage;
   XImage  DownButtonImage;
 
-  EG_RECT  BannerPlace; //TODO exclude BanHeight = BannerPlace.Height
+  EG_RECT  BannerPlace;
 
   //fill the theme
   const XImage& GetIcon(const XString& Name);  //get by name
@@ -110,13 +118,14 @@ public:
   const XImage& GetIcon(const CHAR16* Name);
   const XImage& GetIcon(INTN Id); //get by id
 
-  void AddIcon(Icon& NewIcon);  //return EFI_STATUS?
+//  void AddIcon(Icon& NewIcon);  //return EFI_STATUS?
   void FillByEmbedded();
   void FillByDir();
-  EFI_STATUS GetThemeTagSettings (void* DictPointer);
+  EFI_STATUS GetThemeTagSettings(void* DictPointer);
   void parseTheme(void* p, const char** dict); //in nano project
   EFI_STATUS ParseSVGXTheme(CONST CHAR8* buffer); // in VectorTheme
   EFI_STATUS ParseSVGXIcon(void *p, INTN Id, const XString& IconNameX, float Scale, XImage* Image);
+  void* LoadTheme(const CHAR16 *TestTheme); //return TagPtr why?
 
   //screen operations
   void ClearScreen();

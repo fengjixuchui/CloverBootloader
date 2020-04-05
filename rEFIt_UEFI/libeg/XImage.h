@@ -46,7 +46,7 @@ typedef struct {
 class XImage
 {
 protected:
-  size_t      Width;
+  size_t      Width; //may be better to use INTN - signed integer as it always compared with expressions
   size_t      Height;
   XArray<EFI_GRAPHICS_OUTPUT_BLT_PIXEL> PixelData;
  
@@ -54,7 +54,7 @@ public:
   XImage();
   XImage(UINTN W, UINTN H);
   XImage(EG_IMAGE* egImage);
-  XImage(const XImage& Image, float scale); //the constructor can accept 0 scale as 1.f
+  XImage(const XImage& Image, float scale = 0.f); //the constructor can accept 0 scale as 1.f
   ~XImage();
 
   XImage& operator= (const XImage& other);
@@ -68,11 +68,11 @@ public:
 
   const XArray<EFI_GRAPHICS_OUTPUT_BLT_PIXEL>& GetData() const;
 
-  const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& GetPixel(UINTN x, UINTN y) const;
-  const EFI_GRAPHICS_OUTPUT_BLT_PIXEL* GetPixelPtr(UINTN x, UINTN y) const ;
-  EFI_GRAPHICS_OUTPUT_BLT_PIXEL* GetPixelPtr(UINTN x, UINTN y);
-  UINTN      GetWidth() const;
-  UINTN      GetHeight() const;
+  const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& GetPixel(INTN x, INTN y) const;
+  const EFI_GRAPHICS_OUTPUT_BLT_PIXEL* GetPixelPtr(INTN x, INTN y) const ;
+  EFI_GRAPHICS_OUTPUT_BLT_PIXEL* GetPixelPtr(INTN x, INTN y);
+  INTN      GetWidth() const { return (INTN)Width; }
+  INTN      GetHeight() const { return (INTN)Height; }
 
   void setZero() { SetMem( (void*)GetPixelPtr(0, 0), GetSizeInBytes(), 0); }
 
@@ -86,6 +86,7 @@ public:
   void FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, EG_RECT& Rect);
   void CopyScaled(const XImage& Image, float scale);
   void CopyRect(const XImage& Image, INTN X, INTN Y);
+  void CopyRect(const XImage& Image, const EG_RECT& OwnPlace, const EG_RECT& InputRect);
   void Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest); //instead of compose we often can Back.Draw(...) + Top.Draw(...)
   void FlipRB();
   EFI_STATUS FromPNG(const UINT8 * Data, UINTN Lenght);
@@ -99,6 +100,7 @@ public:
   void Draw(INTN x, INTN y, float scale); //can accept 0 scale as 1.f
   void Draw(INTN x, INTN y); 
   void DrawWithoutCompose(INTN x, INTN y, UINTN width = 0, UINTN height = 0);
+  void DrawOnBack(INTN x, INTN y, const XImage& Plate);
 //I changed the name because LoadImage is too widely used
 // will be used instead of old egLoadImage
   EFI_STATUS LoadXImage(EFI_FILE *Dir, const XStringW& FileName); //for example LoadImage(ThemeDir, L"icons\\" + Name);

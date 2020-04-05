@@ -46,6 +46,11 @@
 #include "menu_items/menu_items.h"
 
 
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
+
 //some unreal values
 #define FILM_CENTRE   40000
 //#define FILM_LEFT     50000
@@ -106,7 +111,7 @@ public:
 
   //TODO scroll positions should depends on REFIT_SCREEN?
   // Or it just currently calculated to be global variables?
-  /*
+#if USE_XTHEME
   EG_RECT BarStart;
   EG_RECT BarEnd;
   EG_RECT ScrollStart;
@@ -118,9 +123,9 @@ public:
   EG_RECT Scrollbar;
   EG_RECT ScrollbarOldPointerPlace;
   EG_RECT ScrollbarNewPointerPlace;
-*/
 
-#if USE_XTHEME
+
+
   REFIT_MENU_SCREEN()
 						: ID(0), Title(), TitleImage(),
 						  TimeoutSeconds(0), TimeoutText(), ThemeName(),
@@ -198,15 +203,20 @@ public:
   VOID InitScroll(IN INTN ItemCount, IN UINTN MaxCount,
                   IN UINTN VisibleSpace, IN INTN Selected);
   VOID UpdateScroll(IN UINTN Movement);
+//  void InitBar();
   VOID ScrollingBar();
+  VOID SetBar(INTN PosX, INTN UpPosY, INTN DownPosY, IN SCROLL_STATE *State);
+
+  //mouse functions
   VOID HidePointer();
   EFI_STATUS MouseBirth();
   VOID KillMouse();
+  EFI_STATUS CheckMouseEvent();
+
+  //menu functions
   VOID AddMenuItem_(REFIT_MENU_ENTRY_ITEM_ABSTRACT* InputBootArgs, INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);
-  VOID AddMenuInfo(CONST char *Line);
-  VOID AddMenuInfo_f(CONST char *format, ...);
-  VOID AddMenuInfoLine(IN CONST CHAR16 *InfoLine);
-  VOID AddMenuInfoLine(IN XStringW& InfoLine);
+  VOID AddMenuInfo_f(CONST char *format, ...) __attribute__((format(printf, 2, 3)));
+  VOID AddMenuInfoLine_f(CONST char *format, ...) __attribute__((format(printf, 2, 3)));
   VOID AddMenuEntry(IN REFIT_ABSTRACT_MENU_ENTRY *Entry, bool freeIt);
   VOID AddMenuItemSwitch(INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);
   VOID AddMenuCheck(CONST CHAR8 *Text, UINTN Bit, INTN ItemNum);
@@ -220,6 +230,7 @@ public:
 
 
 #if USE_XTHEME
+  VOID DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOLEAN selected, INTN XPos, INTN YPos);
   VOID DrawMainMenuLabel(IN CONST XStringW& Text, IN INTN XPos, IN INTN YPos);
   INTN DrawTextXY(IN CONST XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign);
   void EraseTextXY();
@@ -236,6 +247,7 @@ public:
 
 
   //Style functions
+
   virtual VOID MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);
   virtual VOID MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);
   virtual VOID GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamText);

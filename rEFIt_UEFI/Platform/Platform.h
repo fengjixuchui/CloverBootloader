@@ -809,16 +809,26 @@ typedef struct CUSTOM_LOADER_ENTRY CUSTOM_LOADER_ENTRY;
 struct CUSTOM_LOADER_ENTRY {
   CUSTOM_LOADER_ENTRY     *Next;
   CUSTOM_LOADER_ENTRY     *SubEntries;
+#if USE_XTHEME
+  XImage                  Image;
+  XImage                  DriveImage;
+#else
   EG_IMAGE                *Image;
   EG_IMAGE                *DriveImage;
-  CONST CHAR16                  *ImagePath;
-  CONST CHAR16                  *DriveImagePath;
-  CONST CHAR16                  *Volume;
-  CONST CHAR16                  *Path;
-  CONST CHAR16                  *Options;
-  CONST CHAR16                  *FullTitle;
-  CONST CHAR16                  *Title;
-  CONST CHAR16                  *Settings;
+#endif
+  CONST CHAR16            *ImagePath;
+  CONST CHAR16            *DriveImagePath;
+  CONST CHAR16            *Volume;
+  CONST CHAR16            *Path;
+  CONST CHAR16            *Options;
+#if USE_XTHEME
+  XStringW FullTitle;
+  XStringW Title;
+#else
+  CONST CHAR16            *FullTitle;
+  CONST CHAR16            *Title;
+#endif
+  CONST CHAR16            *Settings;
   CHAR16                  Hotkey;
   BOOLEAN                 CommonSettings;
   UINT8                   Flags;
@@ -837,14 +847,24 @@ struct CUSTOM_LOADER_ENTRY {
 
 typedef struct CUSTOM_LEGACY_ENTRY CUSTOM_LEGACY_ENTRY;
 struct CUSTOM_LEGACY_ENTRY {
-  CUSTOM_LEGACY_ENTRY *Next;
-  EG_IMAGE            *Image;
-  EG_IMAGE            *DriveImage;
-  CONST CHAR16              *ImagePath;
-  CONST CHAR16              *DriveImagePath;
-  CONST CHAR16              *Volume;
-  CONST CHAR16              *FullTitle;
-  CONST CHAR16              *Title;
+  CUSTOM_LEGACY_ENTRY   *Next;
+#if USE_XTHEME
+  XImage                Image;
+  XImage                DriveImage;
+#else
+  EG_IMAGE              *Image;
+  EG_IMAGE              *DriveImage;
+#endif
+  CONST CHAR16          *ImagePath;
+  CONST CHAR16          *DriveImagePath;
+  CONST CHAR16          *Volume;
+#if USE_XTHEME
+  XStringW              FullTitle;
+  XStringW              Title;
+#else
+  CONST CHAR16          *FullTitle;
+  CONST CHAR16          *Title;
+#endif
   CHAR16              Hotkey;
   UINT8               Flags;
   UINT8               Type;
@@ -854,13 +874,22 @@ struct CUSTOM_LEGACY_ENTRY {
 typedef struct CUSTOM_TOOL_ENTRY CUSTOM_TOOL_ENTRY;
 struct CUSTOM_TOOL_ENTRY {
   CUSTOM_TOOL_ENTRY *Next;
+#if USE_XTHEME
+  XImage            Image;
+#else
   EG_IMAGE          *Image;
+#endif
   CHAR16            *ImagePath;
   CHAR16            *Volume;
   CHAR16            *Path;
   CHAR16            *Options;
-  CHAR16            *FullTitle;
-  CHAR16            *Title;
+#if USE_XTHEME
+  XStringW          FullTitle;
+  XStringW          Title;
+#else
+  CONST CHAR16      *FullTitle;
+  CONST CHAR16      *Title;
+#endif
   CHAR16            Hotkey;
   UINT8             Flags;
   UINT8             VolumeType;
@@ -1681,8 +1710,8 @@ extern CHAR8                          *gDeviceProperties;
 extern UINT32                         cPropSize;
 extern UINT8                          *cProperties;
 extern CHAR8                          *cDeviceProperties;
-extern INPUT_ITEM                     *InputItems;
-extern BOOLEAN                        SavePreBootLog;
+//extern INPUT_ITEM                     *InputItems;
+//extern BOOLEAN                        SavePreBootLog;
 extern CHAR8                          *BootOSName;
 //extern EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput;
 extern UINT64                    machineSignature;
@@ -1708,11 +1737,11 @@ extern UINT32                          devices_number;
 //mouse
 //extern ACTION                          gAction;
 //extern UINTN                           gItemID;
-extern INTN                            OldChosenTheme;
-extern INTN                            OldChosenConfig;
-extern INTN                            OldChosenDsdt;
-extern UINTN                            OldChosenAudio;
-extern UINT8                            DefaultAudioVolume;
+//extern INTN                            OldChosenTheme;
+//extern INTN                            OldChosenConfig;
+//extern INTN                            OldChosenDsdt;
+//extern UINTN                            OldChosenAudio;
+//extern UINT8                            DefaultAudioVolume;
 
 //CHAR8*   orgBiosDsdt;
 extern UINT64                          BiosDsdt;
@@ -2074,7 +2103,7 @@ AddCard (
 
 EG_IMAGE
 *egDecodePNG (
-  IN UINT8 *FileData,
+  IN const UINT8 *FileData,
   IN UINTN FileDataLength,
   IN BOOLEAN WantAlpha
   );

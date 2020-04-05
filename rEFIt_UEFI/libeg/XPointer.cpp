@@ -204,6 +204,11 @@ VOID XPointer::UpdatePointer()
   }
 }
 
+MOUSE_EVENT XPointer::GetEvent()
+{
+  return MouseEvent;
+}
+
 bool XPointer::MouseInRect(EG_RECT *Place)
 {
   return  ((newPlace.XPos >= Place->XPos) &&
@@ -211,116 +216,3 @@ bool XPointer::MouseInRect(EG_RECT *Place)
     (newPlace.YPos >= Place->YPos) &&
     (newPlace.YPos < (Place->YPos + (INTN)Place->Height)));
 }
-
-EFI_STATUS XPointer::CheckMouseEvent(REFIT_MENU_SCREEN *Screen)
-{
-  if (!Screen) {
-    return EFI_TIMEOUT;
-  }
-  EFI_STATUS Status = EFI_TIMEOUT;
-  Screen->mAction = ActionNone;
-  bool Move = false;
-
-  if (!IsDragging && MouseEvent == MouseMove)
-    MouseEvent = NoEvents;
-
-  if (Screen->ScrollEnabled){
-    if (MouseInRect(&UpButton) && MouseEvent == LeftClick)
-      Screen->mAction = ActionScrollUp;
-    else if (MouseInRect(&DownButton) && MouseEvent == LeftClick)
-      Screen->mAction = ActionScrollDown;
-    else if (MouseInRect(&Scrollbar) && MouseEvent == LeftMouseDown) {
-      IsDragging = TRUE;
-      Move = true;
-//      Screen->mAction = ActionMoveScrollbar;
-      ScrollbarYMovement = 0;
-      ScrollbarOldPointerPlace.XPos = ScrollbarNewPointerPlace.XPos = newPlace.XPos;
-      ScrollbarOldPointerPlace.YPos = ScrollbarNewPointerPlace.YPos = newPlace.YPos;
-    }
-    else if (IsDragging && MouseEvent == LeftClick) {
-      IsDragging = FALSE;
-      Move = true;
-//      Screen->mAction = ActionMoveScrollbar;
-    }
-    else if (IsDragging && MouseEvent == MouseMove) {
-      Screen->mAction = ActionMoveScrollbar;
-      ScrollbarNewPointerPlace.XPos = newPlace.XPos;
-      ScrollbarNewPointerPlace.YPos = newPlace.YPos;
-    }
-    else if (MouseInRect(&ScrollbarBackground) &&
-             MouseEvent == LeftClick) {
-      if (newPlace.YPos < Scrollbar.YPos) // up
-        Screen->mAction = ActionPageUp;
-      else // down
-        Screen->mAction = ActionPageDown;
-    // page up/down, like in OS X
-    }
-    else if (MouseEvent == ScrollDown) {
-      Screen->mAction = ActionScrollDown;
-    }
-    else if (MouseEvent == ScrollUp) {
-      Screen->mAction = ActionScrollUp;
-    }
-  }
-  if (!Screen->ScrollEnabled || (Screen->mAction == ActionNone && !Move) ) {
-      for (UINTN EntryId = 0; EntryId < Screen->Entries.size(); EntryId++) {
-        if (MouseInRect(&(Screen->Entries[EntryId].Place))) {
-          switch (MouseEvent) {
-            case LeftClick:
-              Screen->mAction = Screen->Entries[EntryId].AtClick;
-              //          DBG("Click\n");
-              break;
-            case RightClick:
-              Screen->mAction = Screen->Entries[EntryId].AtRightClick;
-              break;
-            case DoubleClick:
-              Screen->mAction = Screen->Entries[EntryId].AtDoubleClick;
-              break;
-            case ScrollDown:
-              Screen->mAction = ActionScrollDown;
-              break;
-            case ScrollUp:
-              Screen->mAction = ActionScrollUp;
-              break;
-            case MouseMove:
-              Screen->mAction = Screen->Entries[EntryId].AtMouseOver;
-              //how to do the action once?
-              break;
-            default:
-              Screen->mAction = ActionNone;
-              break;
-          }
-          Screen->mItemID = EntryId;
-          break;
-        }
-        else { //click in milk
-          switch (MouseEvent) {
-            case LeftClick:
-              Screen->mAction = ActionDeselect;
-              break;
-            case RightClick:
-              Screen->mAction = ActionFinish;
-              break;
-            case ScrollDown:
-              Screen->mAction = ActionScrollDown;
-              break;
-            case ScrollUp:
-              Screen->mAction = ActionScrollUp;
-              break;
-            default:
-              Screen->mAction = ActionNone;
-              break;
-          }
-          Screen->mItemID = 0xFFFF;
-        }
-      }
-
-  }
-
-  if (Screen->mAction != ActionNone) {
-    Status = EFI_SUCCESS;
-    MouseEvent = NoEvents; //clear event as set action
-  }
-  return Status;
-}
-

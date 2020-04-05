@@ -163,22 +163,22 @@ const XArray<EFI_GRAPHICS_OUTPUT_BLT_PIXEL>& XImage::GetData() const
   return PixelData;
 }
 
-EFI_GRAPHICS_OUTPUT_BLT_PIXEL* XImage::GetPixelPtr(UINTN x, UINTN y)
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL* XImage::GetPixelPtr(INTN x, INTN y)
 {
 	return &PixelData[x + y * Width];
 }
 
-const EFI_GRAPHICS_OUTPUT_BLT_PIXEL* XImage::GetPixelPtr(UINTN x, UINTN y) const
+const EFI_GRAPHICS_OUTPUT_BLT_PIXEL* XImage::GetPixelPtr(INTN x, INTN y) const
 {
 	return &PixelData[x + y * Width];
 }
 
-const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& XImage::GetPixel(UINTN x, UINTN y) const
+const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& XImage::GetPixel(INTN x, INTN y) const
 {
 	return PixelData[x + y * Width];
 }
 
-
+/*
 UINTN      XImage::GetWidth() const
 {
   return Width;
@@ -188,7 +188,7 @@ UINTN      XImage::GetHeight() const
 {
   return Height;
 }
-
+*/
 UINTN XImage::GetSizeInBytes() const
 {
   return PixelData.size() * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
@@ -220,33 +220,37 @@ void XImage::FillArea(const EG_PIXEL* Color, EG_RECT& Rect)
 
 void XImage::FillArea(const EFI_GRAPHICS_OUTPUT_BLT_PIXEL& Color, EG_RECT& Rect)
 {
-  for (INTN y = Rect.YPos; y < (INTN)Height && (y - Rect.YPos) < Rect.Height; ++y) {
-    for (INTN x = Rect.XPos; x < (INTN)Width && (x - Rect.XPos) < Rect.Width; ++x)
+  for (INTN y = Rect.YPos; y < GetHeight() && (y - Rect.YPos) < Rect.Height; ++y) {
+    for (INTN x = Rect.XPos; x < GetWidth() && (x - Rect.XPos) < Rect.Width; ++x) {
       PixelData[y * Width + x] = Color;
+    }
   }
 }
 
+//sizes remain as were assumed input image is large enough?
 void XImage::CopyScaled(const XImage& Image, float scale)
 {
-  UINTN SrcWidth = Image.GetWidth();
+  int SrcWidth = (int)Image.GetWidth(); //because Source[] requires int argument, why not long long int?
 
   int Pixel = sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
-  int Row = (int)SrcWidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
+  int Row = SrcWidth * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
+  int W = (int)GetWidth();
+  int H = (int)GetHeight();
 
   const XArray<EFI_GRAPHICS_OUTPUT_BLT_PIXEL>& Source = Image.GetData();
 
-  for (UINTN y = 0; y < Height; y++)
+  for (INTN y = 0; y < H; y++)
   {
     int ly = (int)(y / scale);
     int dy = (int)(y - ly * scale);
-    for (UINTN x = 0; x < Width; x++)
+    for (INTN x = 0; x < W; x++)
     {
       int lx = (int)(x / scale);
       int dx = (int)(x - lx * scale);
       int a01 = (x == 0) ? 0 : -Pixel;
       int a10 = (y == 0) ? 0 : -Row;
-      int a21 = (x == Width - 1) ? 0 : Pixel;
-      int a12 = (y == Height - 1) ? 0 : Row;
+      int a21 = (x == W - 1) ? 0 : Pixel;
+      int a12 = (y == H - 1) ? 0 : Row;
       EFI_GRAPHICS_OUTPUT_BLT_PIXEL& dst = *GetPixelPtr(x, y);
       dst.Blue = Smooth(&Source[lx + ly * SrcWidth].Blue, a01, a10, a21, a12, dx, dy, scale);
       dst.Green = Smooth(&Source[lx + ly * SrcWidth].Green, a01, a10, a21, a12, dx, dy, scale);
@@ -269,10 +273,10 @@ void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
   UINT32      TempAlpha;
   UINT32      Temp;
 //change only affected pixels
-  for (UINTN y = PosY; y < Height && (y - PosY) < TopImage.GetHeight(); ++y) {
+  for (INTN y = PosY; y < GetHeight() && (y - PosY) < TopImage.GetHeight(); ++y) {
  //   EFI_GRAPHICS_OUTPUT_BLT_PIXEL& CompPtr = *GetPixelPtr(PosX, y); // I assign a ref to avoid the operator ->. Compiler will produce the same anyway.
     EFI_GRAPHICS_OUTPUT_BLT_PIXEL* CompPtr = GetPixelPtr(PosX, y);
-    for (UINTN x = PosX; x < Width && (x - PosX) < TopImage.GetWidth(); ++x) {
+    for (INTN x = PosX; x < GetWidth() && (x - PosX) < TopImage.GetWidth(); ++x) {
       //------
       // test compAlpha = 255; TopAlpha = 0 -> only Comp, TopAplha = 255 -> only Top
       TopAlpha = TopImage.GetPixel(x-PosX, y-PosY).Reserved & 0xFF; //0, 255
@@ -281,9 +285,8 @@ void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
       TempAlpha = CompAlpha * RevAlpha; //2<<16; 255*255, 0
       TopAlpha *= 255; //2<<16; 0, 255*255
       FinalAlpha = TopAlpha + TempAlpha; //2<<16; 255*255, 255*255
- //     if (FinalAlpha == 0) FinalAlpha = 255 * 255; //impossible,
-
 //final alpha =(1-(1-x)*(1-y)) =(255*255-(255-topA)*(255-compA))/255 = topA+compA*(1-topA)
+
       if (FinalAlpha != 0) {
         Temp = (CompPtr->Blue * TempAlpha) + (TopImage.GetPixel(x-PosX, y-PosY).Blue * TopAlpha);
         CompPtr->Blue = (UINT8)(Temp / FinalAlpha);
@@ -340,6 +343,7 @@ EFI_STATUS XImage::FromPNG(const UINT8 * Data, UINTN Length)
   if (Error != 0 && Error != 28) {
     return EFI_NOT_FOUND;
   }
+  if ( !PixelPtr ) return EFI_UNSUPPORTED; // It's possible to get error 28 and PixelPtr == NULL
   setSizeInPixels(Width, Height);
   //now we have a new pointer and want to move data
   INTN NewLength = Width * Height * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
@@ -416,7 +420,6 @@ void XImage::GetArea(const EG_RECT& Rect)
 {
   GetArea(Rect.XPos, Rect.YPos, Rect.Width, Rect.Height);
 }
-
 
 void XImage::GetArea(INTN x, INTN y, UINTN W, UINTN H)
 {
@@ -529,7 +532,8 @@ void XImage::Draw(INTN x, INTN y, float scale, bool Opaque)
   UINTN AreaHeight = (y + Height > (UINTN)UGAHeight) ? (UGAHeight - y) : Height;
   Background.GetArea(x, y, AreaWidth, AreaHeight); //it will resize the Background image
   Background.Compose(0, 0, Top, Opaque);
-
+  Background.DrawWithoutCompose(x, y);
+#if 0
   // prepare protocols
   EFI_STATUS Status;
   EFI_GUID UgaDrawProtocolGuid = EFI_UGA_DRAW_PROTOCOL_GUID;
@@ -554,6 +558,15 @@ void XImage::Draw(INTN x, INTN y, float scale, bool Opaque)
     UgaDraw->Blt(UgaDraw, (EFI_UGA_PIXEL *)Background.GetPixelPtr(0, 0), EfiUgaBltBufferToVideo,
       0, 0, x, y, AreaWidth, AreaHeight, AreaWidth*sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
   }
+#endif
+}
+
+void XImage::DrawOnBack(INTN XPos, INTN YPos, const XImage& Plate)
+{
+  XImage BackLayer(Width, Height);
+  BackLayer.CopyRect(Plate, XPos, YPos); //assume Plate is big enough [XPos+Width, YPos+Height]
+  BackLayer.Compose(0, 0, *this, true);
+  BackLayer.DrawWithoutCompose(XPos, YPos);
 }
 
 /*
@@ -633,7 +646,7 @@ void XImage::EnsureImageSize(IN UINTN NewWidth, IN UINTN NewHeight, IN CONST EFI
 
   XImage NewImage(NewWidth, NewHeight);
   NewImage.Fill(Color);
-  NewImage.Compose(0, 0, (*this), true);
+  NewImage.Compose(0, 0, (*this), false); //should keep existing opacity
   setSizeInPixels(NewWidth, NewHeight); //include reallocate but loose data
   CopyMem(&PixelData[0], &NewImage.PixelData[0], GetSizeInBytes());
   //we have to copy pixels twice? because we can't return newimage instead of this
@@ -670,12 +683,31 @@ void XImage::DummyImage(IN UINTN PixelSize)
 
 void XImage::CopyRect(const XImage& Image, INTN XPos, INTN YPos)
 {
-  for (UINTN y = 0; y < Height && (y + YPos) < Image.GetHeight(); ++y) {
-    for (UINTN x = 0; x < Width && (x + XPos) < Image.GetWidth(); ++x) {
+  for (INTN y = 0; y < GetHeight() && (y + YPos) < Image.GetHeight(); ++y) {
+    for (INTN x = 0; x < GetWidth() && (x + XPos) < Image.GetWidth(); ++x) {
       PixelData[y * Width + x] = Image.GetPixel(x + XPos, y + YPos);
     }
   }
 }
+
+/*
+ * copy rect InputRect from the input Image and place to OwnRect in this image
+ * width and height will be the smaller of the two rect
+ * taking into account boundary intersect
+ */
+void XImage::CopyRect(const XImage& Image, const EG_RECT& OwnPlace, const EG_RECT& InputRect)
+{
+  INTN Dx = OwnPlace.XPos - InputRect.XPos;
+  INTN Dy = OwnPlace.YPos - InputRect.YPos;
+  INTN W = MIN(OwnPlace.Width, InputRect.Width);
+  INTN H = MIN(OwnPlace.Height, InputRect.Height);
+  for (INTN y = OwnPlace.YPos; y - OwnPlace.YPos < H && y < GetHeight() && (y - Dy) < Image.GetHeight(); ++y) {
+    for (INTN x = OwnPlace.XPos; x - OwnPlace.XPos < W && x < GetWidth() && (x - Dx) < Image.GetWidth(); ++x) {
+      PixelData[y * Width + x] = Image.GetPixel(x - Dx, y - Dy);
+    }
+  }
+}
+
 
 EG_IMAGE* XImage::ToEGImage()
 {

@@ -26,30 +26,28 @@ extern "C" {
 #define DBG(...) DebugLog(DEBUG_XTHEME, __VA_ARGS__)
 #endif
 
-
-//temporary
-extern INTN    ScrollWidth;
-extern INTN    ScrollButtonsHeight;
-extern INTN    ScrollBarDecorationsHeight;
-extern INTN    ScrollScrollDecorationsHeight;
-
-extern EG_RECT UpButton;
-extern EG_RECT DownButton;
-extern EG_RECT BarStart;
-extern EG_RECT BarEnd;
-extern EG_RECT ScrollbarBackground;
-extern EG_RECT Scrollbar;
-extern EG_RECT ScrollStart;
-extern EG_RECT ScrollEnd;
-extern EG_RECT ScrollTotal;
-
-extern BOOLEAN IsDragging;
-extern EG_RECT ScrollbarOldPointerPlace;
-extern EG_RECT ScrollbarNewPointerPlace;
-extern INTN    ScrollbarYMovement;
-
-//extern EFI_GRAPHICS_OUTPUT_BLT_PIXEL SelectionBackgroundPixel;
-
+#if !USE_XTHEME
+//these are XTHEME members
+//extern INTN    ScrollWidth;
+//extern INTN    ScrollButtonsHeight;
+//extern INTN    ScrollBarDecorationsHeight;
+//extern INTN    ScrollScrollDecorationsHeight;
+//These are SCREEN members
+//extern EG_RECT UpButton;
+//extern EG_RECT DownButton;
+//extern EG_RECT BarStart;
+//extern EG_RECT BarEnd;
+//extern EG_RECT ScrollbarBackground;
+//extern EG_RECT Scrollbar;
+//extern EG_RECT ScrollStart;
+//extern EG_RECT ScrollEnd;
+//extern EG_RECT ScrollTotal;
+//extern EG_RECT ScrollbarOldPointerPlace;
+//extern EG_RECT ScrollbarNewPointerPlace;
+#endif
+//dynamic variables
+//extern INTN    ScrollbarYMovement;
+//extern BOOLEAN IsDragging;
 
 CONST CHAR8* IconsNames[] = {
   "func_about",
@@ -227,11 +225,11 @@ const XImage& XTheme::GetIcon(INTN Id)
   }
   return NullIcon;
 }
-
-void XTheme::AddIcon(Icon& NewIcon)
-{
-  Icons.AddCopy(NewIcon);
-}
+//
+//void XTheme::AddIcon(Icon& NewIcon)
+//{
+//  Icons.AddCopy(NewIcon);
+//}
 
 //if ImageNight is not set then Image should be used
 #define DEC_BUILTIN_ICON(id, ico) { \
@@ -342,9 +340,10 @@ Icon::Icon(INTN Index) : Image(0), ImageNight(0)
 
 void XTheme::FillByEmbedded()
 {
+  Icons.Empty();
   for (INTN i = 0; i < BUILTIN_ICON_COUNT; ++i) {
-    Icon NewIcon(i);
-    Icons.AddCopy(NewIcon);
+    Icon* NewIcon = new Icon(i);
+    Icons.AddReference(NewIcon, true);
   }
   //radio buttons will be inited by InitSelection()
 }
@@ -382,25 +381,24 @@ void XTheme::ClearScreen() //and restore background and banner
           //        DBG("banner position old style\n");
         }
       }
-      
     }
   }
   
   //Then prepare Background from BigBack
-  if (!Background.isEmpty() && (Background.GetWidth() != (UINTN)UGAWidth || Background.GetHeight() != (UINTN)UGAHeight)) { // should we type UGAWidth and UGAHeight as UINTN to avoid cast ?
+  if (!Background.isEmpty() && (Background.GetWidth() != UGAWidth || Background.GetHeight() != UGAHeight)) { // should we type UGAWidth and UGAHeight as UINTN to avoid cast ?
     // Resolution changed
     Background.setEmpty();
   }
-  
   if (Background.isEmpty()) {
     Background = XImage(UGAWidth, UGAHeight);
-    Background.Fill(BlueBackgroundPixel);
+    Background.Fill(BlueBackgroundPixel); //blue opaque. May be better to set black opaque?
   }
+// now we are sure Background has UGA sizes
   if (!BigBack.isEmpty()) {
     switch (BackgroundScale) {
     case imScale:
 //        DBG("back copy scaled\n");
-      Background.CopyScaled(BigBack, Scale);
+      Background = XImage(BigBack, Scale);
       break;
     case imCrop:
     {
@@ -425,12 +423,14 @@ void XTheme::ClearScreen() //and restore background and banner
         y2 = (-y) >> 1;
         y = UGAHeight;
       }
+      const EG_RECT BackRect = EG_RECT(x1, y1, x, y);
+      const EG_RECT BigRect = EG_RECT(x2, y2, x, y);
       //the function can be in XImage class
-      egRawCopy((EG_PIXEL*)Background.GetPixelPtr(x1, y1),
-                (EG_PIXEL*)BigBack.GetPixelPtr(x2, y2),
-                x, y, Background.GetWidth(), BigBack.GetWidth());
+//      egRawCopy((EG_PIXEL*)Background.GetPixelPtr(x1, y1),
+//                (EG_PIXEL*)BigBack.GetPixelPtr(x2, y2),
+//                x, y, Background.GetWidth(), BigBack.GetWidth());
 //      DBG("crop to x,y: %lld, %lld\n", x, y);
-//      Background.CopyRect(BigBack, x, y);
+      Background.CopyRect(BigBack, BackRect, BigRect);
 //      DBG("back copy cropped\n");
       break;
     }
@@ -455,12 +455,17 @@ void XTheme::ClearScreen() //and restore background and banner
       break;
     }
   }
+  //join Banner and Background for menu drawing
+  if (!Banner.isEmpty()) {
+    Background.Compose(BannerPlace.XPos, BannerPlace.YPos, Banner, true);
+  }
+
   Background.DrawWithoutCompose(0, 0, UGAWidth, UGAHeight);
 //  Background.Draw(0,0,0,true);
   //then draw banner
-  if (!Banner.isEmpty()) {
-    Banner.Draw(BannerPlace.XPos, BannerPlace.YPos, Scale);
-  }
+//  if (!Banner.isEmpty()) {
+//    Banner.Draw(BannerPlace.XPos, BannerPlace.YPos, Scale);
+//  }
   
 }
 
@@ -589,6 +594,7 @@ void XTheme::InitSelection() //for PNG theme
       Buttons[3].FromPNG(ACCESS_EMB_DATA(emb_checkbox_checked), ACCESS_EMB_SIZE(emb_checkbox_checked));
     }
   } else {
+    //SVG theme already parsed all icons
     Buttons[0] = GetIcon("radio_button");
     Buttons[1] = GetIcon("radio_button_selected");
     Buttons[2] = GetIcon("checkbox");
@@ -598,10 +604,10 @@ void XTheme::InitSelection() //for PNG theme
   // non-selected background images
 
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
-  if (!TypeSVG && !SelectionBigFileName.isEmpty()) {
+  if (TypeSVG || !SelectionBigFileName.isEmpty()) {
     BackgroundPixel = { 0x00, 0x00, 0x00, 0x00 };
-  } else if (DarkEmbedded || TypeSVG) {
-    BackgroundPixel = { 0x33, 0x33, 0x33, 0x00 };
+  } else if (DarkEmbedded) {
+    BackgroundPixel = { 0x33, 0x33, 0x33, 0x00 }; //nonsense. Will be a sense if semi-transparent
   } else { //for example embedded daylight
     BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
   }
@@ -616,11 +622,12 @@ void XTheme::InitSelection() //for PNG theme
 //use this only for PNG theme
 void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
 {
+  Icons.Empty();
   for (INTN i = 0; i <= BUILTIN_CHECKBOX_CHECKED; ++i) {
-    Icon NewIcon(i); //initialize with embedded but further replace by loaded
-    NewIcon.Image.LoadXImage(ThemeDir, IconsNames[i]);
-    NewIcon.ImageNight.LoadXImage(ThemeDir, SWPrintf("%s_night", IconsNames[i]));
-    Icons.AddCopy(NewIcon);
+    Icon* NewIcon = new Icon(i); //initialize with embedded but further replace by loaded
+    NewIcon->Image.LoadXImage(ThemeDir, IconsNames[i]);
+    NewIcon->ImageNight.LoadXImage(ThemeDir, SWPrintf("%s_night", IconsNames[i]));
+    Icons.AddReference(NewIcon, true);
   }
 
   InitSelection(); //initialize selections, buttons
@@ -698,29 +705,19 @@ void XTheme::InitBar()
       DownButtonImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_down_button), ACCESS_EMB_SIZE(emb_scroll_down_button));
     }
   }
+}
 
-  //TODO it must be somewhere in InitScroll - Screen function
-  if (!TypeSVG) {
-    UpButton.Width      = ScrollWidth; // 16
-    UpButton.Height     = ScrollButtonsHeight; // 20
-    DownButton.Width    = UpButton.Width;
-    DownButton.Height   = ScrollButtonsHeight;
-    BarStart.Height     = ScrollBarDecorationsHeight; // 5
-    BarEnd.Height       = ScrollBarDecorationsHeight;
-    ScrollStart.Height  = ScrollScrollDecorationsHeight; // 7
-    ScrollEnd.Height    = ScrollScrollDecorationsHeight;
-
-  } else {
-    UpButton.Width      = ScrollWidth; // 16
-    UpButton.Height     = 0; // 20
-    DownButton.Width    = UpButton.Width;
-    DownButton.Height   = 0;
-    BarStart.Height     = ScrollBarDecorationsHeight; // 5
-    BarEnd.Height       = ScrollBarDecorationsHeight;
-    ScrollStart.Height  = 0; // 7
-    ScrollEnd.Height    = 0;
-
-  }
+//the purpose of the procedure is restore Background in rect
+//XAlign is always centre, Color is the Backgrounf fill
+//TODO replace by some existing procedure
+VOID XTheme::FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height)
+{
+  XImage TmpBuffer(Width, Height);
+  //  TmpBuffer.CopyScaled(Background, 1.f);
+  INTN X = XPos - (Width >> 1);  //X_IS_CENTRE
+  TmpBuffer.CopyRect(Background, X, YPos); //a part of BackGround image
+  TmpBuffer.DrawWithoutCompose(X, YPos);
+  //  TmpBuffer.Draw(X, YPos, 0, true);
 }
 
 #endif // USE_XTHEME

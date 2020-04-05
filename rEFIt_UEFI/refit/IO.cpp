@@ -29,6 +29,9 @@ Revision History
 #define PRINT_ITEM_BUFFER_LEN   100
 #define PRINT_JOINT_BUFFER_LEN  4
 
+extern "C" {
+#   include <Library/PrintLib.h>
+}
 
 typedef struct {
   BOOLEAN PageBreak;
@@ -1083,7 +1086,7 @@ EFI_STATUS WaitForInputEventPoll(REFIT_MENU_SCREEN* ScreenPtr, UINTN TimeoutDefa
 //    if ( Screen.mPointer ) {
     	if (Screen.mPointer.isAlive()) {
     		Screen.mPointer.UpdatePointer();
-    		Status = Screen.mPointer.CheckMouseEvent(&Screen); //out: gItemID, gAction
+    		Status = Screen.CheckMouseEvent(); //out: gItemID, gAction
     		if (Status != EFI_TIMEOUT) { //this check should return timeout if no mouse events occured
     			break;
 

@@ -207,6 +207,7 @@ EFI_STATUS XTheme::ParseSVGXIcon(void *parser, INTN Id, const XString& IconNameX
   XImage NewImage(iWidth, iHeight); //empty
   if (IconImage->shapes == NULL) {
     *Image = NewImage;
+ //   DBG("return empty with status=%s\n", strerror(Status));
     return Status;
   }
 
@@ -288,7 +289,7 @@ EFI_STATUS ParseSVGIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float Sc
         if ((strstr(IconName, "selection_big") != NULL) && (!GlobalConfig.SelectionOnTop)) {
           GlobalConfig.MainEntriesSize = (int)(IconImage->width * Scale); //xxx
           row0TileSize = GlobalConfig.MainEntriesSize + (int)(16.f * Scale);
-			DBG("main entry size = %lld\n", GlobalConfig.MainEntriesSize);
+          DBG("main entry size = %lld\n", GlobalConfig.MainEntriesSize);
         }
          if ((strstr(IconName, "selection_small") != NULL) && (!GlobalConfig.SelectionOnTop)) {
           row1TileSize = (int)(IconImage->width * Scale);
@@ -415,7 +416,8 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
 {
   EFI_STATUS      Status;
   NSVGimage       *SVGimage;
-//  NSVGrasterizer  *rast = nsvgCreateRasterizer();
+
+  Icons.Empty();
 
   // --- Parse theme.svg --- low case
   mainParser = nsvgParse((CHAR8*)buffer, 72, 1.f); //the buffer will be modified, it is how nanosvg works
@@ -441,9 +443,9 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   Scale = ScaleF;
   CentreShift = (vbx * Scale - (float)UGAWidth) * 0.5f;
 
-  if (mainParser->font) {
-    DBG("theme contains font-family=%s\n", mainParser->font->fontFamily);
-  }
+//  if (mainParser->font) { //this is strange like last found font
+//    DBG("theme contains font-family=%s\n", mainParser->font->fontFamily);
+//  }
 
   Background = XImage(UGAWidth, UGAHeight);
   if (!BigBack.isEmpty()) {
@@ -468,20 +470,25 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   }
   DBG("Banner parsed\n");
   BanHeight = (int)(Banner.GetHeight() * Scale + 1.f);
-  DBG(" parsed banner->width=%lld\n", Banner.GetWidth());
+  DBG(" parsed banner->width=%lld height=%lld\n", Banner.GetWidth(), BanHeight);
   
   // --- Make other icons
 
-  for (INTN i = BUILTIN_ICON_FUNC_ABOUT; i < BUILTIN_CHECKBOX_CHECKED; ++i) {
-    if (i == BUILTIN_ICON_BANNER) {
+  for (INTN i = BUILTIN_ICON_FUNC_ABOUT; i <= BUILTIN_CHECKBOX_CHECKED; ++i) {
+    if (i == BUILTIN_ICON_BANNER) { //exclude "logo" as it done other way
       continue;
     }
-    Icon NewIcon(i); //initialize with embedded but further replace by loaded
-    ParseSVGXIcon(mainParser, i, NewIcon.Name, Scale, &NewIcon.Image);
-    ParseSVGXIcon(mainParser, i, NewIcon.Name + "_night", Scale, &NewIcon.ImageNight);
-    Icons.AddCopy(NewIcon);
+    Icon* NewIcon = new Icon(i); //initialize with embedded but further replace by loaded
+    /*Status = */ParseSVGXIcon(mainParser, i, NewIcon->Name, Scale, &NewIcon->Image);
+//    DBG("parse %s status %s\n", NewIcon->Name.c_str(), strerror(Status));
+    /*Status = */ParseSVGXIcon(mainParser, i, NewIcon->Name + "_night", Scale, &NewIcon->ImageNight);
+//    DBG("...night status %s\n", strerror(Status));
+    Icons.AddReference(NewIcon, true);
   }
 
+  //selections
+  SelectionImages[0] = GetIcon(BUILTIN_SELECTION_BIG);
+  SelectionImages[2] = GetIcon(BUILTIN_SELECTION_SMALL);
 
   //selection for bootcamp style
   Status = EFI_NOT_FOUND;
@@ -491,7 +498,15 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   if (EFI_ERROR(Status)) {
     Status = ParseSVGXIcon(mainParser, BUILTIN_ICON_SELECTION, "selection_indicator"_XS, Scale, &SelectionImages[4]);
   }
-  
+
+  //buttons
+  for (INTN i = BUILTIN_RADIO_BUTTON; i <= BUILTIN_CHECKBOX_CHECKED; ++i) {
+    Buttons[i - BUILTIN_RADIO_BUTTON] = GetIcon(i);
+  }
+  //for (int i=0 ; i<6 ; i+=2 ) {
+  //SelectionImages[i].Draw(i*100, 0);
+  //}
+
   //banner animation
   GUI_ANIME *Anime = (__typeof__(Anime))AllocateZeroPool (sizeof(GUI_ANIME));
   Anime->ID = 1; //main screen
@@ -515,7 +530,7 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
     row1TileSize = (INTN)(64.f * Scale);
     MainEntriesSize = (INTN)(128.f * Scale);
   }
-  DBG("parsing svg theme finished\n");
+ // DBG("parsing svg theme finished\n");
 
   return Status;
 }
@@ -1043,7 +1058,6 @@ VOID testSVG()
       float ty = 0; //-SVGimage->realBounds[1] * Scale;
 		DBG("timing rasterize start tx=%f ty=%f\n", tx, ty);
 #if USE_XTHEME
-
       nsvgRasterize(rast, SVGimage, tx,ty,Scale,Scale, (UINT8*)NewImage.GetPixelPtr(0,0), (int)Width, (int)Height, (int)Width*4);
       DBG("timing rasterize end\n");
       NewImage.Draw((UGAWidth - Width) / 2,
@@ -1052,12 +1066,10 @@ VOID testSVG()
       nsvgRasterize(rast, SVGimage, tx,ty,Scale,Scale, (UINT8*)NewImage->PixelData, (int)Width, (int)Height, (int)Width*4);
       DBG("timing rasterize end\n");
       //now show it!
-
       XImage NewX(NewImage);
       NewX.Draw((UGAWidth - Width) / 2,
         (UGAHeight - Height) / 2);
       egFreeImage(NewImage);
-
 #endif //test XImage
       FreePool(FileData);
       FileData = NULL;
@@ -1071,7 +1083,7 @@ VOID testSVG()
     //Test text
     Height = 80;
     Width = UGAWidth-200;
-    DBG("create test textbuffer\n");
+//    DBG("create test textbuffer\n");
 #if USE_XTHEME
     XImage TextBufferXY(Width, Height);
 #else

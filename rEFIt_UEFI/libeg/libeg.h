@@ -121,7 +121,7 @@ extern "C" {
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
-#include <Library/PrintLib.h>
+//#include <Library/PrintLib.h>
 #include <Library/TimerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
@@ -414,6 +414,7 @@ public:
   INTN     Height;
 	
   EG_RECT() : XPos(0), YPos(0), Width(0), Height(0) {};
+  EG_RECT(INTN x, INTN y, INTN w, INTN h) { XPos = x; YPos = y; Width = w; Height = h; }
   EG_RECT(const EG_RECT& other) { XPos = other.XPos; YPos = other.YPos; Width = other.Width; Height = other.Height; }
   const EG_RECT& operator = (const EG_RECT& other) { XPos = other.XPos; YPos = other.YPos; Width = other.Width; Height = other.Height; return *this; }
   bool operator == (const EG_RECT& other) { return XPos == other.XPos  &&  YPos == other.YPos  &&  Width == other.Width  &&  Height == other.Height; }
