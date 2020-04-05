@@ -278,7 +278,7 @@ EFI_STATUS ParseSVGIcon(NSVGparser  *p, INTN Id, CONST CHAR8 *IconName, float Sc
         //there is bounds after nsvgParse()
         IconImage->width = shape->bounds[2] - shape->bounds[0];
         IconImage->height = shape->bounds[3] - shape->bounds[1];
-        if (!IconImage->height) {
+        if ( IconImage->height == 0 ) {  // doing "if (!IconImage->height)" generates a warning
           IconImage->height = 200;
         }
  //       if (Id == BUILTIN_ICON_BACKGROUND || Id == BUILTIN_ICON_BANNER) {
@@ -481,7 +481,7 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
     Icon* NewIcon = new Icon(i); //initialize with embedded but further replace by loaded
     /*Status = */ParseSVGXIcon(mainParser, i, NewIcon->Name, Scale, &NewIcon->Image);
 //    DBG("parse %s status %s\n", NewIcon->Name.c_str(), strerror(Status));
-    /*Status = */ParseSVGXIcon(mainParser, i, NewIcon->Name + "_night", Scale, &NewIcon->ImageNight);
+    /*Status = */ParseSVGXIcon(mainParser, i, NewIcon->Name + "_night"_XS, Scale, &NewIcon->ImageNight);
 //    DBG("...night status %s\n", strerror(Status));
     Icons.AddReference(NewIcon, true);
   }
@@ -903,14 +903,14 @@ INTN renderSVGtext(EG_IMAGE* TextBufferXY, INTN posX, INTN posY, INTN textType, 
 
 //  Height = 180; //for test
 //  DBG("textBuffer: [%d,%d], fontUnits=%d\n", Width, TextBufferXY->Height, (int)fontSVG->unitsPerEm);
-  if (!fontSVG->unitsPerEm) {
+  if ( fontSVG->unitsPerEm == 0 ) { // doing "if (!fontSVG->unitsPerEm)" generates a warning
     fontSVG->unitsPerEm = 1000.f;
   }
   float fH = fontSVG->bbox[3] - fontSVG->bbox[1]; //1250
   if (fH == 0.f) {
-	  DBG("wrong font: %f\n", fontSVG->unitsPerEm);
+	DBG("wrong font: %f\n", fontSVG->unitsPerEm);
     DumpFloat2("Font bbox", fontSVG->bbox, 4);
-    fH = fontSVG->unitsPerEm?fontSVG->unitsPerEm:1000.0f;  //1000
+    fH = fontSVG->unitsPerEm != 0 ? fontSVG->unitsPerEm : 1000.0f;  //1000   // using "fontSVG->unitsPerEm != 0" instead of just is to avoid a warning
   }
   sy = (float)Height / fH; //(float)fontSVG->unitsPerEm; // 260./1250.
   //in font units

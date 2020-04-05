@@ -182,19 +182,20 @@ void XTheme::Init()
  * probably it whould return Empty image
  * Image.isEmpty() == true
  */
-const XImage& XTheme::GetIcon(const char* Name)
-{
-  return GetIcon(XString().takeValueFrom(Name));
-}
-
-const XImage& XTheme::GetIcon(const CHAR16* Name)
-{
-  return GetIcon(XString().takeValueFrom(Name));
-}
+//const XImage& XTheme::GetIcon(const char* Name)
+//{
+//  return GetIcon(XString().takeValueFrom(Name));
+//}
+//
+//const XImage& XTheme::GetIcon(const CHAR16* Name)
+//{
+//  return GetIcon(XString().takeValueFrom(Name));
+//}
 
 static XImage NullIcon;
+static XImage DummyIcon;
 
-const XImage& XTheme::GetIcon(const XString& Name)
+const XImage& XTheme::GetIcon(const XString& Name) const
 {
   for (size_t i = 0; i < Icons.size(); i++)
   {
@@ -210,7 +211,7 @@ const XImage& XTheme::GetIcon(const XString& Name)
   return NullIcon; //return pointer to XImage? Or XImage copy?
 }
 
-const XImage& XTheme::GetIcon(INTN Id)
+const XImage& XTheme::GetIcon(INTN Id) const 
 {
   for (size_t i = 0; i < Icons.size(); i++)
   {
@@ -224,6 +225,33 @@ const XImage& XTheme::GetIcon(INTN Id)
     }
   }
   return NullIcon;
+}
+
+const XImage& XTheme::LoadOSIcon(const CHAR16* OSIconName)
+{
+  // input value can be L"win", L"ubuntu,linux", L"moja,mac" set by GetOSIconName (OSVersion)
+  XString Full = XString().takeValueFrom(OSIconName);
+  XString First;
+  XString Second;
+  const XImage *ReturnImage;
+  UINTN Comma = Full.IdxOf(',');
+  UINTN Size = Full.size();
+  if (Comma != MAX_XSIZE) {  //Comma
+    First = "os_"_XS + Full.SubString(0, Comma);
+    ReturnImage = &GetIcon(First);
+    if (!ReturnImage->isEmpty()) return *ReturnImage;
+    //else search second name
+    Second = "os_"_XS + Full.SubString(Comma+1, Size - Comma - 1);
+    ReturnImage = &GetIcon(Second);
+    if (!ReturnImage->isEmpty()) return *ReturnImage;
+  } else {
+    ReturnImage = &GetIcon("os_"_XS + Full);
+    if (!ReturnImage->isEmpty()) return *ReturnImage;
+  }
+  // else something
+  if (DummyIcon.isEmpty()) //initialize once per session
+    DummyIcon.DummyImage(MainEntriesSize);
+  return DummyIcon;
 }
 //
 //void XTheme::AddIcon(Icon& NewIcon)
@@ -245,10 +273,10 @@ Icon::Icon(INTN Index) : Image(0), ImageNight(0)
 {
   Id = Index;
   Name.setEmpty();
-  if (Index < BUILTIN_ICON_FUNC_ABOUT || Index > BUILTIN_CHECKBOX_CHECKED) {
-    return;
+  if (Index >= BUILTIN_ICON_FUNC_ABOUT && Index <= BUILTIN_CHECKBOX_CHECKED) {
+    Name.takeValueFrom(IconsNames[Index]);
   }
-  Name.takeValueFrom(IconsNames[Index]);
+
   switch (Id) {
     case BUILTIN_ICON_FUNC_ABOUT:
       DEC_BUILTIN_ICON2(BUILTIN_ICON_FUNC_ABOUT, emb_func_about, emb_dark_func_about)
@@ -329,6 +357,10 @@ Icon::Icon(INTN Index) : Image(0), ImageNight(0)
     case BUILTIN_CHECKBOX_CHECKED:
       DEC_BUILTIN_ICON(BUILTIN_CHECKBOX_CHECKED, emb_checkbox_checked)
       break;
+    case BUILTIN_ICON_SELECTION:
+      Name.takeValueFrom("selection_indicator");
+      DEC_BUILTIN_ICON(BUILTIN_ICON_SELECTION, emb_selection_indicator)
+      break;
     default:
  //     Image.setEmpty(); //done by ctor?
       break;
@@ -341,11 +373,25 @@ Icon::Icon(INTN Index) : Image(0), ImageNight(0)
 void XTheme::FillByEmbedded()
 {
   Icons.Empty();
-  for (INTN i = 0; i < BUILTIN_ICON_COUNT; ++i) {
+  for (INTN i = 0; i < BUILTIN_ICON_COUNT; ++i) { //this is embedded icon count
     Icon* NewIcon = new Icon(i);
     Icons.AddReference(NewIcon, true);
   }
-  //radio buttons will be inited by InitSelection()
+  //and buttons
+  Buttons[0].FromPNG(ACCESS_EMB_DATA(emb_radio_button), ACCESS_EMB_SIZE(emb_radio_button));
+  Buttons[1].FromPNG(ACCESS_EMB_DATA(emb_radio_button_selected), ACCESS_EMB_SIZE(emb_radio_button_selected));
+  Buttons[2].FromPNG(ACCESS_EMB_DATA(emb_checkbox), ACCESS_EMB_SIZE(emb_checkbox));
+  Buttons[3].FromPNG(ACCESS_EMB_DATA(emb_checkbox_checked), ACCESS_EMB_SIZE(emb_checkbox_checked));
+
+  if (Daylight) {
+    SelectionImages[0].FromPNG(ACCESS_EMB_DATA(emb_selection_big), ACCESS_EMB_SIZE(emb_selection_big));
+    SelectionImages[2].FromPNG(ACCESS_EMB_DATA(emb_selection_small), ACCESS_EMB_SIZE(emb_selection_small));
+  } else {
+    SelectionImages[0].FromPNG(ACCESS_EMB_DATA(emb_dark_selection_big), ACCESS_EMB_SIZE(emb_dark_selection_big));
+    SelectionImages[2].FromPNG(ACCESS_EMB_DATA(emb_dark_selection_small), ACCESS_EMB_SIZE(emb_dark_selection_small));
+  }
+
+  SelectionImages[4].FromPNG(ACCESS_EMB_DATA(emb_selection_indicator), ACCESS_EMB_SIZE(emb_selection_indicator));
 }
 
 void XTheme::ClearScreen() //and restore background and banner
@@ -469,6 +515,7 @@ void XTheme::ClearScreen() //and restore background and banner
   
 }
 
+#if 0
 void XTheme::InitSelection() //for PNG theme
 {
   EFI_STATUS Status;
@@ -595,10 +642,10 @@ void XTheme::InitSelection() //for PNG theme
     }
   } else {
     //SVG theme already parsed all icons
-    Buttons[0] = GetIcon("radio_button");
-    Buttons[1] = GetIcon("radio_button_selected");
-    Buttons[2] = GetIcon("checkbox");
-    Buttons[3] = GetIcon("checkbox_checked");
+    Buttons[0] = GetIcon("radio_button"_XS);
+    Buttons[1] = GetIcon("radio_button_selected"_XS);
+    Buttons[2] = GetIcon("checkbox"_XS);
+    Buttons[3] = GetIcon("checkbox_checked"_XS);
   }
 
   // non-selected background images
@@ -618,7 +665,7 @@ void XTheme::InitSelection() //for PNG theme
   SelectionImages[3].Fill(BackgroundPixel);
 
 }
-
+#endif
 //use this only for PNG theme
 void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
 {
@@ -630,7 +677,55 @@ void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
     Icons.AddReference(NewIcon, true);
   }
 
-  InitSelection(); //initialize selections, buttons
+  SelectionBackgroundPixel.Red      = (SelectionColor >> 24) & 0xFF;
+  SelectionBackgroundPixel.Green    = (SelectionColor >> 16) & 0xFF;
+  SelectionBackgroundPixel.Blue     = (SelectionColor >> 8) & 0xFF;
+  SelectionBackgroundPixel.Reserved = (SelectionColor >> 0) & 0xFF;
+
+// try special name
+  SelectionImages[2].setEmpty();
+  SelectionImages[2].LoadXImage(ThemeDir, SelectionSmallFileName);
+// then common name selection_small.png
+  if (SelectionImages[2].isEmpty()){
+    SelectionImages[2] = GetIcon(BUILTIN_SELECTION_SMALL);
+  }
+  // now the big selection
+  SelectionImages[0].setEmpty();
+  SelectionImages[0].LoadXImage(ThemeDir, SelectionBigFileName);
+  // then common name selection_small.png
+  if (SelectionImages[0].isEmpty()){
+    SelectionImages[0] = GetIcon(BUILTIN_SELECTION_BIG);
+  }
+// else use small selection
+  if (SelectionImages[0].isEmpty()) {
+    SelectionImages[0] = SelectionImages[2]; //use same selection if OnTop for example
+  }
+//let they be empty as is
+//  SelectionImages[1] = XImage(row0TileSize, row0TileSize);
+//  SelectionImages[3] = XImage(row1TileSize, row1TileSize);
+
+  if (BootCampStyle) {
+    // load indicator selection image
+    SelectionImages[4].setEmpty();
+    SelectionImages[4].LoadXImage(ThemeDir, SelectionIndicatorName);
+    if (SelectionImages[4].isEmpty()) {
+      SelectionImages[4].LoadXImage(ThemeDir, "selection_indicator");
+    }
+    INTN ScaledIndicatorSize = (INTN)(INDICATOR_SIZE * Scale);
+    SelectionImages[4].EnsureImageSize(ScaledIndicatorSize, ScaledIndicatorSize, MenuBackgroundPixel);
+    if (SelectionImages[4].isEmpty()) {
+      SelectionImages[4] = XImage(ScaledIndicatorSize, ScaledIndicatorSize);
+      SelectionImages[4].Fill(StdBackgroundPixel);
+    }
+//    SelectionImages[5] = XImage(ScaledIndicatorSize, ScaledIndicatorSize);
+//    SelectionImages[5].Fill(MenuBackgroundPixel);
+  }
+
+  //and buttons
+  Buttons[0] = GetIcon(BUILTIN_RADIO_BUTTON);
+  Buttons[1] = GetIcon(BUILTIN_RADIO_BUTTON_SELECTED);
+  Buttons[2] = GetIcon(BUILTIN_CHECKBOX);
+  Buttons[3] = GetIcon(BUILTIN_CHECKBOX_CHECKED);
 
   //load banner and background
   Banner.LoadXImage(ThemeDir, BannerFileName); 
@@ -661,7 +756,7 @@ void XTheme::InitBar()
   if (ScrollbarBackgroundImage.isEmpty()) {
     if (TypeSVG) {
       //return OSIconsTable[i].image;
-      ScrollbarBackgroundImage = GetIcon("scrollbar_background");
+      ScrollbarBackgroundImage = GetIcon("scrollbar_background"_XS);
     }
     if (ScrollbarBackgroundImage.isEmpty()) {
       ScrollbarBackgroundImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_bar_fill), ACCESS_EMB_SIZE(emb_scroll_bar_fill));
@@ -669,7 +764,7 @@ void XTheme::InitBar()
   }
   if (ScrollbarImage.isEmpty()) {
     if (TypeSVG) {
-      ScrollbarImage = GetIcon("scrollbar_holder"); //"_night" is already accounting
+      ScrollbarImage = GetIcon("scrollbar_holder"_XS); //"_night" is already accounting
     }
     if (ScrollbarImage.isEmpty()) {
       ScrollbarImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_scroll_fill), ACCESS_EMB_SIZE(emb_scroll_scroll_fill));
@@ -677,7 +772,7 @@ void XTheme::InitBar()
   }
   if (ScrollStartImage.isEmpty()) {
     if (TypeSVG) {
-      ScrollStartImage = GetIcon("scrollbar_start");
+      ScrollStartImage = GetIcon("scrollbar_start"_XS);
     }
     if (ScrollStartImage.isEmpty()) {
       ScrollStartImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_scroll_start), ACCESS_EMB_SIZE(emb_scroll_scroll_start));
@@ -685,7 +780,7 @@ void XTheme::InitBar()
   }
   if (ScrollEndImage.isEmpty()) {
     if (TypeSVG) {
-      ScrollEndImage = GetIcon("scrollbar_end");
+      ScrollEndImage = GetIcon("scrollbar_end"_XS);
     }
     if (ScrollEndImage.isEmpty()) {
       ScrollEndImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_scroll_end), ACCESS_EMB_SIZE(emb_scroll_scroll_end));
@@ -693,13 +788,13 @@ void XTheme::InitBar()
   }
   if (UpButtonImage.isEmpty()) {
     if (TypeSVG) {
-      UpButtonImage = GetIcon("scrollbar_up_button");
+      UpButtonImage = GetIcon("scrollbar_up_button"_XS);
     }
     UpButtonImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_up_button), ACCESS_EMB_SIZE(emb_scroll_up_button));
   }
   if (DownButtonImage.isEmpty()) {
     if (TypeSVG) {
-      DownButtonImage = GetIcon("scrollbar_down_button");
+      DownButtonImage = GetIcon("scrollbar_down_button"_XS);
     }
     if (DownButtonImage.isEmpty()) {
       DownButtonImage.FromPNG(ACCESS_EMB_DATA(emb_scroll_down_button), ACCESS_EMB_SIZE(emb_scroll_down_button));

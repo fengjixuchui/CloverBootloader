@@ -113,10 +113,11 @@ public:
   EG_RECT  BannerPlace;
 
   //fill the theme
-  const XImage& GetIcon(const XString& Name);  //get by name
-  const XImage& GetIcon(const char* Name);
-  const XImage& GetIcon(const CHAR16* Name);
-  const XImage& GetIcon(INTN Id); //get by id
+//  const XImage& GetIcon(const char* Name);
+//  const XImage& GetIcon(const CHAR16* Name);
+  const XImage& GetIcon(const XString& Name) const;  //get by name
+  const XImage& GetIcon(INTN Id) const; //get by id
+  const XImage& LoadOSIcon(const CHAR16* OSIconName); //TODO make XString provider
 
 //  void AddIcon(Icon& NewIcon);  //return EFI_STATUS?
   void FillByEmbedded();
@@ -130,7 +131,7 @@ public:
   //screen operations
   void ClearScreen();
   void FillRectAreaOfScreen(IN INTN XPos, IN INTN YPos, IN INTN Width, IN INTN Height);
-  void InitSelection();
+//  void InitSelection();
   void InitBar();
 
   void Init();
