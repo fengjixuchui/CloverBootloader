@@ -653,7 +653,7 @@ STATIC LOADER_ENTRY *CreateLoaderEntry(IN CONST CHAR16 *LoaderPath,
     case OSTYPE_OTHER:
     case OSTYPE_EFI:
       OSIconName = L"clover";
-      ShortcutLetter = 'U';
+      ShortcutLetter = 'E';
       Entry->LoaderType = OSTYPE_OTHER;
       break;
     default:
@@ -761,17 +761,13 @@ STATIC LOADER_ENTRY *CreateLoaderEntry(IN CONST CHAR16 *LoaderPath,
   } else if (Image) {
     Entry->Image = *Image;
   } else {
-//    Entry->Image = ThemeX.GetIcon("unknown");  //no such icon
-//TODO now we have OSIconName = L"moja,mac"
-//    Entry->Image = ThemeX.GetIcon("vol_internal"_XS);
     Entry->Image = ThemeX.LoadOSIcon(OSIconName);
   }
   // Load DriveImage
   if (DriveImage) {
     Entry->DriveImage = *DriveImage;
   } else {
-    //TODO ->
-    Entry->DriveImage.FromEGImage(ScanVolumeDefaultIcon(Volume, Entry->LoaderType, Volume->DevicePath));
+    Entry->DriveImage = ScanVolumeDefaultIcon(Volume, Entry->LoaderType, Volume->DevicePath);
   }
 #else
   if (GlobalConfig.CustomIcons && FileExists(Volume->RootDir, L"\\.VolumeIcon.icns")){
