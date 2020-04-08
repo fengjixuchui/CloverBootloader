@@ -258,8 +258,8 @@ void XTheme::Init()
 //  CustomIcons = FALSE;          //TODO don't know how to handle with SVG theme
   SelectionOnTop = FALSE;         
   BootCampStyle = FALSE; 
-  BadgeOffsetX = 0;
-  BadgeOffsetY = 0;
+  BadgeOffsetX = 0xFFFF;  //default offset
+  BadgeOffsetY = 0xFFFF;
   BadgeScale = 4;   // TODO now we have float scale = BadgeScale/16
   ThemeDesignWidth = 0xFFFF;
   ThemeDesignHeight = 0xFFFF;
@@ -292,6 +292,10 @@ void XTheme::Init()
 
   row0TileSize = 144;
   row1TileSize = 64;
+
+  FontWidth = 9;
+  FontHeight = 18;
+  TextHeight = 19;
 }
 
 /*
