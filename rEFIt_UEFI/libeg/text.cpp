@@ -33,7 +33,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-//Slice 2011 - 2016 numerous improvements
+//Slice 2011 - 2016 numerous improvements, 2020 full rewritten for c++
 
 extern "C" {
 #include <Protocol/GraphicsOutput.h>
@@ -82,13 +82,13 @@ NSVGfontChain *fontsDB = NULL;
 //it is not good for vector theme
 //it will be better to sum each letter width for the chosen font
 // so one more parameter is TextStyle
-VOID egMeasureText(IN CONST CHAR16 *Text, OUT INTN *Width, OUT INTN *Height)
+VOID XTheme::MeasureText(IN const XStringW& Text, OUT INTN *Width, OUT INTN *Height)
 {
-  INTN ScaledWidth = (INTN)(ThemeX.CharWidth * ThemeX.Scale);
+  INTN ScaledWidth = (INTN)(CharWidth * Scale);
   if (Width != NULL)
-    *Width = StrLen(Text) * ((ThemeX.FontWidth > ScaledWidth)?ThemeX.FontWidth:ScaledWidth);
+    *Width = Text.length() * ((FontWidth > ScaledWidth) ? FontWidth : ScaledWidth);
   if (Height != NULL)
-    *Height = ThemeX.FontHeight;
+    *Height = FontHeight;
 }
 #else
 
@@ -386,7 +386,6 @@ INTN XTheme::GetEmpty(const XImage& Buffer, const EFI_GRAPHICS_OUTPUT_BLT_PIXEL&
 {
   INTN m, i;
 //  INTN Shift = (Step > 0)?0:1;
-//  EFI_GRAPHICS_OUTPUT_BLT_PIXEL ThePixel;
   m = FontWidth;
   if (Step == 1) {
     for (INTN j = 0; j < FontHeight; j++) {
@@ -447,24 +446,26 @@ INTN GetEmpty(EG_PIXEL *Ptr, EG_PIXEL *FirstPixel, INTN MaxWidth, INTN Step, INT
 #endif
 
 #if USE_XTHEME
+INTN XTheme::RenderText(IN const XString& Text, OUT XImage* CompImage_ptr,
+                        IN INTN PosX, IN INTN PosY, IN INTN Cursor, INTN textType)
+{
+  const XStringW& UTF16Text = XStringW().takeValueFrom(Text.c_str());
+  return RenderText(UTF16Text, CompImage_ptr, PosX, PosY, Cursor, textType);
+}
+
 INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
                   IN INTN PosX, IN INTN PosY, IN INTN Cursor, INTN textType)
 {
   XImage& CompImage = *CompImage_ptr;
 
-//  EFI_GRAPHICS_OUTPUT_BLT_PIXEL    *BufferPtr;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL    FontPixel;
-//  EFI_GRAPHICS_OUTPUT_BLT_PIXEL   *FirstPixelBuf;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL    FirstPixel;
-//  INTN            BufferLineWidth; //, BufferLineOffset, FontLineOffset;
-  INTN            TextLength /*, NewTextLength = 0 */;
+  INTN            TextLength;
   INTN           Shift = 0;
   UINTN           Cho = 0, Jong = 0, Joong = 0;
   INTN           LeftSpace, RightSpace;
   INTN            RealWidth = 0;
 
-//  INTN ScaledWidth = (INTN)(CharWidth * Scale); //real char width in pixels
-  // but raster theme Scale=1 while SVG theme has own render
   if (TypeSVG) {
     return renderSVGtext(&CompImage, PosX, PosY, textType, Text, Cursor);
   }
@@ -473,26 +474,12 @@ INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
   TextLength = Text.size();
   DBG("text to render %ls length %lld\n", Text.wc_str(), Text.size());
   if (FontImage.isEmpty()) {
-    //    GlobalConfig.Font = FONT_ALFA;
     PrepareFont(); //at the boot screen there is embedded font
   }
 
   //  DBG("TextLength =%d PosX=%d PosY=%d\n", TextLength, PosX, PosY);
-  // render it
-//  BufferPtr = CompImage.GetPixelPtr(0,0);
-//  BufferLineOffset = CompImage.GetWidth();
-//  BufferLineWidth = CompImage.GetWidth() - PosX; // width from PosX to buffer end
-//  BufferPtr += PosX + PosY * BufferLineOffset; //how to avoid pointer arithmetics?
- // BufferPtr = CompImage.GetPixelPtr(PosX, PosY); //a place to write the text
-//  FirstPixelBuf = BufferPtr;
   FirstPixel = CompImage.GetPixel(0,0);
   FontPixel  = FontImage.GetPixel(0,0);
-//  FontLineOffset = FontImage.GetWidth();
-  //  DBG("BufferLineOffset=%d  FontLineOffset=%d\n", BufferLineOffset, FontLineOffset);
-
-//  if (ScaledWidth < FontWidth) {
-//    Shift = (FontWidth - ScaledWidth) >> 1;
-//  }
   UINT16 c0 = 0;
   RealWidth = CharWidth;
     DBG("FontWidth=%lld, CharWidth=%lld\n", FontWidth, RealWidth);
@@ -503,15 +490,19 @@ INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
   Bukva.YPos = 0;
   Bukva.Width = FontWidth;
   Bukva.Height = FontHeight;
-
+  DBG("codepage=%llx, asciiPage=%x\n", GlobalConfig.Codepage, AsciiPageSize);
   for (INTN i = 0; i < TextLength; i++) {
-    UINT16 c = Text.wc_str()[i];
-    UINT16 c1;
-    DBG("initial char to render 0x%x\n", c);
-    if (gLanguage != korean) {
-      c1 = (((c >= Codepage) ? (c - (Codepage - AsciiPageSize)) : c) & 0xff); //International letters
-      c = c1;
-
+    UINT16 c = Text[i];
+//    DBG("initial char to render 0x%x\n", c); //good
+    if (gLanguage != korean) { //russian Codepage = 0x410
+      if (c >= 0x410 && c < 0x450) {
+        //we have russian raster fonts with chars at 0xC0
+        c -= 0x350;
+      } else {
+        INTN c2 = (c >= GlobalConfig.Codepage) ? (c - GlobalConfig.Codepage + AsciiPageSize) : c; //International letters
+        c = c2 & 0xFF; //this maximum raster font size
+      }
+//      DBG("char to render 0x%x\n", c);
       if (Proportional) {
         //find spaces {---comp--__left__|__right__--char---}
         if (c0 <= 0x20) {  // space before or at buffer edge
@@ -534,16 +525,17 @@ INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
         LeftSpace = 2;
         RightSpace = 0;
       }
+//      DBG(" RealWidth =  %lld LeftSpace = %lld RightSpace = %lld\n", RealWidth, LeftSpace, RightSpace);
       c0 = c; //old value
       if (PosX + RealWidth  > CompImage.GetWidth()) {
         //no more place for character
         break;
       }
-      DBG("char to render 0x%x\n", c);
+
       Area.XPos = PosX + 2 - LeftSpace;
       Area.Width = RealWidth;
       Bukva.XPos = c * FontWidth + RightSpace;
-      DBG("place [%lld,%lld,%lld,%lld], bukva [%lld,%lld,%lld,%lld]\n",
+//      DBG("place [%lld,%lld,%lld,%lld], bukva [%lld,%lld,%lld,%lld]\n",
           Area.XPos, Area.YPos, Area.Width, Area.Height,
           Bukva.XPos, Bukva.YPos, Bukva.Width, Bukva.Height);
       //    Bukva.YPos
@@ -560,6 +552,7 @@ INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
       //Slice - I am not sure in any of this digits
       //someone knowning korean should revise this
       //
+      UINT16 c1 = c;
       if ((c >= 0x20) && (c <= 0x7F)) {
         c1 = ((c - 0x20) >> 4) * 28 + (c & 0x0F);
         Cho = c1;
@@ -589,24 +582,16 @@ INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
         Bukva.XPos = Cho * FontWidth + 4;
         Bukva.YPos = 1;
         CompImage.Compose(Area, Bukva, FontImage, false);
-//        egRawCompose(BufferPtr, FontPixelData + Cho * FontWidth + 4 + FontLineOffset,
-//                     ScaledWidth, FontHeight,
-//                     BufferLineOffset, FontLineOffset);
       } else {
         Area.YPos = PosY + 3;
         Bukva.XPos = Cho * FontWidth + 2;
         Bukva.YPos = 0;
-//        egRawCompose(BufferPtr + BufferLineOffset * 3, FontPixelData + Cho * FontWidth + 2,
-//                     ScaledWidth, FontHeight,
-//                     BufferLineOffset, FontLineOffset);
+        CompImage.Compose(Area, Bukva, FontImage, false);
       }
       if (i == Cursor) {
         c = 99;
         Bukva.XPos = c * FontWidth + 2;
         CompImage.Compose(Area, Bukva, FontImage, false);
-//        egRawCompose(BufferPtr, FontPixelData + c * FontWidth + 2,
-//                     ScaledWidth, FontHeight,
-//                     BufferLineOffset, FontLineOffset);
       }
       if (Shift == 18) {
         Area.XPos = PosX + 9;
@@ -614,17 +599,10 @@ INTN XTheme::RenderText(IN const XStringW& Text, OUT XImage* CompImage_ptr,
         Bukva.XPos = Joong * FontWidth + 6;
         Bukva.YPos = 0;
         CompImage.Compose(Area, Bukva, FontImage, false);
-//        egRawCompose(BufferPtr + 9, FontPixelData + Joong * FontWidth + 6, //9 , 4 are tunable
-//                     ScaledWidth - 8, FontHeight,
-//                     BufferLineOffset, FontLineOffset);
+
         Area.XPos = PosX;
         Area.YPos = PosY + 9;
         Bukva.XPos = Jong * FontWidth + 1;
-//        Bukva.YPos = 0;
-//        Area.Width = CharWidth;
-//        egRawCompose(BufferPtr + BufferLineOffset * 9, FontPixelData + Jong * FontWidth + 1,
-//                     ScaledWidth, FontHeight - 3,
-//                     BufferLineOffset, FontLineOffset);
         CompImage.Compose(Area, Bukva, FontImage, false);
       }
 
