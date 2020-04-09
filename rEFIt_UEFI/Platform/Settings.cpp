@@ -7070,17 +7070,17 @@ GetUserSettings(
             // Get memory vendor
             Dict2 = GetProperty (Prop3, "Vendor");
             if (Dict2 && Dict2->type == kTagTypeString && Dict2->string != NULL) {
-              SlotPtr->Vendor   = Dict2->string;
+              SlotPtr->Vendor   = (__typeof__(SlotPtr->Vendor))AllocateCopyPool(AsciiStrSize(Dict2->string), Dict2->string);
             }
             // Get memory part number
             Dict2 = GetProperty (Prop3, "Part");
             if (Dict2 && Dict2->type == kTagTypeString && Dict2->string != NULL) {
-              SlotPtr->PartNo   = Dict2->string;
+              SlotPtr->PartNo   = (__typeof__(SlotPtr->PartNo))AllocateCopyPool(AsciiStrSize(Dict2->string), Dict2->string);
             }
             // Get memory serial number
             Dict2 = GetProperty (Prop3, "Serial");
             if (Dict2 && Dict2->type == kTagTypeString && Dict2->string != NULL) {
-              SlotPtr->SerialNo = Dict2->string;
+              SlotPtr->SerialNo = (__typeof__(SlotPtr->SerialNo))AllocateCopyPool(AsciiStrSize(Dict2->string), Dict2->string);
             }
             // Get memory type
             SlotPtr->Type = MemoryTypeDdr3;
@@ -7495,7 +7495,7 @@ GetUserSettings(
       //DBG("\n ConfigName: %ls n", gSettings.ConfigName);
     }
 #if USE_XTHEME
-    if (gThemeChanged && ThemeX.Theme) {
+    if (gThemeChanged && ThemeX.Theme.notEmpty()) {
       DictPointer = GetProperty (Dict, "GUI");
       if (DictPointer != NULL) {
         Prop = GetProperty (DictPointer, "Theme");
