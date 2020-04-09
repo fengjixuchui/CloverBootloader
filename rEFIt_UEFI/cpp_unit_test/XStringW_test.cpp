@@ -1,6 +1,6 @@
 #include <Platform.h>
 #include "../cpp_foundation/XStringW.h"
-#include "../cpp_foundation/utf8Conversion.h"
+#include "../cpp_foundation/unicode_conversions.h"
 #include "global_test.h"
 
 
@@ -162,6 +162,21 @@ int XStringW_tests()
 #endif
 #endif
 
+	{
+		XStringW utf16;
+		utf16.takeValueFrom(L"Выход из подменю, обновление главного меню");
+		for ( size_t i = 0 ; i < utf16.length() ; i++ ) {
+			if ( utf16[i] != utf16.wc_str()[i] ) {
+				return 100;
+			}
+		}
+		XStringW utf16_2;
+		utf16_2.takeValueFrom("Выход из подменю, обновление главного меню");
+		if ( utf16 != utf16_2 ) {
+			return 101;
+		}
+	}
+	
 //  XStringW CommonName(L"EFI\\CLOVER\\misc\\screenshot");
 //  for (UINTN Index = 0; Index < 20; Index++) {
 //   XStringW Name = CommonName + SPrintf("%lld", Index) + L".png";
