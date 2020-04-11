@@ -174,6 +174,10 @@ int printf_lite_tests(void)
     loggf(F("\n"));
 #endif
 
+	
+    Test1arg(F("|80123456|"), F("|%X|"), (int)0xFFFFFFFF80123456);
+    Test1arg(F("|FFFFFFFF80123456|"), F("|%lX|"), 0xFFFFFFFF80123456);
+
 	Test1arg(F("Āࠀ𐀀🧊Выход'utf8'из"), F("Āࠀ𐀀🧊Выход'%s'из"), "utf8");
 
 	
@@ -198,7 +202,10 @@ int printf_lite_tests(void)
 	Test1arg(F("Āࠀ𐀀🧊Выход'utf16'из"), F("Āࠀ𐀀🧊Выход'%ls'из"), L"utf16");
 	Test1arg(F("Āࠀ𐀀🧊Выхо'ыход'из"), F("Āࠀ𐀀🧊Выхо'%s'из"), "ыход");
 	Test1arg(F("Āࠀ𐀀🧊Выхо'ыход'из"), F("Āࠀ𐀀🧊Выхо'%ls'из"), L"ыход");
-	
+
+	Test1arg(F("'u'"), F("'%s'"), (char*)L"utf16-string");
+
+
 	// Check %s with width specifier
     Test1arg(F("|a|"), F("|%4s|"), "a");
     Test1arg(F("|aa|"), F("|%4s|"), "aa");
@@ -276,11 +283,20 @@ int printf_lite_tests(void)
     Test1arg(F("|   12|"), F("|%5d|"), 12);
     Test1arg(F("|   12|"), F("|%5u|"), 12);
     Test1arg(F("|    c|"), F("|%5x|"), 12);
+    Test1arg(F("|    C|"), F("|%5X|"), 12);
+
+    // test pad char but no width (no effect)
+    Test1arg(F("|c|"), F("|%0x|"), 12);
+    Test1arg(F("|C|"), F("|%0X|"), 12);
 
     // test with specifier, 0 as pad char
     Test1arg(F("|00012|"), F("|%05d|"), 12);
     Test1arg(F("|00012|"), F("|%05u|"), 12);
     Test1arg(F("|0000c|"), F("|%05x|"), 12);
+    Test1arg(F("|0A|"), F("|%02X|"), (uint8_t)0xa);
+#define SMST(a) ((UINT8)((a & 0xf0) >> 4))
+#define SLST(a) ((UINT8)(a & 0x0f))
+    testPrintf("spd", "00000F0F04070408", strlen("00000F0F04070408"), "%02X%02X%02X%02X%02X%02X%02X%02X", SMST(0x00) , SLST(0x00), SMST(0xFF), SLST(0xFF), SMST(0x147), SLST(0x147), SMST(0x148), SLST(0x148));
 
 
     Test1arg(F("|0A23|"), F("|%04X|"), 0xa23);
@@ -292,6 +308,17 @@ int printf_lite_tests(void)
     Test1arg(F("|01|"), F("|%02d|"), 1);
     Test1arg(F("|12|"), F("|%02d|"), 12);
     Test1arg(F("|120|"), F("|%02d|"), 120);
+
+
+    Test1arg(F("|0|"), F("|%01d|"), 0);
+    Test1arg(F("|1|"), F("|%01d|"), 1);
+    Test1arg(F("|100|"), F("|%01d|"), 100);
+    Test1arg(F("|10000|"), F("|%01d|"), 10000);
+    Test1arg(F("|-1|"), F("|%01d|"), -1);
+    Test1arg(F("|-100|"), F("|%01d|"), -100);
+    Test1arg(F("|-10000|"), F("|%01d|"), -10000);
+
+
 
     // Test1arg float format
     Test1arg(F("|0.000000|"), F("|%0f|"), 0.0f);

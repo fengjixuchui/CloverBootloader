@@ -236,6 +236,13 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
           case CPU_MODEL_KABYLAKE1:
           case CPU_MODEL_KABYLAKE2:
           case CPU_MODEL_CANNONLAKE:
+          case CPU_MODEL_ICELAKE_A:
+          case CPU_MODEL_ICELAKE_C:
+          case CPU_MODEL_ICELAKE_D:
+          case CPU_MODEL_ICELAKE:
+          case CPU_MODEL_COMETLAKE_S:
+          case CPU_MODEL_COMETLAKE_Y:
+          case CPU_MODEL_COMETLAKE_U:
           {
             maximum.Control.Control = RShiftU64(AsmReadMsr64(MSR_PLATFORM_INFO), 8) & 0xff;
             if (gSettings.MaxMultiplier) {
@@ -297,7 +304,14 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
                     (gCPUStructure.Model == CPU_MODEL_GOLDMONT) ||
                     (gCPUStructure.Model == CPU_MODEL_KABYLAKE1) ||
                     (gCPUStructure.Model == CPU_MODEL_KABYLAKE2) ||
-                    (gCPUStructure.Model == CPU_MODEL_CANNONLAKE)) {
+                    (gCPUStructure.Model == CPU_MODEL_CANNONLAKE) ||
+                    (gCPUStructure.Model == CPU_MODEL_ICELAKE_A) ||
+                    (gCPUStructure.Model == CPU_MODEL_ICELAKE_C) ||
+                    (gCPUStructure.Model == CPU_MODEL_ICELAKE_D) ||
+                    (gCPUStructure.Model == CPU_MODEL_ICELAKE) ||
+                    (gCPUStructure.Model == CPU_MODEL_COMETLAKE_S) ||
+                    (gCPUStructure.Model == CPU_MODEL_COMETLAKE_Y) ||
+                    (gCPUStructure.Model == CPU_MODEL_COMETLAKE_U)) {
                     j = i << 8;
                     p_states[p_states_count].Frequency = (UINT32)(100 * i);
                 } else {
@@ -339,10 +353,10 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
       AML_CHUNK* metPCT;
       AML_CHUNK* root = aml_create_node(NULL);
       aml_add_buffer(root, (UINT8*)&pss_ssdt_header[0], sizeof(pss_ssdt_header)); // SSDT header
-		AsciiSPrint(name, 31, "%a%4a", acpi_cpu_score, acpi_cpu_name[0]);
-		AsciiSPrint(name1, 31, "%a%4aPSS_", acpi_cpu_score, acpi_cpu_name[0]);
-		AsciiSPrint(name2, 31, "%a%4aPCT_", acpi_cpu_score, acpi_cpu_name[0]);
-		AsciiSPrint(name3, 31, "%a%4a_PPC", acpi_cpu_score, acpi_cpu_name[0]);
+		snprintf(name, 31, "%s%4s", acpi_cpu_score, acpi_cpu_name[0]);
+		snprintf(name1, 31, "%s%4sPSS_", acpi_cpu_score, acpi_cpu_name[0]);
+		snprintf(name2, 31, "%s%4sPCT_", acpi_cpu_score, acpi_cpu_name[0]);
+		snprintf(name3, 31, "%s%4s_PPC", acpi_cpu_score, acpi_cpu_name[0]);
 
       scop = aml_add_scope(root, name);
       
@@ -406,7 +420,7 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
 
         // Add CPUs
         for (decltype(Number) i = 1; i < Number; i++) {
-			AsciiSPrint(name, 31, "%a%4a", acpi_cpu_score, acpi_cpu_name[i]);
+			snprintf(name, 31, "%s%4s", acpi_cpu_score, acpi_cpu_name[i]);
           scop = aml_add_scope(root, name);
           metPSS = aml_add_method(scop, "_PSS", 0);
           aml_add_return_name(metPSS, name1);
@@ -488,8 +502,8 @@ SSDT_TABLE *generate_cst_ssdt(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, U
   
   root = aml_create_node(NULL);
   aml_add_buffer(root, cst_ssdt_header, sizeof(cst_ssdt_header)); // SSDT header
-	AsciiSPrint(name0, 31, "%a%4a", acpi_cpu_score, acpi_cpu_name[0]);
-	AsciiSPrint(name1, 31, "%a%4aCST_",  acpi_cpu_score, acpi_cpu_name[0]);
+	snprintf(name0, 31, "%s%4s", acpi_cpu_score, acpi_cpu_name[0]);
+	snprintf(name1, 31, "%s%4sCST_",  acpi_cpu_score, acpi_cpu_name[0]);
   scop = aml_add_scope(root, name0);
   name = aml_add_name(scop, "CST_");
   pack = aml_add_package(name);
@@ -632,7 +646,7 @@ SSDT_TABLE *generate_cst_ssdt(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, U
 
   // Aliases
   for (i = 1; i < Number; i++) {
-	  AsciiSPrint(name2, 31, "%a%4a",  acpi_cpu_score, acpi_cpu_name[i]);
+	  snprintf(name2, 31, "%s%4s",  acpi_cpu_score, acpi_cpu_name[i]);
     
     scop = aml_add_scope(root, name2);
     met = aml_add_method(scop, "_CST", 0);

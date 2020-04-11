@@ -263,7 +263,7 @@ if [[ -d .git ]]; then
   lsha1=$(git rev-parse --short HEAD)
 fi
 
-echo "buildme, Clover v2.5k r$(git describe --tags $(git rev-list --tags --max-count=1﻿)) (SHA: $lsha1)"
+echo "buildme, Clover r$(git describe --tags $(git rev-list --tags --max-count=1﻿)) (SHA: $lsha1)"
 echo "TOOLCHAIN: $MYTOOLCHAIN (override example: './buildme XCODE8')"
 echo
 PS3='Please enter your choice: '
@@ -351,7 +351,11 @@ do
       break
     ;;
     "quit")
-      osascript -e 'tell application "Terminal" to close first window' & exit
+      if [[ "$SYSNAME" == Darwin ]]; then
+        osascript -e 'tell application "Terminal" to close first window' & exit
+      else
+        exit 0
+      fi
     ;;
     *)
       echo "invalid option $REPLY"

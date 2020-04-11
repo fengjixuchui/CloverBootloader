@@ -310,27 +310,53 @@ const XImage& XTheme::GetIcon(INTN Id)
     if (Icons[i].Id == Id)
     {
       if (!Daylight && !Icons[i].ImageNight.isEmpty()) {
+//        DBG("got night icon %lld name{%s}\n", Id, IconsNames[Id]);
         return Icons[i].ImageNight;
       }
       //if daylight or night icon absent
       if (!Icons[i].Image.isEmpty()) {
+//        DBG("got day icon %lld name{%s}\n", Id, IconsNames[Id]);
         return Icons[i].Image;
       }
       //if not found then create new one from embedded
       Icon* NewIcon = new Icon(Id, true);
 //      NewIcon.GetEmbedded();
+//      DBG("got embedded icon %lld name{%s}\n", Id, IconsNames[Id]);
       if (!Daylight && !NewIcon->ImageNight.isEmpty()) {
+//        DBG("got night icon and cache\n");
         Icons[i].ImageNight = NewIcon->ImageNight; //
         return NewIcon->ImageNight;
       }
       //if daylight or night icon absent
       if (!NewIcon->Image.isEmpty()) {
+ //       DBG("got day icon and cache\n");
         Icons[i].Image = NewIcon->Image;
         return NewIcon->Image;
       }
     }
   }
   return NullIcon; //such Id is not found in the database
+}
+
+const XImage& XTheme::GetIconAlt(INTN Id, INTN Alt)
+{
+  for (size_t i = 0; i < Icons.size(); i++)
+  {
+    if (Icons[i].Id == Id)
+    {
+      if (!Daylight && !Icons[i].ImageNight.isEmpty()) {
+        return Icons[i].ImageNight;
+      }
+      //if daylight or night icon absent
+      if (!Icons[i].Image.isEmpty()) {
+        return Icons[i].Image;
+      }
+      //if daylight or night icon absent
+      return GetIcon(Alt); //including NullIcon
+    }
+  }
+  return NullIcon; //such Id is not found in the database
+
 }
 
 const XImage& XTheme::LoadOSIcon(const CHAR16* OSIconName)
@@ -394,6 +420,21 @@ void XTheme::FillByEmbedded()
     Icon* NewIcon = new Icon(i, true);
     Icons.AddReference(NewIcon, true);
   }
+
+  Background = XImage(UGAWidth, UGAHeight);
+  if (DarkEmbedded) {
+    Background.Fill(DarkEmbeddedBackgroundPixel);
+  } else {
+    Background.Fill(StdBackgroundPixel);
+  }
+  BigBack.setEmpty();
+
+  if (Daylight) {
+    Banner.FromPNG(ACCESS_EMB_DATA(emb_logo), emb_logo_size);
+  } else {
+    Banner.FromPNG(ACCESS_EMB_DATA(emb_dark_logo), emb_dark_logo_size);
+  }
+  
   //and buttons
   Buttons[0].FromPNG(ACCESS_EMB_DATA(emb_radio_button), ACCESS_EMB_SIZE(emb_radio_button));
   Buttons[1].FromPNG(ACCESS_EMB_DATA(emb_radio_button_selected), ACCESS_EMB_SIZE(emb_radio_button_selected));
@@ -694,14 +735,14 @@ void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
     if (EFI_ERROR(Status) &&
         (i >= BUILTIN_ICON_VOL_INTERNAL_HFS) &&
         (i <= BUILTIN_ICON_VOL_INTERNAL_REC)) {
-      NewIcon->Image = GetIcon(BUILTIN_ICON_VOL_INTERNAL); //copy existing
+      NewIcon->Image = GetIconAlt(i, BUILTIN_ICON_VOL_INTERNAL); //copy existing
     }
 
     Status = NewIcon->ImageNight.LoadXImage(ThemeDir, SWPrintf("%s_night", IconsNames[i]));
     if (EFI_ERROR(Status) &&
         (i >= BUILTIN_ICON_VOL_INTERNAL_HFS) &&
         (i <= BUILTIN_ICON_VOL_INTERNAL_REC)) {
-      NewIcon->ImageNight = GetIcon(BUILTIN_ICON_VOL_INTERNAL); //copy existing
+      NewIcon->ImageNight = GetIconAlt(i, BUILTIN_ICON_VOL_INTERNAL); //copy existing
     }
     Icons.AddReference(NewIcon, true);
   }
