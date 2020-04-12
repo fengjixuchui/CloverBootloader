@@ -163,17 +163,19 @@ const XImage& ScanVolumeDefaultIcon(REFIT_VOLUME *Volume, IN UINT8 OSType, IN EF
 
 XString AddLoadOption(IN CONST XString& LoadOptions, IN CONST XString& LoadOption)
 {
+  // LoadOptions assumed out
   // If either option strings are null nothing to do
-  if (LoadOptions.isEmpty())
+  if (LoadOptions.isEmpty()) //initially empty so return new option even if empty
   {
-    // return LoadOption as nothing to add
+    // return LoadOption
     return LoadOption;
   }
   // If there is no option or it is already present duplicate original
   else {
-	  if ( LoadOptions.ExistIn(LoadOption) ) return LoadOptions;
+	  if ( LoadOptions.ExistIn(LoadOption) ) return LoadOptions; //good
 	  // Otherwise add option
-	  return SPrintf("%s %s", LoadOptions.c_str(), LoadOption.c_str()); //LoadOptions + LoadOption
+//	  return SPrintf("%s %s", LoadOptions.c_str(), LoadOption.c_str()); //LoadOptions + LoadOption
+    return LoadOptions + " "_XS + LoadOption; //why not?
   }
 }
 
