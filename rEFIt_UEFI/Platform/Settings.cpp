@@ -1850,10 +1850,7 @@ FillinCustomEntry (
       FreePool (Entry->ImagePath);
       Entry->ImagePath = NULL;
     }
-    if (!Entry->Image.isEmpty()) { 
-      XImage EmptyImage;
-      Entry->Image     = EmptyImage;
-    }
+    Entry->Image.setEmpty();
     if (Prop->type == kTagTypeString) {
       Entry->ImagePath = PoolPrint (L"%a", Prop->string);
     }
@@ -1873,10 +1870,7 @@ FillinCustomEntry (
       FreePool (Entry->DriveImagePath);
       Entry->DriveImagePath = NULL;
     }
-    if (!Entry->DriveImage.isEmpty()) {
-      XImage EmptyImage;
-      Entry->DriveImage     = EmptyImage;
-    }
+    Entry->DriveImage.setEmpty();
     if (Prop->type == kTagTypeString) {
       Entry->DriveImagePath = PoolPrint (L"%a", Prop->string);
     }
@@ -6869,8 +6863,7 @@ GetDevices ()
 
             default:
               gfx->Vendor = Unknown;
-              snprintf (gfx->Model, 64, "pci%04X,%04X", Pci.Hdr.VendorId, Pci.Hdr.DeviceId);
-              LowCase(gfx->Model);
+              snprintf (gfx->Model, 64, "pci%x,%x", Pci.Hdr.VendorId, Pci.Hdr.DeviceId);
               gfx->Ports  = 1;
               gfx->Connectors = (1 << NGFX);
               gfx->ConnChanged = FALSE;

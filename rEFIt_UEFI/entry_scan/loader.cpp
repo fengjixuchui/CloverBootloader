@@ -1241,7 +1241,8 @@ VOID ScanLoader(VOID)
           }
           if (aFound && (aFound == aIndex)) {
             XImage ImageX;
-            ImageX.LoadXImage(ThemeX.ThemeDir, AndroidEntryData[Index].Icon);
+            XStringW IconXSW = XStringW().takeValueFrom(AndroidEntryData[Index].Icon);
+            ImageX.LoadXImage(ThemeX.ThemeDir, (L"os_"_XSW + IconXSW.SubString(0, IconXSW.IdxOf(','))).wc_str());
             AddLoaderEntry(AndroidEntryData[Index].Path, ""_XS, XStringW().takeValueFrom(AndroidEntryData[Index].Title), Volume,
                            (ImageX.isEmpty() ? NULL : &ImageX), OSTYPE_LIN, OSFLAG_NODEFAULTARGS);
           }
@@ -1253,10 +1254,13 @@ VOID ScanLoader(VOID)
     if (gSettings.LinuxScan) {
       // check for linux loaders
       for (Index = 0; Index < LinuxEntryDataCount; ++Index) {
-        XImage ImageX;
-        ImageX.LoadXImage(ThemeX.ThemeDir, LinuxEntryData[Index].Icon);
-        AddLoaderEntry(LinuxEntryData[Index].Path, ""_XS, XStringW().takeValueFrom(LinuxEntryData[Index].Title), Volume,
-                       (ImageX.isEmpty() ? NULL : &ImageX), OSTYPE_LIN, OSFLAG_NODEFAULTARGS);
+        if (FileExists(Volume->RootDir, LinuxEntryData[Index].Path)) {
+          XImage ImageX;
+          XStringW IconXSW = XStringW().takeValueFrom(LinuxEntryData[Index].Icon);
+          ImageX.LoadXImage(ThemeX.ThemeDir, (L"os_"_XSW + IconXSW.SubString(0, IconXSW.IdxOf(','))).wc_str());
+          AddLoaderEntry(LinuxEntryData[Index].Path, ""_XS, XStringW().takeValueFrom(LinuxEntryData[Index].Title), Volume,
+                         (ImageX.isEmpty() ? NULL : &ImageX), OSTYPE_LIN, OSFLAG_NODEFAULTARGS);
+        }
       }
       // check for linux kernels
       PartGUID = FindGPTPartitionGuidInDevicePath(Volume->DevicePath);
@@ -1783,7 +1787,16 @@ STATIC VOID AddCustomEntry(IN UINTN                CustomIndex,
     if (Image.isEmpty() && Custom->ImagePath) {
       Image.LoadXImage(ThemeX.ThemeDir, Custom->ImagePath);
       if (Image.isEmpty()) {
-        Image.LoadXImage(ThemeX.ThemeDir, XStringW() + L"os_"_XSW + Custom->ImagePath);
+        Image.LoadXImage(ThemeX.ThemeDir, L"os_"_XSW + Custom->ImagePath);
+        if (Image.isEmpty()) {
+          Image.LoadXImage(SelfDir, Custom->ImagePath);
+          if (Image.isEmpty()) {
+            Image.LoadXImage(SelfRootDir, Custom->ImagePath);
+            if (Image.isEmpty()) {
+              Image.LoadXImage(Volume->RootDir, Custom->ImagePath);
+            }
+          }
+        }
       }
     }
 
@@ -1791,6 +1804,15 @@ STATIC VOID AddCustomEntry(IN UINTN                CustomIndex,
     DriveImage = Custom->DriveImage;
     if (DriveImage.isEmpty() && Custom->DriveImagePath) {
       DriveImage.LoadXImage(ThemeX.ThemeDir, Custom->DriveImagePath);
+      if (DriveImage.isEmpty()) {
+        DriveImage.LoadXImage(SelfDir, Custom->ImagePath);
+        if (DriveImage.isEmpty()) {
+          DriveImage.LoadXImage(SelfRootDir, Custom->ImagePath);
+          if (DriveImage.isEmpty()) {
+            DriveImage.LoadXImage(Volume->RootDir, Custom->ImagePath);
+          }
+        }
+      }
     }
 
     do

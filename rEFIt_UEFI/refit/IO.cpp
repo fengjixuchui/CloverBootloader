@@ -1077,8 +1077,11 @@ EFI_STATUS WaitForInputEventPoll(REFIT_MENU_SCREEN* ScreenPtr, UINTN TimeoutDefa
     if (Status != EFI_TIMEOUT) {
       break;
     }
-
-    Screen.UpdateAnime(); //should be moved to REFIT_MENU_SCREEN class
+#if XCINEMA
+    Screen.UpdateFilm();
+#else
+    Screen.UpdateAnime();
+#endif
     if (gSettings.PlayAsync) {
       CheckSyncSound();
     }
@@ -1838,17 +1841,17 @@ LibGetPageBreak (
   return mPrintMode.PageBreak;
 }
 */
-//
-VOID LowCase (IN OUT CHAR8 *Str)
-{
-  while (*Str) {
-    if (IS_UPPER(*Str)) {
-      *Str |= 0x20;
-    }
-    Str++;
-  }
-}
 
+//
+//VOID LowCase (IN OUT CHAR8 *Str)
+//{
+//  while (*Str) {
+//    if (IS_UPPER(*Str)) {
+//      *Str |= 0x20;
+//    }
+//    Str++;
+//  }
+//}
 
 UINT8 hexstrtouint8 (CHAR8* buf)
 {
