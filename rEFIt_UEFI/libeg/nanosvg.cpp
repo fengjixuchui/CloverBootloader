@@ -95,8 +95,11 @@
 #define NSVG_INLINE inline
 #endif
 
+//TODO there are anime properties should be properties of FilmC
+//which is not accessible here
 UINTN NumFrames;
 UINTN FrameTime;
+
 int nsvg__shapesBound(NSVGshape *shapes, float* bounds);
 void takeXformBounds(NSVGshape *shape, float *xform, float *bounds);
 void nsvg__deleteShapes(NSVGshape* shape);
@@ -495,7 +498,7 @@ NSVGparser* nsvg__createParser()
   }
   // Init style
   nsvg__xformIdentity(p->attr[0].xform);
-  memset(p->attr[0].id, 0, sizeof p->attr[0].id);
+  memset(p->attr[0].id, 0, kMaxIDLength);
   p->attr[0].fillColor = NSVG_RGB(0,0,0);
   p->attr[0].strokeColor = NSVG_RGB(0,0,0);
   p->attr[0].opacity = 1.f;

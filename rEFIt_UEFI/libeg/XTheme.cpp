@@ -218,6 +218,7 @@ void XTheme::Init()
   Font = FONT_GRAY;      // FONT_TYPE   
   CharWidth = 9;  
   SelectionColor = 0x80808080;
+  SelectionBackgroundPixel = { 0xef, 0xef, 0xef, 0xff };
   FontFileName.setEmpty();     
   Theme.takeValueFrom("embedded");
   embedded = true;
@@ -244,6 +245,7 @@ void XTheme::Init()
   BannerEdgeVertical = 0;
   BannerNudgeX = 0;
   BannerNudgeY = 0;
+  BanHeight = 0;
   VerticalLayout = FALSE;
   NonSelectedGrey = FALSE;    //TODO what about SVG?
   MainEntriesSize = 128;
@@ -271,6 +273,8 @@ void XTheme::Init()
   FontWidth = 9;
   FontHeight = 18;
   TextHeight = 19;
+
+  Cinema.setEmpty();
 }
 
 /*
@@ -490,7 +494,7 @@ void XTheme::ClearScreen() //and restore background and banner
       }
     }
   }
-  
+  DBG("BannerPlace at Clear Screen [%lld,%lld]\n",  BannerPlace.XPos, BannerPlace.YPos);
   //Then prepare Background from BigBack
   if (!Background.isEmpty() && (Background.GetWidth() != UGAWidth || Background.GetHeight() != UGAHeight)) { // should we type UGAWidth and UGAHeight as UINTN to avoid cast ?
     // Resolution changed

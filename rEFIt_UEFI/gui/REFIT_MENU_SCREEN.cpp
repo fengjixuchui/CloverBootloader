@@ -126,7 +126,7 @@ static INTN MaxItemOnScreen = -1;
 static CHAR16 ArrowUp[2]   = { ARROW_UP, 0 };
 static CHAR16 ArrowDown[2] = { ARROW_DOWN, 0 };
 //
-BOOLEAN MainAnime = FALSE;
+//BOOLEAN MainAnime = FALSE;
 //
 ////TODO Scroll variables must be a part of REFIT_SCREEN
 ////BOOLEAN ScrollEnabled = FALSE;
@@ -1403,7 +1403,7 @@ VOID REFIT_MENU_SCREEN::DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN
 
 }
 
-VOID REFIT_MENU_SCREEN::DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor)
+VOID REFIT_MENU_SCREEN::DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN UINTN Cursor)
 {
   XImage TextBufferX(UGAWidth-XPos, ThemeX.TextHeight);
   XImage SelectionBar(UGAWidth-XPos, ThemeX.TextHeight);
@@ -2137,12 +2137,9 @@ VOID REFIT_MENU_SCREEN::MainMenuVerticalStyle(IN UINTN Function, IN CONST CHAR16
           //         DBG("next item in row1 at x=%d\n", row1PosXRunning);
         }
       }
-      // initial painting
- //     ThemeX.InitSelection();  //not here
 
       // Update FilmPlace only if not set by InitAnime
       if (FilmPlace.Width == 0 || FilmPlace.Height == 0) {
-     //   CopyMem(&FilmPlace, &BannerPlace, sizeof(BannerPlace));
         FilmPlace = ThemeX.BannerPlace;
       }
 
@@ -2533,7 +2530,8 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
   }
 
   while (!MenuExit) {
-    AnimeRun = MainAnime;
+    GetAnime();
+    DBG("AnimeRun=%d\n", AnimeRun?1:0);
     MenuExit = RunGenericMenu(MainStyle, &DefaultEntryIndex, &MainChosenEntry);
     TimeoutSeconds = 0;
 

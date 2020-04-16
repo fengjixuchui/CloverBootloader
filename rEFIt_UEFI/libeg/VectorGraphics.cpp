@@ -69,7 +69,6 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
 
   NSVGparser* p2 = nsvg__createParser();
   IconImage = p2->image;
-
   shape = SVGimage->shapes;
   shapePrev = NULL;
   while (shape) {
@@ -81,7 +80,6 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
       }
       group = group->next;
     }
-
     if (group) { //the shape is in the group
       // keep this sample for debug purpose
 /*    DBG("found shape %s", shape->id);
@@ -106,7 +104,6 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
         if ( IconImage->height < 1.f ) {
           IconImage->height = 200.f;
         }
-
         if (IconNameX.ExistIn("selection_big") && (!SelectionOnTop)) {
           MainEntriesSize = (int)(IconImage->width * Scale); //xxx
           row0TileSize = MainEntriesSize + (int)(16.f * Scale);
@@ -151,12 +148,14 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
     shape = shapeNext;
   } //while shape
   shapesTail->next = NULL;
-
   //add clipPaths  //xxx
   NSVGclipPath* clipPaths = SVGimage->clipPaths;
   NSVGclipPath* clipNext = NULL;
   while (clipPaths) {
     //   ClipCount += clipPaths->shapes->clip.count;
+    if (!clipPaths->shapes) {
+      break;
+    }
     group = clipPaths->shapes->group;
     clipNext = clipPaths->next;
     while (group) {
@@ -180,7 +179,6 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
   //    IconImage->clipPaths = SVGimage->clipPaths;
   //  }
 
-
   float bounds[4];
   bounds[0] = FLT_MAX;
   bounds[1] = FLT_MAX;
@@ -199,7 +197,7 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
 
   float Height = IconImage->height * Scale;
   float Width = IconImage->width * Scale;
-  //  DBG("icon %s width=%f height=%f\n", IconName, Width, Height);
+//    DBG("icon %s width=%f height=%f\n", IconNameX.c_str(), Width, Height);
   int iWidth = (int)(Width + 0.5f);
   int iHeight = (int)(Height + 0.5f);
 //  EG_IMAGE  *NewImage = egCreateFilledImage(iWidth, iHeight, TRUE, &MenuBackgroundPixel);
@@ -210,7 +208,7 @@ EFI_STATUS XTheme::ParseSVGXIcon(INTN Id, const XString& IconNameX, XImage* Imag
     return Status;
   }
 
-  //  DBG("begin rasterize %s\n", IconName);
+//    DBG("begin rasterize %s\n", IconNameX.c_str());
   float tx = 0.f, ty = 0.f;
   if ((Id != BUILTIN_ICON_BACKGROUND) &&
       (Id != BUILTIN_ICON_ANIME) &&
@@ -236,12 +234,13 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
 {
   EFI_STATUS      Status;
   NSVGimage       *SVGimage;
-  NSVGparser     *mainParser = (NSVGparser*)SVGParser;
+  NSVGparser     *mainParser;
 
   Icons.Empty();
 
   // --- Parse theme.svg --- low case
-  mainParser = nsvgParse((CHAR8*)buffer, 72, 1.f); //the buffer will be modified, it is how nanosvg works
+  SVGParser = (void *)nsvgParse((CHAR8*)buffer, 72, 1.f); //the buffer will be modified, it is how nanosvg works
+  mainParser = (NSVGparser*)SVGParser;
   SVGimage = mainParser->image;
   if (!SVGimage) {
     DBG("Theme not parsed!\n");
@@ -343,22 +342,76 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   //SelectionImages[i].Draw(i*100, 0);
   //}
 
-#if XCINEMA
-  //nothing to do?
-#else
-  //banner animation
-  GUI_ANIME *Anime = (__typeof__(Anime))AllocateZeroPool (sizeof(GUI_ANIME));
-  Anime->ID = 1; //main screen
-                 //there is no Anime->Path in vectors
-  Anime->Frames = NumFrames;
-  Anime->FrameTime = FrameTime;
-  Anime->Next = GuiAnime;
-  Anime->FilmX = INITVALUE;
-  Anime->FilmY = INITVALUE;
-  Anime->NudgeX = INITVALUE;
-  Anime->NudgeY = INITVALUE;
-  GuiAnime = Anime;
-#endif
+  //TODO parse anime like for PNG themes
+  /*
+  Dict = GetProperty (DictPointer, "Anime");
+  if (Dict != NULL) {
+    INTN  Count = GetTagCount (Dict);
+    for (INTN i = 0; i < Count; i++) {
+      FILM *NewFilm = new FILM();
+      if (EFI_ERROR (GetElement (Dict, i, &Dict3))) {
+        continue;
+      }
+      if (Dict3 == NULL) {
+        break;
+      }
+      Dict2 = GetProperty (Dict3, "ID");
+      NewFilm->SetIndex((UINTN)GetPropertyInteger (Dict2, 1)); //default=main screen
+
+      Dict2 = GetProperty (Dict3, "Path");
+      if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
+        NewFilm->Path.takeValueFrom(Dict2->string);
+      }
+
+      Dict2 = GetProperty (Dict3, "Frames");
+      NewFilm->NumFrames = (UINTN)GetPropertyInteger (Dict2, 0);
+
+      Dict2 = GetProperty (Dict3, "FrameTime");
+      NewFilm->FrameTime = (UINTN)GetPropertyInteger (Dict2, 50); //default will be 50ms
+
+      Dict2 = GetProperty (Dict3, "ScreenEdgeX");
+      if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
+        if (AsciiStrCmp (Dict2->string, "left") == 0) {
+          NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_LEFT;
+        } else if (AsciiStrCmp (Dict2->string, "right") == 0) {
+          NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_RIGHT;
+        }
+      }
+
+      Dict2 = GetProperty (Dict3, "ScreenEdgeY");
+      if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
+        if (AsciiStrCmp (Dict2->string, "top") == 0) {
+          NewFilm->ScreenEdgeVertical = SCREEN_EDGE_TOP;
+        } else if (AsciiStrCmp (Dict2->string, "bottom") == 0) {
+          NewFilm->ScreenEdgeVertical = SCREEN_EDGE_BOTTOM;
+        }
+      }
+
+      //default values are centre
+
+      Dict2 = GetProperty (Dict3, "DistanceFromScreenEdgeX%");
+      NewFilm->FilmX = GetPropertyInteger (Dict2, INITVALUE);
+
+      Dict2 = GetProperty (Dict3, "DistanceFromScreenEdgeY%");
+      NewFilm->FilmY = GetPropertyInteger (Dict2, INITVALUE);
+
+      Dict2 = GetProperty (Dict3, "NudgeX");
+      NewFilm->NudgeX = GetPropertyInteger (Dict2, INITVALUE);
+
+      Dict2 = GetProperty (Dict3, "NudgeY");
+      NewFilm->NudgeY = GetPropertyInteger (Dict2, INITVALUE);
+
+      Dict2 = GetProperty (Dict3, "Once");
+      NewFilm->RunOnce = IsPropertyTrue (Dict2);
+
+      NewFilm->GetFrames(ThemeX); //used properties: ID, Path, NumFrames
+      ThemeX.Cinema.AddFilm(NewFilm);
+      //     delete NewFilm; //looks like already deleted
+    }
+  }
+
+*/
+
 //  nsvgDeleteRasterizer(rast);
   
   TypeSVG = TRUE;
@@ -374,7 +427,6 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   return Status;
 }
 
-#if XCINEMA
 EFI_STATUS XTheme::LoadSvgFrame(INTN i, OUT XImage* XFrame)
 {
   EFI_STATUS Status = EFI_NOT_FOUND;
@@ -386,28 +438,7 @@ EFI_STATUS XTheme::LoadSvgFrame(INTN i, OUT XImage* XFrame)
 
   return Status;
 }
-#else
 
-EG_IMAGE * LoadSvgFrame(INTN i)
-{
-//  EG_IMAGE  *Frame = NULL;
-  XImage XFrame;
-//  NSVGparser     *mainParser = (NSVGparser*)ThemeX.SVGParser;
-  EFI_STATUS Status;
-//  CHAR8 FrameName[64];
-  XString XFrameName("frame_"_XS);
-  //TODO if extend SVG syntax then we can use dynamic SVG with parameter Frame
-  // for example use variable instead of constant like javascript
-  XFrameName += SPrintf("%04lld", i+1); //I need exactly 4 symbols with leading zero
-//  printf(FrameName, 63, "frame_%lld", i+1);
-
-  Status = ThemeX.ParseSVGXIcon(BUILTIN_ICON_ANIME, XFrameName, &XFrame);
-  if (EFI_ERROR(Status)) {
-    DBG("icon '%s' not loaded, status=%s\n", XFrameName.c_str(), strerror(Status));
-  }
-  return XFrame.ToEGImage();
-}
-#endif
 // it is not draw, it is render and mainly used in egRenderText
 // which is used in icns.cpp as an icon replacement if no image found, looks like not used
 // in menu.cpp 3 places
@@ -418,12 +449,12 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
 {
   XImage& TextBufferXY = *TextBufferXY_ptr;
   INTN Width;
-  UINTN i;
+//  UINTN i;
   UINTN len;
   NSVGparser* p;
   NSVGrasterizer* rast;
   if (!textFace[textType].valid) {
-    for (i=0; i<4; i++) {
+    for (decltype(textType) i=0; i<4; i++) {
       if (textFace[i].valid) {
         textType = i;
         break;
@@ -473,7 +504,7 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   x = (float)posX; //0.f;
   y = (float)posY + fontSVG->bbox[1] * Scale;
   p->isText = TRUE;
-  for (i=0; i < len; i++) {
+  for (UINTN i=0; i < len; i++) {
     CHAR16 letter = string.wc_str()[i];
     if (!letter) {
       break;

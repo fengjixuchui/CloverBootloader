@@ -86,20 +86,15 @@ public:
   XImage            OldTextBufferImage;
   BOOLEAN           isBootScreen;
   BOOLEAN           AnimeRun;
-  BOOLEAN           Once;
+  //BOOLEAN           Once;
   //same for xcinema
   UINT64            LastDraw;
   INTN              CurrentFrame;
-  INTN              Frames;
-  UINTN             FrameTime; //ms
+ // INTN              Frames;  //there are FilmC properties
+ // UINTN             FrameTime; //ms
   EG_RECT           FilmPlace;
-
-#if XCINEMA
-  FILM            *FilmC;
-  XImage          FilmPlaceImage;
-#else
-  EG_IMAGE        **Film;
-#endif
+  FILM              *FilmC;
+  //XImage            FilmPlaceImage;
 
   ACTION          mAction;
   UINTN           mItemID;
@@ -128,38 +123,24 @@ public:
 						: ID(0), Title(), TitleImage(),
 						  TimeoutSeconds(0), TimeoutText(), ThemeName(),
               OldTextBufferRect(), OldTextBufferImage(), isBootScreen(false),
-              AnimeRun(0), Once(0), LastDraw(0), CurrentFrame(0),
-						  Frames(0), FrameTime(0),
-#if XCINEMA
-  FilmC(), FilmPlaceImage(),
-#else
-  Film(0),
-#endif
+              AnimeRun(0), LastDraw(0), CurrentFrame(0),
+  FilmC(),
   mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
 						{};
   REFIT_MENU_SCREEN(UINTN ID, XStringW TTitle, XStringW TTimeoutText)
   : ID(ID), Title(TTitle), TitleImage(),
   TimeoutSeconds(0), TimeoutText(TTimeoutText), ThemeName(),
   OldTextBufferRect(), OldTextBufferImage(), isBootScreen(false),
-  AnimeRun(0), Once(0), LastDraw(0), CurrentFrame(0),
-  Frames(0), FrameTime(0),
-#if XCINEMA
-  FilmC(), FilmPlaceImage(),
-#else
-  Film(0),
-#endif
+  AnimeRun(0), LastDraw(0), CurrentFrame(0),
+  FilmC(),
   mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
   {};
+  //TODO exclude CHAR16
   REFIT_MENU_SCREEN(UINTN ID, CONST CHAR16* TitleC, CONST CHAR16* TimeoutTextC)
   : ID(ID), Title(), TitleImage(),
   TimeoutSeconds(0), TimeoutText(), ThemeName(), AnimeRun(0),
-  Once(0), LastDraw(0), CurrentFrame(0),
-  Frames(0), FrameTime(0),
-#if XCINEMA
-  FilmC(), FilmPlaceImage(),
-#else
-  Film(0),
-#endif
+  LastDraw(0), CurrentFrame(0),
+  FilmC(),
   mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
   {
     Title.takeValueFrom(TitleC);
@@ -170,13 +151,8 @@ public:
   : ID(ID), Title(TTitle), TitleImage(),
   TimeoutSeconds(0), TimeoutText(TTimeoutText), ThemeName(),
   OldTextBufferRect(), OldTextBufferImage(), isBootScreen(false),
-  AnimeRun(0), Once(0), LastDraw(0), CurrentFrame(0),
-  Frames(0), FrameTime(0),
-#if XCINEMA
-  FilmC(), FilmPlaceImage(),
-#else
-  Film(0),
-#endif
+  AnimeRun(0), LastDraw(0), CurrentFrame(0),
+  FilmC(),
   mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
   {
     Entries.AddReference(entry1, false);
@@ -218,15 +194,12 @@ public:
   INTN DrawTextXY(IN CONST XStringW& Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign);
   void EraseTextXY();
   VOID DrawTextCorner(UINTN TextC, UINT8 Align);
-  VOID DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN INTN Cursor);
+  VOID DrawMenuText(IN XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN UINTN Cursor);
   VOID DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN YPos, IN UINT8 XAlign);
   VOID CountItems();
   VOID InitAnime();
-  BOOLEAN GetAnime(); //same for xcinema
-  VOID UpdateAnime();
-#if XCINEMA
-  VOID UpdateFilm(); // for future use instead of UpdateAnime
-#endif
+  VOID GetAnime(); //same for xcinema
+  VOID UpdateFilm(); 
 
   //Style functions
 
