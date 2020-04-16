@@ -6,6 +6,7 @@
 #ifndef __LIBSAIO_KERNEL_PATCHER_H
 #define __LIBSAIO_KERNEL_PATCHER_H
 
+#include "boot.h"
 
 #define CPUFAMILY_INTEL_6_13		0xaa33392b
 #define CPUFAMILY_INTEL_YONAH		0x73d67300
@@ -102,6 +103,8 @@ extern UINT32       PrelinkInfoSize;
 
 extern UINT32 DisplayVendor[];
 //VOID findCPUfamily();
+
+extern BOOLEAN                         SSSE3;
 
 
 //UINT64 kernelsize;

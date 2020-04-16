@@ -30,9 +30,10 @@
 
 
 #include "Platform.h"
+#include "StartupSound.h"
 #include "Settings.h"
+#include "Nvram.h"
 
-extern BOOLEAN DayLight;
 extern UINTN                           AudioNum;
 extern HDA_OUTPUTS                     AudioList[20];
 extern UINT8 EmbeddedSound[];

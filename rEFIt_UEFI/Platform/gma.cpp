@@ -63,6 +63,9 @@
 
 #include "Platform.h"
 #include "gma.h"
+#include "platformdata.h"
+#include "FixBiosDsdt.h"
+#include "../include/Devices.h"
 
 #ifndef DEBUG_GMA
 #ifndef DEBUG_ALL

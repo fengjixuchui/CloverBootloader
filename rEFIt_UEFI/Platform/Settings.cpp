@@ -12,6 +12,24 @@
 #include "../refit/menu.h"
 #include "gma.h"
 #include "../libeg/VectorGraphics.h"
+#include "Nvram.h"
+#include "BootOptions.h"
+#include "StartupSound.h"
+#include "Edid.h"
+#include "platformdata.h"
+#include "smbios.h"
+#include "guid.h"
+#include "card_vlist.h"
+#include "Injectors.h"
+#include "cpu.h"
+#include "APFS.h"
+#include "hda.h"
+#include "FixBiosDsdt.h"
+#include "../entry_scan/secureboot.h"
+#include "../include/Pci.h"
+#include "../include/Devices.h"
+#include "ati_reg.h"
+#include "../../Version.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_SET 1
@@ -32,6 +50,10 @@
 //#define kXMLTagArray      "array"
 
 //EFI_GUID gRandomUUID = {0x0A0B0C0D, 0x0000, 0x1010, {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
+
+#define NUM_OF_CONFIGS 3
+#define GEN_PMCON_1                 0xA0
+
 
 INTN OldChosenTheme;
 INTN OldChosenConfig;
@@ -100,11 +122,27 @@ BOOLEAN                         SetTable132                 = FALSE;
 
 //EG_PIXEL SelectionBackgroundPixel = { 0xef, 0xef, 0xef, 0xff }; //define in lib.h
 const INTN BCSMargin = 11;
-BOOLEAN DayLight;
+
+//
+DRIVERS_FLAGS gDriversFlags;  //the initializer is not needed for global variables
+
+#ifdef FIRMWARE_REVISION
+CONST CHAR16 *gFirmwareRevision = FIRMWARE_REVISION;
+CONST CHAR8* gRevisionStr = REVISION_STR;
+CONST CHAR8* gFirmwareBuildDate = FIRMWARE_BUILDDATE;
+CONST CHAR8* gBuildInfo = BUILDINFOS_STR;
+#else
+CONST CHAR16 *gFirmwareRevision = "unknown";
+CONST CHAR8* gRevisionStr = "unknown";
+CONST CHAR8* gFirmwareBuildDate = "unknown";
+CONST CHAR8* gBuildInfo = NULL;
+#endif
+
+EFI_GUID            gUuid;
+
+EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl = NULL;
 
 
-
-extern MEM_STRUCTURE            gRAM;
 extern BOOLEAN                  NeedPMfix;
 
 //extern INTN                     OldChosenAudio;
@@ -155,7 +193,7 @@ REFIT_CONFIG   GlobalConfig = {
   FALSE,          // BOOLEAN     CustomIcons;
   ICON_FORMAT_DEF, // INTN       IconFormat;
   FALSE,          // BOOLEAN     NoEarlyProgress;
-  0,              // INT32       Timezone;
+  0xFF,           // INT32       Timezone; / 0xFF - not set
   FALSE,          // BOOLEAN     ShowOptimus;
   0xC0,           // INTN        Codepage;
   0xC0,           // INTN        CodepageSize; //extended latin
@@ -244,70 +282,6 @@ GetCrc32 (
   return x;
 }
 #endif
-
-/*
- return TRUE if the property present && value = TRUE
- else return FALSE
- */
-BOOLEAN
-IsPropertyTrue (
-                TagPtr Prop
-                )
-{
-  return Prop != NULL &&
-  ((Prop->type == kTagTypeTrue) ||
-   ((Prop->type == kTagTypeString) && Prop->string &&
-    ((Prop->string[0] == 'y') || (Prop->string[0] == 'Y'))));
-}
-
-/*
- return TRUE if the property present && value = FALSE
- else return FALSE
- */
-BOOLEAN
-IsPropertyFalse (
-                 TagPtr Prop
-                 )
-{
-  return Prop != NULL &&
-  ((Prop->type == kTagTypeFalse) ||
-   ((Prop->type == kTagTypeString) && Prop->string &&
-    ((Prop->string[0] == 'N') || (Prop->string[0] == 'n'))));
-}
-
-/*
- Possible values
- <integer>1234</integer>
- <integer>+1234</integer>
- <integer>-1234</integer>
- <string>0x12abd</string>
- */
-INTN
-GetPropertyInteger (
-                    TagPtr Prop,
-                    INTN Default
-                    )
-{
-  if (Prop == NULL) {
-    return Default;
-  }
-
-  if (Prop->type == kTagTypeInteger) {
-    return (INTN)Prop->string; //this is union char* or size_t
-  } else if ((Prop->type == kTagTypeString) && Prop->string) {
-    if ((Prop->string[1] == 'x') || (Prop->string[1] == 'X')) {
-      return (INTN)AsciiStrHexToUintn (Prop->string);
-    }
-
-    if (Prop->string[0] == '-') {
-      return -(INTN)AsciiStrDecimalToUintn (Prop->string + 1);
-    }
-
-//    return (INTN)AsciiStrDecimalToUintn (Prop->string);
-    return (INTN)AsciiStrDecimalToUintn((Prop->string[0] == '+') ? (Prop->string + 1) : Prop->string);
-  }
-  return Default;
-}
 
 ACPI_NAME_LIST *
 ParseACPIName(CHAR8 *String)
@@ -2697,7 +2671,7 @@ GetEarlyUserSettings (
       INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
       if (NowHour <  0 ) NowHour += 24;
       if (NowHour >= 24 ) NowHour -= 24;
-      DayLight = (NowHour > 8) && (NowHour < 20);
+      ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
 
       Prop = GetProperty (DictPointer, "Theme");
       if (Prop != NULL) {
@@ -2723,8 +2697,8 @@ GetEarlyUserSettings (
                 ThemeX.DarkEmbedded = FALSE;
                 ThemeX.Font = FONT_ALFA;
               } else if (AsciiStriCmp (Prop->string, "DayTime") == 0) {
-                ThemeX.DarkEmbedded = !DayLight;
-                ThemeX.Font = DayLight?FONT_ALFA:FONT_GRAY;
+                ThemeX.DarkEmbedded = !ThemeX.Daylight;
+                ThemeX.Font = ThemeX.Daylight?FONT_ALFA:FONT_GRAY;
               }
             }
           }
@@ -2739,8 +2713,8 @@ GetEarlyUserSettings (
             ThemeX.DarkEmbedded = FALSE;
             ThemeX.Font = FONT_ALFA;
           } else if (AsciiStriCmp (Prop->string, "Daytime") == 0) {
-            ThemeX.DarkEmbedded = !DayLight;
-            ThemeX.Font = DayLight?FONT_ALFA:FONT_GRAY;
+            ThemeX.DarkEmbedded = !ThemeX.Daylight;
+            ThemeX.Font = ThemeX.Daylight?FONT_ALFA:FONT_GRAY;
           }
         }
       }
@@ -3890,15 +3864,26 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
   CHAR8      *ChosenTheme = NULL;
   CHAR16     *TestTheme   = NULL;
   UINTN      Rnd;
-
-  DbgHeader("InitXTheme");
-  ThemeX.Init();
-
-  if (DayLight) {
-    DBG("use daylight theme\n");
+  EFI_TIME   Now;
+	
+  //initialize Daylight when we know timezone
+  if (GlobalConfig.Timezone != 0xFF) { // 0xFF:default=timezone not set
+    gRT->GetTime(&Now, NULL);
+    INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
+    if (NowHour <  0 ) NowHour += 24;
+    if (NowHour >= 24 ) NowHour -= 24;
+    ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
+  } else {
+    ThemeX.Daylight = TRUE; // when timezone is not set
+  }
+  if (ThemeX.Daylight) {
+    DBG("use Daylight theme\n");
   } else {
     DBG("use night theme\n");
   }
+
+  DbgHeader("InitXTheme");
+  ThemeX.Init();
 
   for (i = 0; i < 3; i++) {
     //    DBG("validate %d face\n", i);
@@ -4025,7 +4010,13 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
 finish:
   if (!ThemeDict) {  // No theme could be loaded, use embedded
     DBG (" using embedded theme\n");
-    ThemeX.Init();
+    if (ThemeX.DarkEmbedded) { // when using embedded, set Daylight according to darkembedded
+      ThemeX.Daylight = FALSE;
+    } else {
+      ThemeX.Daylight = TRUE;
+    }
+
+    ThemeX.FillByEmbedded();
     OldChosenTheme = 0xFFFF;
     if (ThemePath != NULL) {
       FreePool (ThemePath);
@@ -4059,7 +4050,7 @@ finish:
     }
     FreeTag(ThemeDict);
 
-    if (!DayLight) {
+    if (!ThemeX.Daylight) {
       Status = StartupSoundPlay(ThemeX.ThemeDir, L"sound_night.wav");
       if (EFI_ERROR(Status)) {
         Status = StartupSoundPlay(ThemeX.ThemeDir, L"sound.wav");

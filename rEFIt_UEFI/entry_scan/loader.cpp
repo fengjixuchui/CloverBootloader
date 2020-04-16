@@ -33,6 +33,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "loader.h"
 #include "../cpp_foundation/XStringW.h"
 #include "entry_scan.h"
 #include "../Platform/Settings.h"
@@ -40,6 +41,9 @@
 #include "../refit/screen.h"
 #include "../refit/menu.h"
 #include "common.h"
+#include "../Platform/Nvram.h"
+#include "../Platform/APFS.h"
+#include "../Platform/guid.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_SCAN_LOADER 1
@@ -52,8 +56,6 @@
 #else
 #define DBG(...) DebugLog(DEBUG_SCAN_LOADER, __VA_ARGS__)
 #endif
-
-//#define DUMP_KERNEL_KEXT_PATCHES 1
 
 #define MACOSX_LOADER_PATH L"\\System\\Library\\CoreServices\\boot.efi"
 
@@ -70,6 +72,7 @@ const XString LINUX_DEFAULT_OPTIONS = "ro add_efi_memmap quiet splash vt.handoff
 #else
 #define BOOT_LOADER_PATH L"\\EFI\\BOOT\\BOOTIA32.efi"
 #endif
+
 
 extern LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry);
 

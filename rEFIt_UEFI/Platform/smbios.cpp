@@ -20,7 +20,10 @@
  **/
 
 #include "Platform.h"
-#include "../../Version.h"
+#include "smbios.h"
+#include "cpu.h"
+#include "platformdata.h"
+#include "AcpiPatcher.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,13 +43,14 @@ extern "C" {
 #define DBG(...) DebugLog(DEBUG_SMBIOS, __VA_ARGS__)
 #endif
 
-#define CPUID_EXTFEATURE_EM64T    _Bit(29)
-#define CPUID_EXTFEATURE_XD       _Bit(20)
-#define CPUID_FEATURE_VMX         _HBit(5)
-#define CPUID_FEATURE_EST         _HBit(7)
+#define REMAP_SMBIOS_TABLE_GUID { 0xeb9d2d35, 0x2d88, 0x11d3, {0x9a, 0x16, 0x0, 0x90, 0x27, 0x3f, 0xc1, 0x4d } }
+
 #define MAX_OEM_STRING            256
 
-EFI_GUID            gUuid;
+#define ROUND_PAGE(x)                ((((unsigned)(x)) + EFI_PAGE_SIZE - 1) & ~(EFI_PAGE_SIZE - 1))
+
+
+
 EFI_GUID            *gTableGuidArray[] = {&gEfiSmbiosTableGuid, &gEfiSmbios3TableGuid};
 
 const CHAR8 unknown[] = "unknown";
@@ -1101,11 +1105,7 @@ VOID PatchTableType11()
   //  AsciiStrnCatS(OEMString, MAX_OEM_STRING, gSettings.EfiVersion, iStrLen(gSettings.EfiVersion, 64));
   AsciiStrCatS(OEMString, MAX_OEM_STRING, "  Board-ID       : ");
   AsciiStrnCatS(OEMString, MAX_OEM_STRING, gSettings.BoardNumber, iStrLen(gSettings.BoardNumber, 64));
-#ifdef REVISION_STR
-	snprintf(TempRev, MAX_OEM_STRING, "\n⌘  Powered by %s\n", REVISION_STR);
-#else
-  snprintf(TempRev, MAX_OEM_STRING, "\n⌘  Powered by Clover %s\n", gFirmwareRevision);
-#endif
+	snprintf(TempRev, MAX_OEM_STRING, "\n⌘  Powered by Clover %s\n", gRevisionStr);
   AsciiStrCatS(OEMString, MAX_OEM_STRING, TempRev);
 
   UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type11->StringCount, OEMString);

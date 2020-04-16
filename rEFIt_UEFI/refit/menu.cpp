@@ -40,7 +40,6 @@
 //#include "../include/scroll_images.h"
 
 #include "../Platform/Settings.h"
-#include "../../Version.h"
 //#include "colors.h"
 
 #include "../libeg/nanosvg.h"
@@ -52,6 +51,12 @@
 #include "../libeg/XTheme.h"
 #include "../libeg/VectorGraphics.h" // for testSVG
 #include "../gui/shared_with_menu.h"
+#include "../Platform/platformdata.h"
+#include "../Platform/cpu.h"
+#include "../Platform/Nvram.h"
+#include "../Platform/FixBiosDsdt.h"
+#include "../include/Devices.h"
+#include "../Platform/boot.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_MENU 1
@@ -66,18 +71,9 @@
 #endif
 
 
-//#define PREBOOT_LOG L"EFI\\CLOVER\\misc\\preboot.log"
-//#define VBIOS_BIN L"EFI\\CLOVER\\misc\\c0000.bin"
-//CONST CHAR16 *VBIOS_BIN = L"EFI\\CLOVER\\misc\\c0000.bin"; // tmporarily moved in shared_wint_menu
-
-//#define LSTR(s) L##s
-
-
 REFIT_MENU_SCREEN OptionMenu(4, L"Options"_XSW, L""_XSW);
 
 extern CONST CHAR8      *AudioOutputNames[];
-
-#include "../Platform/string.h"
 
 INTN LayoutMainMenuHeight = 376;
 INTN LayoutAnimMoveForMenuX = 0;
@@ -126,14 +122,6 @@ REFIT_MENU_SCREEN MainMenu(1, L"Main Menu"_XSW, L"Automatic boot"_XSW);
 REFIT_MENU_SCREEN AboutMenu(2, L"About"_XSW, L""_XSW);
 REFIT_MENU_SCREEN HelpMenu(3, L"Help"_XSW, L""_XSW);
 
-
-// input - tsc
-// output - milliseconds
-// the caller is responsible for t1 > t0
-UINT64 TimeDiff(UINT64 t0, UINT64 t1)
-{
-  return DivU64x64Remainder((t1 - t0), DivU64x32(gCPUStructure.TSCFrequency, 1000), 0);
-}
 
 
 VOID FillInputs(BOOLEAN New)
@@ -1229,16 +1217,9 @@ VOID AboutRefit(VOID)
 
   if (AboutMenu.Entries.size() == 0) {
 //    AboutMenu.AddMenuInfo_f(("Clover Version 5.0"));
-#ifdef REVISION_STR
-	  AboutMenu.AddMenuInfo_f(" %s ", REVISION_STR);
-#else
-    AboutMenu.AddMenuInfo_f("Clover Revision %s", gFirmwareRevision);
-#endif
-#ifdef FIRMWARE_BUILDDATE
-    AboutMenu.AddMenuInfo_f(" Build: %s", FIRMWARE_BUILDDATE);
-#else
-    AboutMenu.AddMenuInfo_f(" Build: unknown");
-#endif
+	  AboutMenu.AddMenuInfo_f(" %s ", gRevisionStr);
+	  AboutMenu.AddMenuInfo_f("Clover Revision %ls", gFirmwareRevision);
+    AboutMenu.AddMenuInfo_f(" Build: %s", gFirmwareBuildDate);
     AboutMenu.AddMenuInfo_f(" ");
     AboutMenu.AddMenuInfo_f("Based on rEFIt (c) 2006-2010 Christoph Pfisterer");
     AboutMenu.AddMenuInfo_f("Portions Copyright (c) Intel Corporation");

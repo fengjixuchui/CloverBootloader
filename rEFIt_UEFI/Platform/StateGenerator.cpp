@@ -4,7 +4,9 @@
  */
 
 #include "StateGenerator.h"
-
+#include "cpu.h"
+#include "smbios.h"
+#include "AcpiPatcher.h"
 
 CONST UINT8 pss_ssdt_header[] =
 {
@@ -47,6 +49,28 @@ UINT8 plugin_type[] =
   0x75, 0x67, 0x69, 0x6E, 0x2D, 0x74, 0x79, 0x70,
   0x65, 0x00,
 };
+
+
+struct p_state_vid_fid
+{
+  UINT8 VID;  // Voltage ID
+  UINT8 FID;  // Frequency ID
+};
+
+union p_state_control
+{
+  UINT16 Control;
+  struct p_state_vid_fid VID_FID;
+};
+
+struct p_state
+{
+  union p_state_control Control;
+
+  UINT32 CID;    // Compare ID
+  UINT32 Frequency;
+};
+typedef struct p_state P_STATE;
 
 SSDT_TABLE *generate_pss_ssdt(UINTN Number)
 {

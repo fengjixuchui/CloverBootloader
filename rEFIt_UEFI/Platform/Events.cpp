@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "../entry_scan/entry_scan.h"
 //#include "device_tree.h"
 #include "kernel_patcher.h"
+#include "usbfix.h"
 
 #ifndef DEBUG_ALL
 #define PATCH_DEBUG 0
@@ -27,6 +28,26 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #else
 #define DBG(...)	
 #endif
+
+////
+//// Max bytes needed to represent ID of a SCSI device
+////
+//#define EFI_SCSI_TARGET_MAX_BYTES (0x10)
+////
+//// bit5..7 are for Logical unit number
+//// 11100000b (0xe0)
+////
+//#define EFI_SCSI_LOGICAL_UNIT_NUMBER_MASK 0xe0
+
+
+//
+// Scsi Command Length
+//
+#define EFI_SCSI_OP_LENGTH_SIX      0x6
+//#define EFI_SCSI_OP_LENGTH_TEN      0xa
+//#define EFI_SCSI_OP_LENGTH_SIXTEEN  0x10
+
+
 
 EFI_EVENT   mVirtualAddressChangeEvent = NULL;
 EFI_EVENT   OnReadyToBootEvent = NULL;

@@ -50,7 +50,9 @@
 #ifndef __LIBSAIO_NVIDIA_H
 #define __LIBSAIO_NVIDIA_H
 
-#include "device_inject.h"
+//#include "device_inject.h"
+#include "card_vlist.h"
+#include "../include/Pci.h"
 
 extern CHAR8* gDeviceProperties;
   
@@ -174,5 +176,17 @@ extern UINT8 default_NVCAP[];
 extern UINT8 default_NVPM[];
 extern UINT8 default_dcfg_0[];
 extern UINT8 default_dcfg_1[];
+
+BOOLEAN
+setup_nvidia_devprop (
+  pci_dt_t *nvda_dev
+  );
+
+CONST CHAR8
+*get_nvidia_model (
+  UINT32 device_id,
+  UINT32 subsys_id,
+  CARDLIST * nvcard
+  );
 
 #endif /* !__LIBSAIO_NVIDIA_H */

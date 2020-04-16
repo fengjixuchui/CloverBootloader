@@ -38,7 +38,6 @@
 #include "../libeg/libegint.h"   //this includes platform.h
 //#include "../include/scroll_images.h"
 
-#include "../../Version.h"
 //#include "colors.h"
 
 #include "../libeg/nanosvg.h"
@@ -51,6 +50,10 @@
 #include "../libeg/VectorGraphics.h" // for testSVG
 #include "shared_with_menu.h"
 #include "../refit/menu.h"  // for DrawTextXY. Must disappear soon.
+#include "../Platform/AcpiPatcher.h"
+#include "../Platform/Nvram.h"
+#include "../refit/screen.h"
+
 #ifndef DEBUG_ALL
 #define DEBUG_MENU 1
 #else
@@ -64,13 +67,8 @@
 #endif
 
 XPointer REFIT_MENU_SCREEN::mPointer;
-//
-//
-////#define PREBOOT_LOG L"EFI\\CLOVER\\misc\\preboot.log"
-//
-////#define LSTR(s) L##s
-//
-//// scrolling definitions
+
+// scrolling definitions
 static INTN MaxItemOnScreen = -1;
 
 
@@ -152,7 +150,7 @@ static INTN row1Count, row1PosX, row1PosXRunning;
 static INTN *itemPosX = NULL;
 static INTN *itemPosY = NULL;
 static INTN row0PosY, row1PosY, textPosY, FunctextPosY;
-////static EG_IMAGE* MainImage;
+
 static INTN OldX = 0, OldY = 0;
 static INTN OldTextWidth = 0;
 static UINTN OldRow = 0;
@@ -1295,7 +1293,6 @@ INTN REFIT_MENU_SCREEN::DrawTextXY(IN const XStringW& Text, IN INTN XPos, IN INT
   INTN      XText = 0;
   INTN      Height;
   INTN      TextXYStyle = 1;
-//  EG_IMAGE  *TextBufferXY = NULL;
   XImage TextBufferXY(0,0);
 
   if (Text.isEmpty()) {

@@ -9,7 +9,9 @@
 
 
 #include "Platform.h"
+#include "BootOptions.h"
 #include "BasicIO.h"
+#include "Nvram.h"
 
 
 #ifndef DEBUG_ALL

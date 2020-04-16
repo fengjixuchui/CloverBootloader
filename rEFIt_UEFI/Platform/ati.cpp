@@ -6,8 +6,12 @@
  */
 
 #include "Platform.h"
-
 #include "ati.h"
+#include "ati_reg.h"
+#include "smbios.h"
+#include "FixBiosDsdt.h"
+#include "../include/Pci.h"
+#include "../include/Devices.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_ATI 1
