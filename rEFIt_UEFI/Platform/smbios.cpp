@@ -1105,7 +1105,7 @@ VOID PatchTableType11()
   //  AsciiStrnCatS(OEMString, MAX_OEM_STRING, gSettings.EfiVersion, iStrLen(gSettings.EfiVersion, 64));
   AsciiStrCatS(OEMString, MAX_OEM_STRING, "  Board-ID       : ");
   AsciiStrnCatS(OEMString, MAX_OEM_STRING, gSettings.BoardNumber, iStrLen(gSettings.BoardNumber, 64));
-	snprintf(TempRev, MAX_OEM_STRING, "\n⌘  Powered by Clover %s\n", gRevisionStr);
+	snprintf(TempRev, MAX_OEM_STRING, "\n⌘  Powered by %s\n", gRevisionStr);
   AsciiStrCatS(OEMString, MAX_OEM_STRING, TempRev);
 
   UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type11->StringCount, OEMString);
@@ -1913,8 +1913,8 @@ VOID PatchTableType131()
   // Get Table Type131
   SmbiosTable = GetSmbiosTableFromType (EntryPoint, 131, 0);
   if (SmbiosTable.Raw != NULL) {
-    MsgLog("Table 131 is present, CPUType=%X\n", SmbiosTable.Type131->ProcessorType);
-    MsgLog("Change to: %X\n", gSettings.CpuType);
+	  MsgLog("Table 131 is present, CPUType=%hX\n", SmbiosTable.Type131->ProcessorType);
+	  MsgLog("Change to: %hX\n", gSettings.CpuType);
   }
 
   ZeroMem((VOID*)newSmbiosTable.Type131, MAX_TABLE_SIZE);
@@ -1937,8 +1937,8 @@ VOID PatchTableType132()
   // Get Table Type132
   SmbiosTable = GetSmbiosTableFromType (EntryPoint, 132, 0);
   if (SmbiosTable.Raw != NULL) {
-    MsgLog("Table 132 is present, QPI=%X\n", SmbiosTable.Type132->ProcessorBusSpeed);
-    MsgLog("Change to: %X\n", gSettings.QPI);
+	  MsgLog("Table 132 is present, QPI=%hX\n", SmbiosTable.Type132->ProcessorBusSpeed);
+	  MsgLog("Change to: %hX\n", gSettings.QPI);
   }
 
   ZeroMem((VOID*)newSmbiosTable.Type132, MAX_TABLE_SIZE);
@@ -2066,7 +2066,7 @@ EFI_STATUS PrepatchSmbios()
   GetTableType16();
   GetTableType17();
   GetTableType32(); //get BootStatus here to decide what to do
-  MsgLog("Boot status=%X\n", gBootStatus);
+  MsgLog("Boot status=%hhX\n", gBootStatus);
   //for example the bootloader may go to Recovery is BootStatus is Fail
   return   Status;
 }
