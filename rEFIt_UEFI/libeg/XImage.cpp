@@ -221,10 +221,10 @@ void XImage::CopyScaled(const XImage& Image, float scale)
     {
       int lx = (int)(x / scale);
       float dx = x - lx * scale;
-      int a01 = (x == 0) ? 0 : -Pixel;
-      int a10 = (y == 0) ? 0 : -Row;
-      int a21 = (x == W - 1) ? 0 : Pixel;
-      int a12 = (y == H - 1) ? 0 : Row;
+      int a01 = (lx == 0) ? 0 : -Pixel;
+      int a10 = (ly == 0) ? 0 : -Row;
+      int a21 = (lx == W - 1) ? 0 : Pixel;
+      int a12 = (ly == H - 1) ? 0 : Row;
       EFI_GRAPHICS_OUTPUT_BLT_PIXEL& dst = *GetPixelPtr(x, y);
       dst.Blue = Smooth(&Source[lx + ly * SrcWidth].Blue, a01, a10, a21, a12, dx, dy, scale);
       dst.Green = Smooth(&Source[lx + ly * SrcWidth].Green, a01, a10, a21, a12, dx, dy, scale);
@@ -238,7 +238,7 @@ void XImage::CopyScaled(const XImage& Image, float scale)
  * Lowest means final image is opaque
  * else transparency will be multiplied
  */
-void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
+void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest, float topScale)
 {
   EG_RECT OutPlace;
   OutPlace.XPos = PosX;
@@ -251,7 +251,7 @@ void XImage::Compose(INTN PosX, INTN PosY, const XImage& TopImage, bool Lowest)
   Area.YPos = 0;
   Area.Width = TopImage.GetWidth();
   Area.Height = TopImage.GetHeight();
-  Compose(OutPlace, Area, TopImage, Lowest, 0.f);
+  Compose(OutPlace, Area, TopImage, Lowest, topScale);
 }
 // TopScale is for scaling TopImage. = 0.f means no scale or = 1.f
 // InPlace is a place in TopImage before scaling
