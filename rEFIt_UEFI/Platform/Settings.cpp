@@ -2653,6 +2653,11 @@ GetEarlyUserSettings (
       if (IsPropertyTrue (Prop)) {
         gSettings.NoCaches = TRUE;
       }
+      //test float
+      Prop = GetProperty (DictPointer, "BlueValue");
+      float tmpF = GetPropertyFloat(Prop, 1.2f);
+      DBG(" get BlueValue=%f\n", tmpF);
+      
     }
 
     // KernelAndKextPatches
@@ -5173,9 +5178,9 @@ GetUserSettings(
               DBG (" length=%d(0x%X)", TabLength, TabLength);
             }
             // Check if to drop for other OS as well
-            Prop = GetProperty (Dict2, "DropForAllOS");
-            if (Prop != NULL) {
-              OtherOS = IsPropertyTrue (Prop);
+            Prop2 = GetProperty (Dict2, "DropForAllOS");
+            if (Prop2 != NULL) {
+              OtherOS = IsPropertyTrue (Prop2);
             }
 
             DBG ("\n");
