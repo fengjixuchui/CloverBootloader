@@ -36,7 +36,8 @@
 
 #include "XTheme.h"
 extern XTheme ThemeX;
-extern CONST CHAR8* IconsNames[];
+extern const CHAR8* IconsNames[];
+extern const INTN IconsNamesSize;
 
 
 #define NSVG_RGB(r, g, b) (((unsigned int)b) | ((unsigned int)g << 8) | ((unsigned int)r << 16))
@@ -286,7 +287,6 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
   DBG(" parsed banner->width=%lld height=%lld\n", Banner.GetWidth(), BanHeight); //parsed banner->width=467 height=89
   
   // --- Make other icons
-
   for (INTN i = BUILTIN_ICON_FUNC_ABOUT; i <= BUILTIN_CHECKBOX_CHECKED; ++i) {
     if (i == BUILTIN_ICON_BANNER) { //exclude "logo" as it done as Banner
       continue;
@@ -298,12 +298,28 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
     if (!EFI_ERROR(Status)) {
       ParseSVGXIcon(i, NewIcon->Name + "_night"_XS, &NewIcon->ImageNight);
     }
+//    DBG("parse %s status %s\n", NewIcon->Name.c_str(), strerror(Status));
     Icons.AddReference(NewIcon, true);
     if (EFI_ERROR(Status) && i >= BUILTIN_ICON_VOL_INTERNAL_HFS && i <= BUILTIN_ICON_VOL_INTERNAL_REC) {
       // call to GetIconAlt will get alternate/embedded into Icon if missing
+      DBG("   get alt icon for %lld\n", i);
       GetIconAlt(i, BUILTIN_ICON_VOL_INTERNAL);
     }
   }
+  
+  // --- Make other OSes
+  for (INTN i = ICON_OTHER_OS; i < IconsNamesSize; ++i) {
+    if (AsciiStrLen(IconsNames[i]) == 0) break;
+    Icon* NewIcon = new Icon(i, false); //initialize without embedded
+    Status = ParseSVGXIcon(i, NewIcon->Name, &NewIcon->Image);
+//     DBG("parse %s i=%lld status %s\n", NewIcon->Name.c_str(), i, strerror(Status));
+    NewIcon->Native = !EFI_ERROR(Status);
+    if (!EFI_ERROR(Status)) {
+      ParseSVGXIcon(i, NewIcon->Name + "_night"_XS, &NewIcon->ImageNight);
+    }
+    Icons.AddReference(NewIcon, true);
+  }
+  
   //selection for bootcampstyle
   Icon *NewIcon = new Icon(BUILTIN_ICON_SELECTION);
   Status = ParseSVGXIcon(BUILTIN_ICON_SELECTION, "selection_indicator"_XS, &NewIcon->Image);
@@ -332,64 +348,64 @@ EFI_STATUS XTheme::ParseSVGXTheme(CONST CHAR8* buffer)
 
   //TODO parse anime like for PNG themes
   /*
-  Dict = GetProperty (DictPointer, "Anime");
+  Dict = GetProperty(DictPointer, "Anime");
   if (Dict != NULL) {
     INTN  Count = GetTagCount (Dict);
     for (INTN i = 0; i < Count; i++) {
       FILM *NewFilm = new FILM();
-      if (EFI_ERROR (GetElement (Dict, i, &Dict3))) {
+      if (EFI_ERROR(GetElement (Dict, i, &Dict3))) {
         continue;
       }
       if (Dict3 == NULL) {
         break;
       }
-      Dict2 = GetProperty (Dict3, "ID");
-      NewFilm->SetIndex((UINTN)GetPropertyInteger (Dict2, 1)); //default=main screen
+      Dict2 = GetProperty(Dict3, "ID");
+      NewFilm->SetIndex((UINTN)GetPropertyInteger(Dict2, 1)); //default=main screen
 
-      Dict2 = GetProperty (Dict3, "Path");
+      Dict2 = GetProperty(Dict3, "Path");
       if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
         NewFilm->Path.takeValueFrom(Dict2->string);
       }
 
-      Dict2 = GetProperty (Dict3, "Frames");
-      NewFilm->NumFrames = (UINTN)GetPropertyInteger (Dict2, 0);
+      Dict2 = GetProperty(Dict3, "Frames");
+      NewFilm->NumFrames = (UINTN)GetPropertyInteger(Dict2, 0);
 
-      Dict2 = GetProperty (Dict3, "FrameTime");
-      NewFilm->FrameTime = (UINTN)GetPropertyInteger (Dict2, 50); //default will be 50ms
+      Dict2 = GetProperty(Dict3, "FrameTime");
+      NewFilm->FrameTime = (UINTN)GetPropertyInteger(Dict2, 50); //default will be 50ms
 
-      Dict2 = GetProperty (Dict3, "ScreenEdgeX");
+      Dict2 = GetProperty(Dict3, "ScreenEdgeX");
       if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
-        if (AsciiStrCmp (Dict2->string, "left") == 0) {
+        if (AsciiStrCmp(Dict2->string, "left") == 0) {
           NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_LEFT;
-        } else if (AsciiStrCmp (Dict2->string, "right") == 0) {
+        } else if (AsciiStrCmp(Dict2->string, "right") == 0) {
           NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_RIGHT;
         }
       }
 
-      Dict2 = GetProperty (Dict3, "ScreenEdgeY");
+      Dict2 = GetProperty(Dict3, "ScreenEdgeY");
       if (Dict2 != NULL && (Dict2->type == kTagTypeString) && Dict2->string) {
-        if (AsciiStrCmp (Dict2->string, "top") == 0) {
+        if (AsciiStrCmp(Dict2->string, "top") == 0) {
           NewFilm->ScreenEdgeVertical = SCREEN_EDGE_TOP;
-        } else if (AsciiStrCmp (Dict2->string, "bottom") == 0) {
+        } else if (AsciiStrCmp(Dict2->string, "bottom") == 0) {
           NewFilm->ScreenEdgeVertical = SCREEN_EDGE_BOTTOM;
         }
       }
 
       //default values are centre
 
-      Dict2 = GetProperty (Dict3, "DistanceFromScreenEdgeX%");
-      NewFilm->FilmX = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "DistanceFromScreenEdgeX%");
+      NewFilm->FilmX = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "DistanceFromScreenEdgeY%");
-      NewFilm->FilmY = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "DistanceFromScreenEdgeY%");
+      NewFilm->FilmY = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "NudgeX");
-      NewFilm->NudgeX = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "NudgeX");
+      NewFilm->NudgeX = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "NudgeY");
-      NewFilm->NudgeY = GetPropertyInteger (Dict2, INITVALUE);
+      Dict2 = GetProperty(Dict3, "NudgeY");
+      NewFilm->NudgeY = GetPropertyInteger(Dict2, INITVALUE);
 
-      Dict2 = GetProperty (Dict3, "Once");
+      Dict2 = GetProperty(Dict3, "Once");
       NewFilm->RunOnce = IsPropertyTrue (Dict2);
 
       NewFilm->GetFrames(ThemeX); //used properties: ID, Path, NumFrames
@@ -438,7 +454,7 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   XImage& TextBufferXY = *TextBufferXY_ptr;
   INTN Width;
 //  UINTN i;
-  UINTN len;
+//  UINTN len;
   NSVGparser* p;
   NSVGrasterizer* rast;
   if (!textFace[textType].valid) {
@@ -476,7 +492,6 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   nsvg__xformIdentity(text->xform);
   p->text = text;
 
-  len = string.size();
   Width = TextBufferXY.GetWidth();
   if ( fontSVG->unitsPerEm < 1.f ) {
     fontSVG->unitsPerEm = 1000.f;
@@ -492,8 +507,9 @@ INTN renderSVGtext(XImage* TextBufferXY_ptr, INTN posX, INTN posY, INTN textType
   x = (float)posX; //0.f;
   y = (float)posY + fontSVG->bbox[1] * Scale;
   p->isText = TRUE;
-  for (UINTN i=0; i < len; i++) {
-    CHAR16 letter = string.wc_str()[i];
+  size_t len = string.length();
+  for (size_t i=0; i < len; i++) {
+    CHAR16 letter = string.char16At(i);
     if (!letter) {
       break;
     }

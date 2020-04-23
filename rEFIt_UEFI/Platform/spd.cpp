@@ -882,10 +882,10 @@ VOID ScanSPD()
                                     &HandleBuffer
                                     );
   
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR(Status)) {
     for (Index = 0; Index < HandleCount; ++Index) {
       Status = gBS->HandleProtocol(HandleBuffer[Index], &gEfiPciIoProtocolGuid, (VOID **)&PciIo);
-      if (!EFI_ERROR (Status)) {
+      if (!EFI_ERROR(Status)) {
         // Read PCI BUS
         //PciIo->GetLocation (PciIo, &Segment, &Bus, &Device, &Function);
         Status = PciIo->Pci.Read (
@@ -898,7 +898,7 @@ VOID ScanSPD()
         //SmBus controller has class = 0x0c0500
         if ((gPci.Hdr.ClassCode[2] == 0x0c) && (gPci.Hdr.ClassCode[1] == 5)
             && (gPci.Hdr.ClassCode[0] == 0) && (gPci.Hdr.VendorId == 0x8086 || gPci.Hdr.VendorId == 0x10DE)) {
-			DBG ("SMBus device : %04hX %04hX class=%02hhX%02hhX%02hhX status=%s\n",
+			DBG("SMBus device : %04hX %04hX class=%02hhX%02hhX%02hhX status=%s\n",
                gPci.Hdr.VendorId,
                gPci.Hdr.DeviceId,
                gPci.Hdr.ClassCode[2],

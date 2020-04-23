@@ -563,7 +563,7 @@ ProtectRtDataFromRelocation(
           ++RelocInfo;
           ++gRelocInfoData.NumEntries;
         } else {
-          DBG (" WARNING: Cannot save mem type for entry: %lx (type 0x%x)\n", Desc->PhysicalStart, (UINTN)Desc->Type);
+          DBG(" WARNING: Cannot save mem type for entry: %lx (type 0x%x)\n", Desc->PhysicalStart, (UINTN)Desc->Type);
         }
 
         DBG(" RT mem %lx (0x%x) -> MemMapIO\n", Desc->PhysicalStart, Desc->NumberOfPages);
@@ -733,7 +733,7 @@ RuntimeServicesFix(BootArgs *BA)
 	Status = ExecSetVirtualAddressesToMemMap(MemoryMapSize, DescriptorSize, DescriptorVersion, MemoryMap);
 	
 	//DBG("SetVirtualAddressMap() = Status: %r\n", Status);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		CpuDeadLoop();
 	}
 	

@@ -431,11 +431,11 @@ EFI_STATUS bootElTorito(REFIT_VOLUME*	volume)
 */
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
   //	InitializeInterruptRedirection(); //gLegacy8259);
@@ -484,14 +484,14 @@ EFI_STATUS bootMBR(REFIT_VOLUME* volume)
 	}
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
     
     DBG("boot from partition %ls\n", FileDevicePathToStr(volume->DevicePath));
     
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	//InitializeInterruptRedirection(); //gLegacy8259);
@@ -646,11 +646,11 @@ EFI_STATUS bootPBRtest(REFIT_VOLUME* volume)
   DBG("gEfiLegacy8259ProtocolGuid found\n");
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return Status;
 	}
 
@@ -891,12 +891,12 @@ EFI_STATUS bootPBR(REFIT_VOLUME* volume, BOOLEAN SataReset)
   //
   if (mThunkContext == NULL) {
     Status = gBS->AllocatePool (EfiBootServicesData, sizeof(THUNK_CONTEXT), (VOID **)&mThunkContext);
-    if (EFI_ERROR (Status)) {
+    if (EFI_ERROR(Status)) {
       return Status;
     }
     DBG("Thunk allocated\n");
     Status = InitializeBiosIntCaller(); //mThunkContext);
-    if (EFI_ERROR (Status)) {
+    if (EFI_ERROR(Status)) {
       return Status;
     }
   }
@@ -1000,9 +1000,9 @@ static VOID PatchBbsTable(EFI_LEGACY_BIOS_PROTOCOL *LegacyBios, UINT16 BootEntry
 		&LocalBbsTable
 		);
 
-	DBG ("BBS Table of size %d, patching priorities Pold->Pnew:\n", BbsCount);
-	DBG (" NO: BBS# Pold Pnew bb/dd/ff cl/sc Type Stat segm:offs\n");
-	DBG (" =====================================================\n");
+	DBG("BBS Table of size %d, patching priorities Pold->Pnew:\n", BbsCount);
+	DBG(" NO: BBS# Pold Pnew bb/dd/ff cl/sc Type Stat segm:offs\n");
+	DBG(" =====================================================\n");
 
 	for (Idx = 0; Idx < BbsCount; Idx++) {
 		if ((LocalBbsTable[Idx].BootPriority == BBS_IGNORE_ENTRY) ||
@@ -1019,7 +1019,7 @@ static VOID PatchBbsTable(EFI_LEGACY_BIOS_PROTOCOL *LegacyBios, UINT16 BootEntry
 			LocalBbsTable[Idx].BootPriority = Priority++;
 		}
 
-		DBG (" %02llu: 0x%02llX %04llX %04llX %02llX/%02llX/%02llX %02llX/%02llX %04llX %04llX %04llX:%04llX\n",
+		DBG(" %02llu: 0x%02llX %04llX %04llX %02llX/%02llX/%02llX %02llX/%02llX %04llX %04llX %04llX:%04llX\n",
 		    (UINTN) IdxCount,
 		    (UINTN) Idx,
 		    (UINTN) OldPriority,
@@ -1113,11 +1113,11 @@ VOID DumpBiosMemoryMap()
   DBG("gEfiLegacy8259ProtocolGuid found\n");
 	
 	Status = gBS->AllocatePool (EfiBootServicesData,sizeof(THUNK_CONTEXT),(VOID **)&mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return;
 	}
 	Status = InitializeBiosIntCaller(); //mThunkContext);
-	if (EFI_ERROR (Status)) {
+	if (EFI_ERROR(Status)) {
 		return;
 	}
   

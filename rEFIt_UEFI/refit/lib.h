@@ -60,8 +60,8 @@
 #include "../libeg/libeg.h"
 #ifdef __cplusplus
 #include "../cpp_foundation/XObjArray.h"
+#include "../cpp_foundation/XString.h"
 #include "../cpp_foundation/XStringWArray.h"
-#include "../cpp_foundation/XStringW.h"
 #include "../libeg/XTheme.h"
 extern XTheme ThemeX; //global variable defined in lib.cpp
 
@@ -459,6 +459,7 @@ VOID DebugPause(VOID);
 #define BUILTIN_RADIO_BUTTON_SELECTED          (46)
 #define BUILTIN_CHECKBOX                       (47)
 #define BUILTIN_CHECKBOX_CHECKED               (48)
+#define ICON_OTHER_OS                          (51)
 #define BUILTIN_ICON_BACKGROUND                (100)
 #define BUILTIN_ICON_SELECTION                 (101)
 #define BUILTIN_ICON_ANIME                     (102)
