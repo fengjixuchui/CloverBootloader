@@ -7,7 +7,7 @@
 #if !defined(__XSTRINGWS_CPP__)
 #define __XSTRINGWS_CPP__
 
-#include "XToolsCommon.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "XStringWArray.h"
 
 
@@ -132,11 +132,11 @@ XStringWArray Split(const XStringW &S, const XStringW &Separator)
 	idxB = 0;
 	idxE = S.indexOf(Separator, idxB);
 	while ( idxE != MAX_XSIZE ) {
-		Ss.AddCopy(S.SubString(idxB, idxE-idxB));
+		Ss.AddCopy(S.subString(idxB, idxE-idxB));
 		idxB = idxE + Separator.length();
 		idxE = S.indexOf(Separator, idxB);
 	}
-	if ( idxB < S.length() ) Ss.AddCopy(S.SubString(idxB, S.length()-idxB));
+	if ( idxB < S.length() ) Ss.AddCopy(S.subString(idxB, S.length()-idxB));
 	return Ss;
 }
 

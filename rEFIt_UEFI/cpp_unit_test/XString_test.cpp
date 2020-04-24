@@ -24,15 +24,15 @@ struct make_unsigned
 {
 };
 
-//template <> struct __make_unsigned<bool,               true> {};
-template <> struct make_unsigned<  signed char> {typedef unsigned short     type;};
-template <> struct make_unsigned<unsigned char> {typedef unsigned short     type;};
-template <> struct make_unsigned<  signed short> {typedef unsigned short     type;};
-template <> struct make_unsigned<unsigned short> {typedef unsigned short     type;};
-template <> struct make_unsigned<  signed int> {typedef unsigned int       type;};
-template <> struct make_unsigned<unsigned int> {typedef unsigned int       type;};
-template <> struct make_unsigned<  signed long> {typedef unsigned long      type;};
-template <> struct make_unsigned<unsigned long> {typedef unsigned long      type;};
+template <> struct make_unsigned<         char>      {typedef unsigned char     type;};
+template <> struct make_unsigned<  signed char>      {typedef unsigned char     type;};
+template <> struct make_unsigned<unsigned char>      {typedef unsigned char     type;};
+template <> struct make_unsigned<  signed short>     {typedef unsigned short     type;};
+template <> struct make_unsigned<unsigned short>     {typedef unsigned short     type;};
+template <> struct make_unsigned<  signed int>       {typedef unsigned int       type;};
+template <> struct make_unsigned<unsigned int>       {typedef unsigned int       type;};
+template <> struct make_unsigned<  signed long>      {typedef unsigned long      type;};
+template <> struct make_unsigned<unsigned long>      {typedef unsigned long      type;};
 template <> struct make_unsigned<  signed long long> {typedef unsigned long long type;};
 template <> struct make_unsigned<unsigned long long> {typedef unsigned long long type;};
 
@@ -90,7 +90,7 @@ public:
 	SimpleString& operator =(const SimpleString& simpleString)
 	{
 		size_t newSize = strlen(simpleString.data)+1;
-		data = (char*)realloc(data, newSize+1, allocatedSize);
+		data = (char*)Xrealloc(data, newSize+1, allocatedSize);
 		allocatedSize = newSize+1;
 		strncpy(data, simpleString.data, allocatedSize);
 		return *this;
@@ -103,7 +103,7 @@ public:
 		VA_LIST va2;
 		VA_COPY(va2, va);
 		size_t size = (size_t)vsnprintf(NULL, 0, format, va);
-		data = (char*)realloc(data, size+1, allocatedSize);
+		data = (char*)Xrealloc(data, size+1, allocatedSize);
 		allocatedSize = size+1;
 		data[size] = 0;
 		vsnprintf(data, allocatedSize, format, va2);
@@ -114,8 +114,9 @@ public:
 	~SimpleString() { delete data; }
 };
 
-SimpleString sprintf(const char* format, ...) __attribute__((__format__(__printf__, 1, 2)));
-SimpleString sprintf(const char* format, ...)
+/* ssprintf = SimpleStringprintf */
+SimpleString ssprintf(const char* format, ...) __attribute__((__format__(__printf__, 1, 2)));
+SimpleString ssprintf(const char* format, ...)
 {
 	SimpleString ss;
 	va_list va;
@@ -197,6 +198,7 @@ struct TestStringMultiCoded
 const TestStringMultiCoded testStringMultiCodedArray[] = {
 	testStringArray_LINE(""),
 	testStringArray_LINE("a"),
+#ifndef _MSC_VER
 	testStringArray_LINE(utf8_1),
 	testStringArray_LINE(utf8_2),
 	testStringArray_LINE(utf8_3),
@@ -208,6 +210,7 @@ const TestStringMultiCoded testStringMultiCodedArray[] = {
 //	testStringArray_LINE(utf8_9),
 //	testStringArray_LINE(utf8_10),
 //	testStringArray_LINE(utf8_11),
+#endif
 };
 
 size_t nbTestStringMultiCoded = *(&testStringMultiCodedArray + 1) - testStringMultiCodedArray;
@@ -400,12 +403,24 @@ bool displayOnlyIfFailed_tmp;
 	__TEST2(test, XStringClass, classEncoding, encoding1, utf32); \
 	__TEST2(test, XStringClass, classEncoding, encoding1, wchar); \
 
-
+/* Warning about array indexes of char type is on, so don't test it
+   TODO disable warning with pragma and uncomment to test with char */
 #define TEST_ALL_INTEGRAL(test, XStringClass, classEncoding) \
-	__TEST1(test, XStringClass, classEncoding, signed char); \
-	__TEST1(test, XStringClass, classEncoding, unsigned char); \
+	/*__TEST1(test, XStringClass, classEncoding, char);*/ \
+	/*__TEST1(test, XStringClass, classEncoding, signed char);*/ \
+	/*__TEST1(test, XStringClass, classEncoding, unsigned char);*/ \
+	__TEST1(test, XStringClass, classEncoding, short); \
 	__TEST1(test, XStringClass, classEncoding, signed short); \
 	__TEST1(test, XStringClass, classEncoding, unsigned short); \
+	__TEST1(test, XStringClass, classEncoding, int); \
+	__TEST1(test, XStringClass, classEncoding, signed int); \
+	__TEST1(test, XStringClass, classEncoding, unsigned int); \
+	__TEST1(test, XStringClass, classEncoding, long); \
+	__TEST1(test, XStringClass, classEncoding, signed long); \
+	__TEST1(test, XStringClass, classEncoding, unsigned long); \
+	__TEST1(test, XStringClass, classEncoding, long long); \
+	__TEST1(test, XStringClass, classEncoding, signed long long); \
+	__TEST1(test, XStringClass, classEncoding, unsigned long long); \
 
 
 #define TEST_ALL_UTF(test, XStringClass, classEncoding) \
@@ -433,19 +448,19 @@ template<class XStringClass>
 SimpleString testDefaultCtor_()
 {
 	XStringClass xstr;
-	TEST_TITLE(displayOnlyFailed, sprintf("Test default ctor of %s", XStringClassInfo<XStringClass>::xStringClassName));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test default ctor of %s", XStringClassInfo<XStringClass>::xStringClassName));
 
 	CHECK_RESULT(xstr.length() == 0,
-	    sprintf("xstr.length() == 0"),
-	    sprintf("xstr.length() != 0")
+	    ssprintf("xstr.length() == 0"),
+	    ssprintf("xstr.length() != 0")
 	);
 	CHECK_RESULT(xstr.sizeInBytes() == 0,
-	    sprintf("xstr.sizeInBytes() == 0"),
-	    sprintf("xstr.sizeInBytes() != 0")
+	    ssprintf("xstr.sizeInBytes() == 0"),
+	    ssprintf("xstr.sizeInBytes() != 0")
 	);
 	CHECK_RESULT(*xstr.s() == 0,
-	    sprintf("*xstr.s() == 0"),
-	    sprintf("*xstr.s() != 0")
+	    ssprintf("*xstr.s() == 0"),
+	    ssprintf("*xstr.s() != 0")
 	);
 	return SimpleString();
 }
@@ -460,19 +475,19 @@ template<class XStringClass, class TestStringSrc, class TestStringExpectedResult
 SimpleString testTakeValueFrom_(const TestStringSrc& src, const TestStringExpectedResult& expectedResult)
 {
 
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::testTakeValueFrom(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::testTakeValueFrom(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
 
 	XStringClass xstr;
 	xstr.takeValueFrom(src.cha);
 	
 	size_t expectedSize = expectedResult.size*sizeof(expectedResult.cha[0]);
 	CHECK_RESULT(xstr.sizeInBytes() == expectedSize,
-	    sprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
-	    sprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
+	    ssprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
+	    ssprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
 	);
 	CHECK_RESULT(memcmp(xstr.s(), expectedResult.cha, expectedSize) == 0,
-	    sprintf("memcmp(xstr.s(), expectedResult.cha, expectedSize) == 0"),
-	    sprintf("memcmp(xstr.s(), expectedResult.cha, expectedSize) != 0")
+	    ssprintf("memcmp(xstr.s(), expectedResult.cha, expectedSize) == 0"),
+	    ssprintf("memcmp(xstr.s(), expectedResult.cha, expectedSize) != 0")
 	);
 	
 // TODO test ctor with litteral
@@ -495,7 +510,7 @@ SimpleString testTakeValueFromXString_(const TestStringSrc& src, const TestStrin
 {
 // TODO test ctor with litteral
 
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::testTakeValueFrom(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::testTakeValueFrom(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
 
 	typename XStringClassInfo<TestStringSrc>::xs_t srcXString;
 	srcXString.takeValueFrom(src.cha);
@@ -505,23 +520,23 @@ SimpleString testTakeValueFromXString_(const TestStringSrc& src, const TestStrin
 	
 	size_t expectedSize = expectedResult.size*sizeof(expectedResult.cha[0]);
 	CHECK_RESULT(xstr.sizeInBytes() == expectedSize,
-	    sprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
-	    sprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
+	    ssprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
+	    ssprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
 	);
 	CHECK_RESULT(memcmp(xstr.s(), expectedResult.cha, expectedSize+sizeof(expectedResult.cha[0])) == 0,
-	    sprintf("memcmp(xstr.s(), expectedResult.cha, expectedResult.size) == 0"),
-	    sprintf("memcmp(xstr.s(), expectedResult.cha, expectedResult.size) != 0")
+	    ssprintf("memcmp(xstr.s(), expectedResult.cha, expectedResult.size) == 0"),
+	    ssprintf("memcmp(xstr.s(), expectedResult.cha, expectedResult.size) != 0")
 	);
 	{
 		XStringClass xstr2(srcXString);
 		// We don't use operator == to check xstr == xstr2 because operator == is not tested yet.
 		CHECK_RESULT(xstr2.sizeInBytes() == xstr.sizeInBytes(),
-					 sprintf("xstr2.sizeInBytes() == xstr.sizeInBytes() (%zu)", xstr.sizeInBytes()),
-					 sprintf("xstr2.sizeInBytes() != xstr.sizeInBytes() (%zu!=%zu)", xstr2.sizeInBytes(), xstr.sizeInBytes())
+					 ssprintf("xstr2.sizeInBytes() == xstr.sizeInBytes() (%zu)", xstr.sizeInBytes()),
+					 ssprintf("xstr2.sizeInBytes() != xstr.sizeInBytes() (%zu!=%zu)", xstr2.sizeInBytes(), xstr.sizeInBytes())
 					 );
 		CHECK_RESULT(memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()+sizeof(xstr.s()[0])) == 0,
-					 sprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) == 0"),
-					 sprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) != 0")
+					 ssprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) == 0"),
+					 ssprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) != 0")
 					 );
 	}
 	{
@@ -529,12 +544,12 @@ SimpleString testTakeValueFromXString_(const TestStringSrc& src, const TestStrin
 		xstr2 = srcXString;
 		// We don't use operator == to check xstr == xstr2 because operator == is not tested yet.
 		CHECK_RESULT(xstr2.sizeInBytes() == xstr.sizeInBytes(),
-					 sprintf("xstr2.sizeInBytes() == xstr.sizeInBytes() (%zu)", xstr.sizeInBytes()),
-					 sprintf("xstr2.sizeInBytes() != xstr.sizeInBytes() (%zu!=%zu)", xstr2.sizeInBytes(), xstr.sizeInBytes())
+					 ssprintf("xstr2.sizeInBytes() == xstr.sizeInBytes() (%zu)", xstr.sizeInBytes()),
+					 ssprintf("xstr2.sizeInBytes() != xstr.sizeInBytes() (%zu!=%zu)", xstr2.sizeInBytes(), xstr.sizeInBytes())
 					 );
 		CHECK_RESULT(memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()+sizeof(xstr.s()[0])) == 0,
-					 sprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) == 0"),
-					 sprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) != 0")
+					 ssprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) == 0"),
+					 ssprintf("memcmp(xstr2.s(), xstr.s(), xstr.sizeInBytes()) != 0")
 					 );
 	}
 	return SimpleString();
@@ -552,29 +567,29 @@ SimpleString testTakeValueFromXString_(const TestStringSrc& src, const TestStrin
 template<class XStringClass>
 SimpleString testEmpty_()
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test isEmpty(),notEmpty(),setEmpty() of %s", XStringClassInfo<XStringClass>::xStringClassName));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test isEmpty(),notEmpty(),setEmpty() of %s", XStringClassInfo<XStringClass>::xStringClassName));
 
 	XStringClass str;
 	str.takeValueFrom("aa");
 	
 	CHECK_RESULT(str.isEmpty() == false,
-	    sprintf("str.isEmpty() == false"),
-	    sprintf("str.isEmpty() != true")
+	    ssprintf("str.isEmpty() == false"),
+	    ssprintf("str.isEmpty() != true")
 	);
 	CHECK_RESULT(str.notEmpty() == true,
-	    sprintf("str.notEmpty() == true"),
-	    sprintf("str.notEmpty() != false")
+	    ssprintf("str.notEmpty() == true"),
+	    ssprintf("str.notEmpty() != false")
 	);
 	
 	str.setEmpty();
 	
 	CHECK_RESULT(str.isEmpty() == true,
-	    sprintf("str.isEmpty() == true"),
-	    sprintf("str.isEmpty() != false")
+	    ssprintf("str.isEmpty() == true"),
+	    ssprintf("str.isEmpty() != false")
 	);
 	CHECK_RESULT(str.notEmpty() == false,
-	    sprintf("str.notEmpty() == false"),
-	    sprintf("str.notEmpty() != true")
+	    ssprintf("str.notEmpty() == false"),
+	    ssprintf("str.notEmpty() != true")
 	);
 
 	return SimpleString();
@@ -585,29 +600,51 @@ SimpleString testEmpty_()
 	testEmpty_<XStringClass>(); \
 
 
-/*****************************  char32At_u  *****************************/
+/*****************************  char32At  *****************************/
 template<class XStringClass, typename integralType, class InitialValue>
-SimpleString testchar32At_u_(const InitialValue& initialValue)
+SimpleString testchar32At_(const InitialValue& initialValue)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::char32At_u()", XStringClassInfo<XStringClass>::xStringClassName));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::char32At_u()", XStringClassInfo<XStringClass>::xStringClassName));
 
 	XStringClass xstr;
 	xstr.takeValueFrom(initialValue.cha);
 	for ( integralType i=0 ; (typename make_unsigned<integralType>::type)i < xstr.length() ; i++ )
 	{
 		CHECK_RESULT(xstr[i] == initialValue.utf32[i],
-					 sprintf("xstr[i] == dst.cha[i] (%d)", initialValue.utf32[i]),
-					 sprintf("xstr[i] != dst.cha[i] (%d!=%d)", xstr[i], initialValue.utf32[i])
+					 ssprintf("xstr[i] == dst.cha[i] (%d)", initialValue.utf32[i]),
+					 ssprintf("xstr[i] != dst.cha[i] (%d!=%d)", xstr[i], initialValue.utf32[i])
 					 );
     }
 	return SimpleString();
 }
 
-#define testchar32At_u(XStringClass, classEncoding, integralType) \
-    printf("Test %s::testchar32At_u\n", STRINGIFY(XStringClass)); \
+#define testchar32At(XStringClass, classEncoding, integralType) \
+    printf("Test %s::testchar32At\n", STRINGIFY(XStringClass)); \
 	for ( size_t i = 0 ; i < nbTestStringMultiCoded ; i++ ) { \
-        testchar32At_u_<XStringClass, integralType>(testStringMultiCodedArray[i].classEncoding); \
+        testchar32At_<XStringClass, integralType>(testStringMultiCodedArray[i].classEncoding); \
 	}
+
+
+/*****************************  dataSized  *****************************/
+template<class XStringClass, typename integralType>
+SimpleString testdataSized_()
+{
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::dataSized()", XStringClassInfo<XStringClass>::xStringClassName));
+
+	XStringClass xstr;
+	integralType i = 10;
+	typename XStringClassInfo<XStringClass>::ch_t* s = xstr.dataSized(i);
+	(void)s;
+	CHECK_RESULT(xstr.allocatedSize() >= 10,
+				 ssprintf("xstr[i] == dst.cha[i] (%d)", 10),
+				 ssprintf("xstr[i] != dst.cha[i] (%zu!=%d)", xstr.allocatedSize(), 10)
+				 );
+	return SimpleString();
+}
+
+#define testdataSized(XStringClass, classEncoding, integralType) \
+    printf("Test %s::testdataSized\n", STRINGIFY(XStringClass)); \
+	testdataSized_<XStringClass, integralType>(); \
 
 
 
@@ -616,7 +653,7 @@ SimpleString testchar32At_u_(const InitialValue& initialValue)
 template<class XStringClass, class TestStringSameAsClass, class TestStringSrc>
 SimpleString teststrcpy_(const TestStringSameAsClass& encodedSameAsClass, const TestStringSrc& src)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::strcpy(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::strcpy(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
 
 	XStringClass xstr;
 	xstr.takeValueFrom("foobar");
@@ -624,12 +661,12 @@ SimpleString teststrcpy_(const TestStringSameAsClass& encodedSameAsClass, const 
 	
 	size_t expectedSize = encodedSameAsClass.size*sizeof(encodedSameAsClass.cha[0]);
 	CHECK_RESULT(xstr.sizeInBytes() == expectedSize,
-	    sprintf("xstr.sizeInBytes() == dst.size (%zu)", expectedSize),
-	    sprintf("xstr.sizeInBytes() != dst.size (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
+	    ssprintf("xstr.sizeInBytes() == dst.size (%zu)", expectedSize),
+	    ssprintf("xstr.sizeInBytes() != dst.size (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
 	);
 	CHECK_RESULT(memcmp(xstr.s(), encodedSameAsClass.cha, expectedSize+sizeof(encodedSameAsClass.cha[0])) == 0,
-	    sprintf("memcmp(xstr.s(), dst.cha, dst.size) == 0"),
-	    sprintf("memcmp(xstr.s(), dst.cha, dst.size) != 0")
+	    ssprintf("memcmp(xstr.s(), dst.cha, dst.size) == 0"),
+	    ssprintf("memcmp(xstr.s(), dst.cha, dst.size) != 0")
 	);
 	return SimpleString();
 }
@@ -646,7 +683,7 @@ SimpleString teststrcpy_(const TestStringSameAsClass& encodedSameAsClass, const 
 template<class XStringClass, class TestStringSameAsClass, class TestStringSrc>
 SimpleString teststrncpy_(const TestStringSameAsClass& encodedSameAsClass, const TestStringSrc& src)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::strncpy(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::strncpy(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<TestStringSrc>::prefix, SimpleString(src.cha).c_str()));
 
 	for ( size_t i = 0 ; i < length_of_utf_string(src.cha)+5 ; i++ )
 	{
@@ -655,12 +692,12 @@ SimpleString teststrncpy_(const TestStringSameAsClass& encodedSameAsClass, const
 		xstr.strncpy(src.cha, i);
 		
 		CHECK_RESULT((length_of_utf_string(encodedSameAsClass.cha) >= i && xstr.length() == i) || (xstr.length() == length_of_utf_string(encodedSameAsClass.cha)),
-					 sprintf("xstr.sizeInBytes() == dst.size (%zu)", xstr.sizeInBytes()),
-					 sprintf("xstr.sizeInBytes() != dst.size (%zu!=%zu)", xstr.sizeInBytes(), encodedSameAsClass.size)
+					 ssprintf("xstr.sizeInBytes() == dst.size (%zu)", xstr.sizeInBytes()),
+					 ssprintf("xstr.sizeInBytes() != dst.size (%zu!=%zu)", xstr.sizeInBytes(), encodedSameAsClass.size)
 					 );
 		CHECK_RESULT(memcmp(xstr.s(), encodedSameAsClass.cha, xstr.sizeInBytes()) == 0,
-					 sprintf("memcmp(xstr.s(), dst.cha, dst.size) == 0"),
-					 sprintf("memcmp(xstr.s(), dst.cha, dst.size) != 0")
+					 ssprintf("memcmp(xstr.s(), dst.cha, dst.size) == 0"),
+					 ssprintf("memcmp(xstr.s(), dst.cha, dst.size) != 0")
 					 );
 	}
 	return SimpleString();
@@ -678,28 +715,28 @@ template<class XStringClass, typename ch_t>
 static void teststrcatCheckResult(size_t expectedLength, size_t expectedSize, ch_t* expectedString, XStringClass xstr)
 {
 	CHECK_RESULT(xstr.length() == expectedLength,
-				 sprintf("xstr.length() == expectedLength (%zu)", expectedLength),
-				 sprintf("xstr.length() != expectedLength (%zu!=%zu)", xstr.length(), expectedLength)
+				 ssprintf("xstr.length() == expectedLength (%zu)", expectedLength),
+				 ssprintf("xstr.length() != expectedLength (%zu!=%zu)", xstr.length(), expectedLength)
 				 );
 	//expectedLength = length_of_utf_string(initialValue.cha) + length_of_utf_string(valueToCat.cha);
 	//xstr.takeValueFrom(initialValue.cha);
 	//xstr.strcat(valueToCat.cha);
 	
 	CHECK_RESULT(xstr.sizeInBytes() == expectedSize,
-				 sprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
-				 sprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
+				 ssprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
+				 ssprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
 				 );
 	
 	CHECK_RESULT(memcmp(xstr.s(), expectedString, expectedSize+sizeof(ch_t)) == 0,
-				 sprintf("memcmp(xstr.s(), dst.cha, dst.size) == 0"),
-				 sprintf("memcmp(xstr.s(), dst.cha, dst.size) != 0")
+				 ssprintf("memcmp(xstr.s(), dst.cha, dst.size) == 0"),
+				 ssprintf("memcmp(xstr.s(), dst.cha, dst.size) != 0")
 				 );
 }
 
 template<class XStringClass, class InitialValue, class ValueToCat>
 SimpleString teststrcat_(const InitialValue& initialValue, const ValueToCat& valueToCat)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::strcpy(%s\"%s\") strcat(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str(), XStringClassInfo<ValueToCat>::prefix, SimpleString(valueToCat.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::strcpy(%s\"%s\") strcat(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str(), XStringClassInfo<ValueToCat>::prefix, SimpleString(valueToCat.cha).c_str()));
 
 	typedef typename XStringClassInfo<XStringClass>::ch_t ch_t;
 	ch_t c; // dummy for call utf function
@@ -779,7 +816,7 @@ SimpleString teststrcat_(const InitialValue& initialValue, const ValueToCat& val
 template<class XStringClass, class InitialValue, class ValueToCat>
 SimpleString teststrncat_(const InitialValue& initialValue, const ValueToCat& valueToCat)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::strcpy(%s\"%s\") strncat(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str(), XStringClassInfo<ValueToCat>::prefix, SimpleString(valueToCat.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::strcpy(%s\"%s\") strncat(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str(), XStringClassInfo<ValueToCat>::prefix, SimpleString(valueToCat.cha).c_str()));
 
 	for ( size_t i = 0 ; i < valueToCat.utf32_length+5 ; i++ )
 	{
@@ -793,25 +830,25 @@ SimpleString teststrncat_(const InitialValue& initialValue, const ValueToCat& va
 	
 		size_t expectedLength = length_of_utf_string(initialValue.cha) + min(i, valueToCat.utf32_length);
 		CHECK_RESULT(xstr.length() == expectedLength,
-					 sprintf("xstr.length() == expectedLength (%zu)", expectedLength),
-					 sprintf("xstr.length() != expectedLength (%zu!=%zu)", xstr.length(), expectedLength)
+					 ssprintf("xstr.length() == expectedLength (%zu)", expectedLength),
+					 ssprintf("xstr.length() != expectedLength (%zu!=%zu)", xstr.length(), expectedLength)
 					 );
 //expectedLength = length_of_utf_string(initialValue.cha) + min(i, valueToCat.utf32_length);
 //xstr.takeValueFrom(initialValue.cha);
 //xstr.strncat(valueToCat.cha, i);
 
-		size_t expectedSize = (utf_size_of_utf_string(&c, initialValue.cha) + utf_size_of_utf_string_len(&c, valueToCat.cha, i))*sizeof(ch_t);
-		CHECK_RESULT(xstr.sizeInBytes() == expectedSize,
-					 sprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize),
-					 sprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize)
+		size_t expectedSize = (utf_size_of_utf_string(&c, initialValue.cha) + utf_size_of_utf_string_len(&c, valueToCat.cha, i));
+		CHECK_RESULT(xstr.sizeInBytes() == expectedSize * sizeof(ch_t),
+					 ssprintf("xstr.sizeInBytes() == expectedSize (%zu)", expectedSize * sizeof(ch_t)),
+					 ssprintf("xstr.sizeInBytes() != expectedSize (%zu!=%zu)", xstr.sizeInBytes(), expectedSize * sizeof(ch_t))
 					 );
 	
-		ch_t* expectedString = (ch_t*)malloc(expectedSize*sizeof(ch_t)*sizeof(ch_t) + 1);
-		utf_string_from_utf_string(expectedString, expectedSize*sizeof(ch_t) + 1, initialValue.cha);
-		utf_string_from_utf_string_len(expectedString + utf_size_of_utf_string(&c, initialValue.cha), expectedSize*sizeof(ch_t) + 1 - size_of_utf_string(expectedString), valueToCat.cha, i);
+		ch_t* expectedString = (ch_t*)malloc((expectedSize+1)*sizeof(ch_t));
+		utf_string_from_utf_string(expectedString, expectedSize + 1, initialValue.cha);
+		utf_string_from_utf_string_len(expectedString + utf_size_of_utf_string(&c, initialValue.cha), expectedSize + 1 - size_of_utf_string(expectedString), valueToCat.cha, i);
 		CHECK_RESULT(memcmp(xstr.s(), expectedString, expectedSize+sizeof(ch_t)) == 0,
-					 sprintf("memcmp(xstr.s(), expectedString, dst.size) == 0"),
-					 sprintf("memcmp(xstr.s(), expectedString, dst.size) != 0")
+					 ssprintf("memcmp(xstr.s(), expectedString, dst.size) == 0"),
+					 ssprintf("memcmp(xstr.s(), expectedString, dst.size) != 0")
 					 );
 //utf_string_from_utf_string(expectedString, expectedSize*sizeof(XStringCharClass) + 1, initialValue.cha);
 //utf_string_from_utf_string_len(expectedString + utf_size_of_utf_string(&c, initialValue.cha), expectedSize*sizeof(XStringCharClass) + 1 - size_of_utf_string(expectedString), valueToCat.cha, i);
@@ -837,7 +874,7 @@ SimpleString teststrncat_(const InitialValue& initialValue, const ValueToCat& va
 template<class XStringClass, class InitialValue>
 SimpleString testSubString_(const InitialValue& initialValue)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::subString(%s\"%s\"", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::subString(%s\"%s\"", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str()));
 
 	typedef typename XStringClassInfo<XStringClass>::ch_t ch_t;
 	ch_t c; // dummy for call utf function
@@ -858,15 +895,16 @@ SimpleString testSubString_(const InitialValue& initialValue)
 			if ( pos < initialValue.utf32_length ) offset = utf_size_of_utf_string_len(&c, initialValue.cha, pos);
 			else offset = utf_size_of_utf_string(&c, initialValue.cha);
 			
-			XStringClass subStr = str.SubString(pos, count);
+			XStringClass subStr = str.subString(pos, count);
 			
 			CHECK_RESULT(subStr.length() == expectedLength,
-						 sprintf("subStr.length() == expectedLength (%zu)", expectedLength),
-						 sprintf("subStr.length() != expectedLength (%zu!=%zu)", subStr.length(), expectedLength)
+						 ssprintf("subStr.length() == expectedLength (%zu)", expectedLength),
+						 ssprintf("subStr.length() != expectedLength (%zu!=%zu)", subStr.length(), expectedLength)
 						 );
+subStr = str.subString(pos, count);
 			CHECK_RESULT(memcmp(subStr.s(), initialValue.cha + offset, expectedSize) == 0,
-						 sprintf("memcmp == 0"),
-						 sprintf("memcmp != 0)")
+						 ssprintf("memcmp == 0"),
+						 ssprintf("memcmp != 0)")
 						 );
 		}
 	}
@@ -906,13 +944,14 @@ CharType* incrementChar(const CharType* s, size_t pos, int increment)
 		s = get_char32_from_string(s, &char32);
 		n++;
 	}
+	*d = 0;
 	return buf;
 }
 
 template<class XStringClass, class InitialValue>
 SimpleString testCompare_(const InitialValue& initialValue)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::strcmp(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str()));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::strcmp(%s\"%s\")", XStringClassInfo<XStringClass>::xStringClassName, XStringClassInfo<InitialValue>::prefix, SimpleString(initialValue.cha).c_str()));
 
 //	typedef typename XStringClassInfo<XStringClass>::ch_t xs_ch_t;
 //	ch_t c; // dummy for call utf function
@@ -924,34 +963,34 @@ SimpleString testCompare_(const InitialValue& initialValue)
 	xstr2.takeValueFrom(initialValue.cha);
 	
 	CHECK_RESULT(xstr.strcmp(xstr2.s()) == 0,
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+				 ssprintf("subStr.length() == 0"),
+				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
 				 );
 	
-	CHECK_RESULT(xstr == xstr2.s(),
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
-				 );
+//	CHECK_RESULT(xstr == xstr2.s(),
+//				 ssprintf("subStr.length() == 0"),
+//				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+//				 );
 	CHECK_RESULT(xstr == xstr2,
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+				 ssprintf("subStr.length() == 0"),
+				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
 				 );
-	CHECK_RESULT(!(xstr != xstr2.s()),
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
-				 );
+//	CHECK_RESULT(!(xstr != xstr2.s()),
+//				 ssprintf("subStr.length() == 0"),
+//				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+//				 );
 	
 	CHECK_RESULT(!(xstr != xstr2),
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+				 ssprintf("subStr.length() == 0"),
+				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
 				 );
-	CHECK_RESULT(!(xstr != xstr2.s()),
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
-				 );
+//	CHECK_RESULT(!(xstr != xstr2.s()),
+//				 ssprintf("subStr.length() == 0"),
+//				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+//				 );
 	CHECK_RESULT(!(xstr != xstr2),
-				 sprintf("subStr.length() == 0"),
-				 sprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
+				 ssprintf("subStr.length() == 0"),
+				 ssprintf("subStr.length() != 0 (%d)", xstr.strcmp(xstr2.s()))
 				 );
 //res = xstr.strcmp(xstr2.s());
 
@@ -961,109 +1000,111 @@ SimpleString testCompare_(const InitialValue& initialValue)
 	{
 		const ch_t* s = incrementChar(initialValue.cha, pos, 1);
 		CHECK_RESULT(xstr.strcmp(s) == -1,
-					 sprintf("xstr.strcmp(s) == -1"),
-					 sprintf("xstr.strcmp(s) != -1 (%d)", xstr.strcmp(s))
+					 ssprintf("xstr.strcmp(s) == -1"),
+					 ssprintf("xstr.strcmp(s) != -1 (%d)", xstr.strcmp(s))
 					 );
 		/* operator comparison with native type */
-		CHECK_RESULT(!(xstr == s),
-					 sprintf("!(xstr == s)"),
-					 sprintf("!!(xstr == s)")
-					 );
-		CHECK_RESULT(!(s == xstr),
-					 sprintf("!(s == xstr)"),
-					 sprintf("!!(s == xstr)")
-					 );
-		CHECK_RESULT(xstr != s,
-					 sprintf("xstr != s"),
-					 sprintf("!xstr != s")
-					 );
-		CHECK_RESULT(s != xstr,
-					 sprintf("s != xstr"),
-					 sprintf("!s != xstr")
-					 );
-		CHECK_RESULT(xstr < s,
-					 sprintf("xstr < s"),
-					 sprintf("!xstr < s")
-					 );
-		CHECK_RESULT(s > xstr,
-					 sprintf("s > xstr"),
-					 sprintf("!s > xstr")
-					 );
-		CHECK_RESULT(xstr <= s,
-					 sprintf("xstr <= s"),
-					 sprintf("!xstr <= s")
-					 );
-		CHECK_RESULT(s >= xstr,
-					 sprintf("s >= xstr"),
-					 sprintf("!s >= xstr")
-					 );
-		CHECK_RESULT(!(xstr > s),
-					 sprintf("!(xstr > s)"),
-					 sprintf("!!(xstr < s)")
-					 );
-		CHECK_RESULT(!(s < xstr),
-					 sprintf("!(s < xstr)"),
-					 sprintf("!!(s < xstr)")
-					 );
-		CHECK_RESULT(!(xstr >= s),
-					 sprintf("!(xstr >= s)"),
-					 sprintf("!!(xstr >= s)")
-					 );
-		CHECK_RESULT(!(s <= xstr),
-					 sprintf("!(s <= xstr)"),
-					 sprintf("!!(s <= xstr)")
-					 );
+//		CHECK_RESULT(!(xstr == s),
+//					 ssprintf("!(xstr == s)"),
+//					 ssprintf("!!(xstr == s)")
+//					 );
+//		CHECK_RESULT(!(s == xstr),
+//					 ssprintf("!(s == xstr)"),
+//					 ssprintf("!!(s == xstr)")
+//					 );
+//		CHECK_RESULT(xstr != s,
+//					 ssprintf("xstr != s"),
+//					 ssprintf("!xstr != s")
+//					 );
+//		CHECK_RESULT(s != xstr,
+//					 ssprintf("s != xstr"),
+//					 ssprintf("!s != xstr")
+//					 );
+//		CHECK_RESULT(xstr < s,
+//					 ssprintf("xstr < s"),
+//					 ssprintf("!xstr < s")
+//					 );
+//		CHECK_RESULT(s > xstr,
+//					 ssprintf("s > xstr"),
+//					 ssprintf("!s > xstr")
+//					 );
+//		CHECK_RESULT(xstr <= s,
+//					 ssprintf("xstr <= s"),
+//					 ssprintf("!xstr <= s")
+//					 );
+//		CHECK_RESULT(s >= xstr,
+//					 ssprintf("s >= xstr"),
+//					 ssprintf("!s >= xstr")
+//					 );
+//		CHECK_RESULT(!(xstr > s),
+//					 ssprintf("!(xstr > s)"),
+//					 ssprintf("!!(xstr < s)")
+//					 );
+//		CHECK_RESULT(!(s < xstr),
+//					 ssprintf("!(s < xstr)"),
+//					 ssprintf("!!(s < xstr)")
+//					 );
+//		CHECK_RESULT(!(xstr >= s),
+//					 ssprintf("!(xstr >= s)"),
+//					 ssprintf("!!(xstr >= s)")
+//					 );
+//		CHECK_RESULT(!(s <= xstr),
+//					 ssprintf("!(s <= xstr)"),
+//					 ssprintf("!!(s <= xstr)")
+//					 );
 		
 		/* operator comparison with other XString */
 		xstr2.takeValueFrom(s);
+
 		CHECK_RESULT(!(xstr == xstr2),
-					 sprintf("!(xstr == xstr2)"),
-					 sprintf("!!(xstr == xstr2)")
+					 ssprintf("!(xstr == xstr2)"),
+					 ssprintf("!!(xstr == xstr2)")
 					 );
 		CHECK_RESULT(!(xstr2 == xstr),
-					 sprintf("!(xstr2 == xstr)"),
-					 sprintf("!!(xstr2 == xstr)")
+					 ssprintf("!(xstr2 == xstr)"),
+					 ssprintf("!!(xstr2 == xstr)")
 					 );
 		CHECK_RESULT(xstr != xstr2,
-					 sprintf("xstr != xstr2"),
-					 sprintf("!xstr != xstr2")
+					 ssprintf("xstr != xstr2"),
+					 ssprintf("!xstr != xstr2")
 					 );
 		CHECK_RESULT(xstr2 != xstr,
-					 sprintf("xstr2 != xstr"),
-					 sprintf("!xstr2 != xstr")
+					 ssprintf("xstr2 != xstr"),
+					 ssprintf("!xstr2 != xstr")
 					 );
 		CHECK_RESULT(xstr < xstr2,
-					 sprintf("xstr < xstr2"),
-					 sprintf("!xstr < xstr2")
+					 ssprintf("xstr < xstr2"),
+					 ssprintf("!xstr < xstr2")
 					 );
 		CHECK_RESULT(xstr2 > xstr,
-					 sprintf("xstr2 > xstr"),
-					 sprintf("!xstr2 > xstr")
+					 ssprintf("xstr2 > xstr"),
+					 ssprintf("!xstr2 > xstr")
 					 );
 		CHECK_RESULT(xstr <= xstr2,
-					 sprintf("xstr <= xstr2"),
-					 sprintf("!xstr <= xstr2")
+					 ssprintf("xstr <= xstr2"),
+					 ssprintf("!xstr <= xstr2")
 					 );
 		CHECK_RESULT(xstr2 >= xstr,
-					 sprintf("xstr2 >= xstr"),
-					 sprintf("!xstr2 >= xstr")
+					 ssprintf("xstr2 >= xstr"),
+					 ssprintf("!xstr2 >= xstr")
 					 );
 		CHECK_RESULT(!(xstr > xstr2),
-					 sprintf("!(xstr > xstr2)"),
-					 sprintf("!!(xstr < xstr2)")
+					 ssprintf("!(xstr > xstr2)"),
+					 ssprintf("!!(xstr < xstr2)")
 					 );
 		CHECK_RESULT(!(xstr2 < xstr),
-					 sprintf("!(xstr2 < xstr)"),
-					 sprintf("!!(xstr2 < xstr)")
+					 ssprintf("!(xstr2 < xstr)"),
+					 ssprintf("!!(xstr2 < xstr)")
 					 );
 		CHECK_RESULT(!(xstr >= xstr2),
-					 sprintf("!(xstr >= xstr2)"),
-					 sprintf("!!(xstr >= xstr2)")
+					 ssprintf("!(xstr >= xstr2)"),
+					 ssprintf("!!(xstr >= xstr2)")
 					 );
 		CHECK_RESULT(!(xstr2 <= xstr),
-					 sprintf("!(xstr2 <= xstr)"),
-					 sprintf("!!(xstr2 <= xstr)")
+					 ssprintf("!(xstr2 <= xstr)"),
+					 ssprintf("!!(xstr2 <= xstr)")
 					 );
+		free((void*)s);
 
 	}
 
@@ -1071,8 +1112,8 @@ SimpleString testCompare_(const InitialValue& initialValue)
 	{
 		const ch_t* s = incrementChar(initialValue.cha, pos, -1);
 		CHECK_RESULT(xstr.strcmp(s) == 1,
-					 sprintf("xstr.strcmp(s) == 1"),
-					 sprintf("xstr.strcmp(s) != 1 (%d)", xstr.strcmp(s))
+					 ssprintf("xstr.strcmp(s) == 1"),
+					 ssprintf("xstr.strcmp(s) != 1 (%d)", xstr.strcmp(s))
 					 );
 //const ch_t* s2 = incrementChar(initialValue.cha, pos, 1);
 	}
@@ -1091,7 +1132,7 @@ SimpleString testCompare_(const InitialValue& initialValue)
 /*****************************  indexOf, rindexOf  *****************************/
 
 template<class XStringClass, typename ch_t>
-static void testIdxOf__(XStringClass subStr, bool ignoreCase,
+static void testindexOf__(XStringClass subStr, bool ignoreCase,
 						size_t (XStringClass::*indexOfChar)(char32_t, size_t) const,
 						size_t (XStringClass::*indexOfString)(const ch_t*, size_t) const,
 						size_t (XStringClass::*rindexOfChar)(char32_t, size_t) const,
@@ -1103,27 +1144,27 @@ static void testIdxOf__(XStringClass subStr, bool ignoreCase,
 	testStr = subStr;
 	if ( ignoreCase ) testStr.lowerAscii();
 	CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 0,
-				 sprintf("testStr.IdxOf(subStr.s(), 0) == 0"),
-				 sprintf("testStr.IdxOf(subStr.s(), 0) != 0 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+				 ssprintf("testStr.indexOf(subStr.s(), 0) == 0"),
+				 ssprintf("testStr.indexOf(subStr.s(), 0) != 0 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 				 );
 	(testStr.*indexOfString)(subStr.s(), 0);
 	size_t expectedPos = subStr.length()==0 ? testStr.length() : 0;
 	CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == expectedPos,
-				 sprintf("testStr.IdxOf(subStr.s(), 0) == expectedPos (%zu)", expectedPos),
-				 sprintf("testStr.IdxOf(subStr.s(), 0) != 0 (%zu!=%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1), expectedPos)
+				 ssprintf("testStr.indexOf(subStr.s(), 0) == expectedPos (%zu)", expectedPos),
+				 ssprintf("testStr.indexOf(subStr.s(), 0) != 0 (%zu!=%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1), expectedPos)
 				 );
 	(testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1);
 	
 	XStringClass apple;
 	apple.takeValueFrom("");
 	CHECK_RESULT((testStr.*indexOfString)(apple.s(), 0) == MAX_XSIZE,
-				 sprintf("testStr.*indexOfString)(\"\", 0) == MAX_XSIZE"),
-				 sprintf("testStr.*indexOfString)(\"\", 0) != MAX_XSIZE (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+				 ssprintf("testStr.*indexOfString)(\"\", 0) == MAX_XSIZE"),
+				 ssprintf("testStr.*indexOfString)(\"\", 0) != MAX_XSIZE (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 				 );
 	//(testStr.*indexOfString)("");
 	CHECK_RESULT((testStr.*rindexOfString)(apple.s(), MAX_XSIZE-1) == MAX_XSIZE,
-				 sprintf("(testStr.*rindexOfString)(\"\", MAX_XSIZE-1) == MAX_XSIZE"),
-				 sprintf("(testStr.*rindexOfString)(\"\", MAX_XSIZE-1) != MAX_XSIZE (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
+				 ssprintf("(testStr.*rindexOfString)(\"\", MAX_XSIZE-1) == MAX_XSIZE"),
+				 ssprintf("(testStr.*rindexOfString)(\"\", MAX_XSIZE-1) != MAX_XSIZE (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
 				 );
 	
 	if ( subStr.length() > 0 )
@@ -1132,30 +1173,30 @@ static void testIdxOf__(XStringClass subStr, bool ignoreCase,
 		testStr.strcat(subStr.s());
 		if ( ignoreCase ) testStr.lowerAscii();
 		CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 3,
-					 sprintf("testStr.IdxOf(subStr.s(), 0) == 3"),
-					 sprintf("testStr.IdxOf(subStr.s(), 0) != 3 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+					 ssprintf("testStr.indexOf(subStr.s(), 0) == 3"),
+					 ssprintf("testStr.indexOf(subStr.s(), 0) != 3 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 					 );
 (testStr.*indexOfString)(subStr.s(), 0);
 		CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 3,
-					 sprintf("(testStr.*indexOfString)(subStr.s(), 0) == 3"),
-					 sprintf("(testStr.*indexOfString)(subStr.s(), 0) != 3 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+					 ssprintf("(testStr.*indexOfString)(subStr.s(), 0) == 3"),
+					 ssprintf("(testStr.*indexOfString)(subStr.s(), 0) != 3 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 					 );
 		CHECK_RESULT((testStr.*indexOfChar)(subStr[0], 0) == 3,
-					 sprintf("(testStr.*indexOfString)(subStr[0]) == 3"),
-					 sprintf("(testStr.*indexOfString)(subStr[0]) != 3 (%zu)", (testStr.*indexOfChar)(subStr[0], 0))
+					 ssprintf("(testStr.*indexOfString)(subStr[0]) == 3"),
+					 ssprintf("(testStr.*indexOfString)(subStr[0]) != 3 (%zu)", (testStr.*indexOfChar)(subStr[0], 0))
 					 );
 		CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == 3,
-					 sprintf("testStr.IdxOf(subStr.s(), MAX_XSIZE-1) == 3"),
-					 sprintf("testStr.IdxOf(subStr.s(), MAX_XSIZE-1) != 3 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
+					 ssprintf("testStr.indexOf(subStr.s(), MAX_XSIZE-1) == 3"),
+					 ssprintf("testStr.indexOf(subStr.s(), MAX_XSIZE-1) != 3 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
 					 );
 (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1);
 		CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == 3,
-					 sprintf("(testStr.*rindexOfString)(subStr.s(), 0) == 3"),
-					 sprintf("(testStr.*rindexOfString)(subStr.s(), 0) != 3 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
+					 ssprintf("(testStr.*rindexOfString)(subStr.s(), 0) == 3"),
+					 ssprintf("(testStr.*rindexOfString)(subStr.s(), 0) != 3 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
 					 );
 		CHECK_RESULT((testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1) == 3 + subStr.length() - 1,
-					 sprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 3 + subStr.length() - 1 (%zu)", 3 + subStr.length() - 1),
-					 sprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 3 + subStr.length() - 1 (%zu!=%zu)", (testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1), 3 + subStr.length() - 1)
+					 ssprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 3 + subStr.length() - 1 (%zu)", 3 + subStr.length() - 1),
+					 ssprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 3 + subStr.length() - 1 (%zu!=%zu)", (testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1), 3 + subStr.length() - 1)
 					 );
 		
 		testStr.takeValueFrom("");
@@ -1163,29 +1204,29 @@ static void testIdxOf__(XStringClass subStr, bool ignoreCase,
 		testStr.strcat("");
 		if ( ignoreCase ) testStr.lowerAscii();
 		CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 4,
-					 sprintf("testStr.IdxOf(subStr.s(), 0) == 4"),
-					 sprintf("testStr.IdxOf(subStr.s(), 0) != 4 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+					 ssprintf("testStr.indexOf(subStr.s(), 0) == 4"),
+					 ssprintf("testStr.indexOf(subStr.s(), 0) != 4 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 					 );
 		(testStr.*indexOfString)(subStr.s(), 0);
 		CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 4,
-					 sprintf("(testStr.*indexOfString)(subStr.s(), 0) == 4"),
-					 sprintf("(testStr.*indexOfString)(subStr.s(), 0) != 4 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+					 ssprintf("(testStr.*indexOfString)(subStr.s(), 0) == 4"),
+					 ssprintf("(testStr.*indexOfString)(subStr.s(), 0) != 4 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 					 );
 		CHECK_RESULT((testStr.*indexOfChar)(subStr[0], 0) == 4,
-					 sprintf("(testStr.*indexOfString)(subStr[0]) == 4"),
-					 sprintf("(testStr.*indexOfString)(subStr[0]) != 4 (%zu)", (testStr.*indexOfChar)(subStr[0], 0))
+					 ssprintf("(testStr.*indexOfString)(subStr[0]) == 4"),
+					 ssprintf("(testStr.*indexOfString)(subStr[0]) != 4 (%zu)", (testStr.*indexOfChar)(subStr[0], 0))
 					 );
 		CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == 4,
-					 sprintf("testStr.IdxOf(subStr.s(), 0) == 4"),
-					 sprintf("testStr.IdxOf(subStr.s(), 0) != 4 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
+					 ssprintf("testStr.indexOf(subStr.s(), 0) == 4"),
+					 ssprintf("testStr.indexOf(subStr.s(), 0) != 4 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
 					 );
 		CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == 4,
-					 sprintf("(testStr.*rindexOfString)(subStr.s(), 0) == 4"),
-					 sprintf("(testStr.*rindexOfString)(subStr.s(), 0) != 4 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
+					 ssprintf("(testStr.*rindexOfString)(subStr.s(), 0) == 4"),
+					 ssprintf("(testStr.*rindexOfString)(subStr.s(), 0) != 4 (%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1))
 					 );
 		CHECK_RESULT((testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1) == 4 + subStr.length() - 1,
-					 sprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 4 + subStr.length() - 1 (%zu)", 4 + subStr.length() - 1),
-					 sprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 4 + subStr.length() - 1 (%zu!=%zu)", (testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1), 4 + subStr.length() - 1)
+					 ssprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 4 + subStr.length() - 1 (%zu)", 4 + subStr.length() - 1),
+					 ssprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 4 + subStr.length() - 1 (%zu!=%zu)", (testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1), 4 + subStr.length() - 1)
 					 );
 		
 		testStr.takeValueFrom("");
@@ -1195,37 +1236,37 @@ static void testIdxOf__(XStringClass subStr, bool ignoreCase,
 		testStr.strcat("");
 		if ( ignoreCase ) testStr.lowerAscii();
 		CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 5,
-					 sprintf("testStr.IdxOf(subStr.s(), 0) == 5"),
-					 sprintf("testStr.IdxOf(subStr.s(), 0) != 5 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+					 ssprintf("testStr.indexOf(subStr.s(), 0) == 5"),
+					 ssprintf("testStr.indexOf(subStr.s(), 0) != 5 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 					 );
 		CHECK_RESULT((testStr.*indexOfString)(subStr.s(), 0) == 5,
-					 sprintf("(testStr.*indexOfString)(subStr.s(), 0) == 5"),
-					 sprintf("(testStr.*indexOfString)(subStr.s(), 0) != 5 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
+					 ssprintf("(testStr.*indexOfString)(subStr.s(), 0) == 5"),
+					 ssprintf("(testStr.*indexOfString)(subStr.s(), 0) != 5 (%zu)", (testStr.*indexOfString)(subStr.s(), 0))
 					 );
 		CHECK_RESULT((testStr.*indexOfChar)(subStr[0], 0) == 5,
-					 sprintf("(testStr.*indexOfString)(subStr[0]) == 5"),
-					 sprintf("(testStr.*indexOfString)(subStr[0]) != 5 (%zu)", (testStr.*indexOfChar)(subStr[0], 0))
+					 ssprintf("(testStr.*indexOfString)(subStr[0]) == 5"),
+					 ssprintf("(testStr.*indexOfString)(subStr[0]) != 5 (%zu)", (testStr.*indexOfChar)(subStr[0], 0))
 					 );
 		CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == 5 + subStr.length() + 6,
-					 sprintf("testStr.IdxOf(subStr.s(), 0) == 5 + subStr.length() + 6"),
-					 sprintf("testStr.IdxOf(subStr.s(), 0) != 5 + subStr.length() + 6 (%zu!=%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1), 5 + subStr.length() + 6)
+					 ssprintf("testStr.indexOf(subStr.s(), 0) == 5 + subStr.length() + 6"),
+					 ssprintf("testStr.indexOf(subStr.s(), 0) != 5 + subStr.length() + 6 (%zu!=%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1), 5 + subStr.length() + 6)
 					 );
 (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1);
 		CHECK_RESULT((testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1) == 5 + subStr.length() + 6,
-					 sprintf("(testStr.*rindexOfString)(subStr.s(), 0) == 5 + subStr.length() + 6"),
-					 sprintf("(testStr.*rindexOfString)(subStr.s(), 0) != 5 + subStr.length() + 6 (%zu!=%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1), 5 + subStr.length() + 6)
+					 ssprintf("(testStr.*rindexOfString)(subStr.s(), 0) == 5 + subStr.length() + 6"),
+					 ssprintf("(testStr.*rindexOfString)(subStr.s(), 0) != 5 + subStr.length() + 6 (%zu!=%zu)", (testStr.*rindexOfString)(subStr.s(), MAX_XSIZE-1), 5 + subStr.length() + 6)
 					 );
 		CHECK_RESULT((testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1) == 5 + subStr.length() + 6 + subStr.length() - 1,
-					 sprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 5 + subStr.length() + 6 + subStr.length() - 1 (%zu)", 5 + subStr.length() + 6 + subStr.length() - 1),
-					 sprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 5 + subStr.length() + 6 + subStr.length() - 1 (%zu!=%zu)", (testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1), 5 + subStr.length() + 6 + subStr.length() - 1)
+					 ssprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 5 + subStr.length() + 6 + subStr.length() - 1 (%zu)", 5 + subStr.length() + 6 + subStr.length() - 1),
+					 ssprintf("(testStr.*rindexOfString)(subStr[subStr.length()-1]) == 5 + subStr.length() + 6 + subStr.length() - 1 (%zu!=%zu)", (testStr.*rindexOfChar)(subStr[subStr.length()-1], MAX_XSIZE-1), 5 + subStr.length() + 6 + subStr.length() - 1)
 					 );
 	}
 }
 
 template<class XStringClass, class InitialValue>
-SimpleString testIdxOf_(const InitialValue& initialValue)
+SimpleString testindexOf_(const InitialValue& initialValue)
 {
-	TEST_TITLE(displayOnlyFailed, sprintf("Test %s::idxOf", XStringClassInfo<XStringClass>::xStringClassName));
+	TEST_TITLE(displayOnlyFailed, ssprintf("Test %s::idxOf", XStringClassInfo<XStringClass>::xStringClassName));
 
 	typedef typename XStringClassInfo<XStringClass>::xs_t ixs_t;
 	typedef typename XStringClassInfo<XStringClass>::ch_t ich_t;
@@ -1237,13 +1278,13 @@ SimpleString testIdxOf_(const InitialValue& initialValue)
 	for ( size_t pos = 0 ; pos < initialValue.utf32_length+3 ; pos+=1 ) {
 		for ( size_t count = 0 ; count < initialValue.utf32_length-pos+3 ; count+=1 )
 		{
-			ixs_t subStr = str.SubString(pos, count);
+			ixs_t subStr = str.subString(pos, count);
 			
 //			size_t (ixs_t::*p)(const ich_t* S, size_t Pos) const = &ixs_t::template indexOf<ich_t>;
-			testIdxOf__<ixs_t, ich_t>(subStr, false, &ixs_t::indexOf, &ixs_t::template indexOf, &ixs_t::rindexOf, &ixs_t::template rindexOf);
+			testindexOf__<ixs_t, ich_t>(subStr, false, &ixs_t::indexOf, &ixs_t::template indexOf, &ixs_t::rindexOf, &ixs_t::template rindexOf);
 		
 			ixs_t subStrLower = subStr;
-			testIdxOf__<ixs_t, ich_t>(subStrLower, true, &ixs_t::indexOfIC, &ixs_t::template indexOfIC, &ixs_t::rindexOfIC, &ixs_t::template rindexOfIC);
+			testindexOf__<ixs_t, ich_t>(subStrLower, true, &ixs_t::indexOfIC, &ixs_t::template indexOfIC, &ixs_t::rindexOfIC, &ixs_t::template rindexOfIC);
 //			if ( subStrLower != subStr ) {
 //			}
 		}
@@ -1252,13 +1293,13 @@ SimpleString testIdxOf_(const InitialValue& initialValue)
 	return SimpleString();
 }
 
-#define testIdxOf(XStringClass, classEncoding, encoding) \
-    printf("Test %s::testIdxOf(%s)\n", STRINGIFY(XStringClass), STRINGIFY(encoding)); \
+#define testindexOf(XStringClass, classEncoding, encoding) \
+    printf("Test %s::testindexOf(%s)\n", STRINGIFY(XStringClass), STRINGIFY(encoding)); \
 	for ( size_t i = 0 ; i < nbTestStringMultiCoded ; i++ ) { \
-		testIdxOf_<XStringClass>(testStringMultiCodedArray[i].encoding); \
+		testindexOf_<XStringClass>(testStringMultiCodedArray[i].encoding); \
 	} \
 	for ( size_t i = 0 ; i < nbTestStringMultiCoded4CaseArray ; i++ ) { \
-		testIdxOf_<XStringClass>(testStringMultiCoded4CaseArray[i].encoding); \
+		testindexOf_<XStringClass>(testStringMultiCoded4CaseArray[i].encoding); \
 	} \
 
 
@@ -1278,25 +1319,31 @@ void func_test(XStringW& xsw)
 	(void)xsw;
 }
 
-int XStringx_tests()
+int XString_tests()
 {
 #ifdef JIEF_DEBUG
-//	DebugLog(2, "XString16_tests -> Enter\n");
+//	printf("XString16_tests -> Enter\n");
 #endif
 
 //const char c = ' ';
 //const char* cc = "  ";
 //char buf[64];
 //char16_t* buf16 = (char16_t*)u"foo16";
-XString x1;
-x1.takeValueFrom("a");
-XString x2;
-x2.takeValueFrom("b");
+XString x1("a"_XS);
+XString x2("b"_XS);
+XStringW xw1("c"_XS);
 
-XStringW xw1; xw1.takeValueFrom("c");
+char c = 1;
+int ii = sizeof(size_t);
+unsigned long long ull = SIZE_T_MAX;
+unsigned long long ll = 3;
+xw1.dataSized(c);
+xw1.dataSized(ii);
+xw1.dataSized(ull);
+xw1.dataSized(ll);
 
-auto x3 = xw1 = x1;
-func_test(x3);
+//auto x3 = xw1 = x1;
+//func_test(x3);
 //
 //XStringAbstract__is_char_st<decltype(buf16)> a;
 //printf("a.v()=%d\n", a.v());
@@ -1312,39 +1359,52 @@ func_test(x3);
 
 //	testDefaultCtor<XString>("XString");
 //	XString16 a = u"toto"_XS16;
-//        teststrncpy_<XString>("utf8", testStringMultiCodedArray[1].utf8, testStringMultiCodedArray[1].wchar);
-//testIdxOf(XString, utf8, utf16);
-//testCompare(XString, utf8, utf8);
-		testIdxOf_<XString>(testStringMultiCoded4CaseArray[0].utf8); \
 
-//size_t size = sizeof("ギ")-1; // this char is 6 bytes long !
+const char* utf8 = "ギ"; (void)utf8;
+size_t utf8_size = sizeof("ギ") - 1; (void)utf8_size; // this char is 6 bytes long !
+const wchar_t* utfw = L"ギ"; (void)utfw;
+size_t utfw_size = sizeof(L"ギ") - 1; (void)utfw_size; // this char is 6 bytes long !
+const char16_t* utf16 = u"ギ"; (void)utf16;
+size_t utf16_size = sizeof(u"ギ") - 1; (void)utf16_size; // this char is 6 bytes long !
+const char32_t* utf32 = U"ギ"; (void)utf32;
+size_t utf32_size = sizeof(U"ギ") - 1; (void)utf32_size; // this char is 6 bytes long !
 //size_t size = sizeof("ꇉ")-1; // this char is 3 bytes long
 //size_t size = sizeof("伽")-1; // this char is 3 bytes long
 //size_t size = sizeof("楘")-1; // this char is 3 bytes long
 //XString str = "ギꇉ伽楘"_XS;
 //char* s = str.data(42);
 
-	TEST_ALL_CLASSES(testDefaultCtor, __TEST0);
-	TEST_ALL_CLASSES(testEmpty, __TEST0);
-	TEST_ALL_CLASSES(testTakeValueFrom, TEST_ALL_UTF);
-	TEST_ALL_CLASSES(testTakeValueFromXString, TEST_ALL_UTF);
-	TEST_ALL_CLASSES(testchar32At_u, TEST_ALL_INTEGRAL);
 
-	TEST_ALL_CLASSES(teststrcpy, TEST_ALL_UTF);
-	TEST_ALL_CLASSES(teststrncpy, TEST_ALL_UTF); // 26944 tests
-	TEST_ALL_CLASSES(teststrcat, TEST_ALL_UTF_ALL_UTF);
-	TEST_ALL_CLASSES(teststrncat, TEST_ALL_UTF_ALL_UTF); // 2101632 tests
+//teststrncpy_<XString>("utf8", testStringMultiCodedArray[1].utf8, testStringMultiCodedArray[1].wchar);
+//testindexOf(XString, utf8, utf16);
+testCompare(XString, utf8, utf16);
+//testindexOf_<XString>(testStringMultiCoded4CaseArray[0].utf8);
 
-	TEST_ALL_CLASSES(testSubString, __TEST0);
+
+
+
+//	TEST_ALL_CLASSES(testDefaultCtor, __TEST0);
+//	TEST_ALL_CLASSES(testEmpty, __TEST0);
+//	TEST_ALL_CLASSES(testTakeValueFrom, TEST_ALL_UTF);
+//	TEST_ALL_CLASSES(testTakeValueFromXString, TEST_ALL_UTF);
+//	TEST_ALL_CLASSES(testchar32At, TEST_ALL_INTEGRAL);
+//	TEST_ALL_CLASSES(testdataSized, TEST_ALL_INTEGRAL);
+//
+//	TEST_ALL_CLASSES(teststrcpy, TEST_ALL_UTF);
+//	TEST_ALL_CLASSES(teststrncpy, TEST_ALL_UTF); // 26944 tests
+//	TEST_ALL_CLASSES(teststrcat, TEST_ALL_UTF_ALL_UTF);
+//	TEST_ALL_CLASSES(teststrncat, TEST_ALL_UTF_ALL_UTF); // 2101632 tests
+//
+//	TEST_ALL_CLASSES(testSubString, __TEST0);
 	TEST_ALL_CLASSES(testCompare, TEST_ALL_UTF);
-	TEST_ALL_CLASSES(testIdxOf, TEST_ALL_UTF);
+	TEST_ALL_CLASSES(testindexOf, TEST_ALL_UTF);
 
 
 
 //
 ////		str2.insert(1, str);
 //
-//	str2.SPrintf("%c", 'a'); // signle UTF8 ascii char
+//	str2.ssprintf("%c", 'a'); // signle UTF8 ascii char
 //	if ( str2 != L"a" ) return
 
 
@@ -1356,7 +1416,7 @@ func_test(x3);
 
 #ifdef JIEF_DEBUG
 	if ( nbTestFailed == 0 ) printf("All %d tests succeeded.\n", nbTest);
-	else printf("%d tests succeeded out of %d.\n", nbTest-nbTestFailed, nbTestFailed);
+	else printf("%d tests succeeded out of %d.\n", nbTest-nbTestFailed, nbTest);
 #endif
-	return 0;
+	return nbTestFailed > 0;
 }

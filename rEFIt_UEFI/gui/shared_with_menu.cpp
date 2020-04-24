@@ -39,10 +39,10 @@
  *  THIS will most likely disappear soon !
  */
 
-#include "../Platform/Platform.h"
-#include "../refit/lib.h"
-#include "menu_items/menu_items.h"
-#include "../entry_scan/common.h"
+#include <Platform.h>
+//#include "../refit/lib.h"
+//#include "menu_items/menu_items.h"
+//#include "../entry_scan/common.h"
 
 CONST XString ArgOptional[NUM_OPT] = {
   "arch=i386"_XS,       //0
@@ -79,7 +79,7 @@ UINT32 EncodeOptions(const XString& Options)
     return 0;
   }
   for (Index = 0; Index < NUM_OPT; Index++) {
-    if ( Options.ExistIn(ArgOptional[Index]) ) {
+    if ( Options.contains(ArgOptional[Index]) ) {
       OptionsBits |= (1 << Index);
       if (Index == 1) {
         OptionsBits &= ~1;

@@ -12,7 +12,7 @@
 #if !defined(__XString_H__)
 #define __XString_H__
 
-#include "XToolsCommon.h"
+#include <XToolsConf.h>
 #include "XStringAbstract.h"
 
 #include "../../Include/Library/printf_lite.h"
@@ -139,5 +139,10 @@ extern const XStringW NullXStringW;
 
 XString SPrintf(const char* format, ...) __attribute__((__format__ (__printf__, 1, 2)));
 XStringW SWPrintf(const char* format, ...) __attribute__((__format__ (__printf__, 1, 2)));
+
+
+//
+//XStringAbstract SubString(const T *S, size_t pos, size_t count);
+//XStringAbstract CleanCtrl(const XStringAbstract &S);
 
 #endif

@@ -11,11 +11,11 @@
 #if !defined(__XARRAY_H__)
 #define __XARRAY_H__
 
-#include "XToolsCommon.h"
+#include <XToolsConf.h>
 
 
 #if 0
-#define XArray_DBG(...) DebugLog(2, __VA_ARGS__)
+#define XArray_DBG(...) printf(__VA_ARGS__)
 #else
 #define XArray_DBG(...)
 #endif
@@ -63,10 +63,14 @@ class XArray
 	const TYPE& ElementAt(int nIndex) const;
 	TYPE& ElementAt(int nIndex);
 
-	const TYPE& operator[](xsize nIndex) const { return ElementAt(nIndex); }
-	      TYPE& operator[](xsize nIndex)       { return ElementAt(nIndex); }
-	const TYPE& operator[]( int nIndex)  const { return ElementAt(nIndex); }
+//	const TYPE& operator[](xsize nIndex) const { return ElementAt(nIndex); }
+//	      TYPE& operator[](xsize nIndex)       { return ElementAt(nIndex); }
+//	const TYPE& operator[]( int nIndex)  const { return ElementAt(nIndex); }
 	      TYPE& operator[]( int nIndex)        { return ElementAt(nIndex); }
+//	const TYPE& operator[]( unsigned long long nIndex)  const { return ElementAt((size_t)nIndex); }
+//	const TYPE& operator[]( long long nIndex)  const { return ElementAt((size_t)nIndex); }
+	      TYPE& operator[]( unsigned long long nIndex)        { return ElementAt((size_t)nIndex); }
+	      TYPE& operator[]( long long nIndex)        { return ElementAt((size_t)nIndex); }
 
 	operator const void *() const { return m_data; };
 	operator       void *()       { return m_data; };
@@ -102,8 +106,8 @@ class XArray
 	void setEmpty();
 	bool isEmpty() const { return size() == 0; }
     
-  xsize IdxOf(TYPE& e) const;
-	bool ExistIn(TYPE& e) const { return IdxOf(e) != MAX_XSIZE; } //logically it should be named as Contains(e)
+  xsize indexOf(TYPE& e) const;
+	bool contains(TYPE& e) const { return indexOf(e) != MAX_XSIZE; } //logically it should be named as Contains(e)
 };
 
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -113,7 +117,7 @@ class XArray
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 template<class TYPE>
-xsize XArray<TYPE>::IdxOf(TYPE& e) const
+xsize XArray<TYPE>::indexOf(TYPE& e) const
 {
   xsize i;
 
@@ -179,10 +183,9 @@ void XArray<TYPE>::CheckSize(xsize nNewSize, xsize nGrowBy)
 //XArray_DBG("CheckSize: m_len=%d, m_size=%d, nGrowBy=%d, nNewSize=%d\n", m_len, m_size, nGrowBy, nNewSize);
 	if ( nNewSize > m_allocatedSize ) {
 		nNewSize += nGrowBy;
-		m_data = (TYPE *)realloc((void *)m_data, nNewSize * sizeof(TYPE), m_allocatedSize * sizeof(TYPE) );
+		m_data = (TYPE *)Xrealloc((void *)m_data, nNewSize * sizeof(TYPE), m_allocatedSize * sizeof(TYPE) );
 		if ( !m_data ) {
-			DebugLog(2, "XArray<TYPE>::CheckSize(nNewSize=%llu, nGrowBy=%llu) : Xrealloc(%llu, %llu, %" PRIuPTR ") returned NULL. System halted\n", nNewSize, nGrowBy, m_allocatedSize, nNewSize*sizeof(TYPE), (uintptr_t)m_data);
-	  	panic();
+			panic("XArray<TYPE>::CheckSize(nNewSize=%zu, nGrowBy=%zu) : Xrealloc(%zu, %lu, %" PRIuPTR ") returned NULL. System halted\n", nNewSize, nGrowBy, m_allocatedSize, nNewSize*sizeof(TYPE), (uintptr_t)m_data);
 		}
 //		memset(&_Data[_Size], 0, (nNewSize-_Size) * sizeof(TYPE)); // Could help for debugging, but zeroing in not needed.
 		m_allocatedSize = nNewSize;
@@ -204,8 +207,7 @@ void XArray<TYPE>::setSize(xsize l)
 	m_len = l;
 	#ifdef DEBUG
 		if(m_len > m_allocatedSize) {
-			DebugLog(2, "XArray::SetLength(xsize) -> _Len > _Size");
-			panic();
+			panic("XArray::SetLength(xsize) -> _Len > _Size");
 		}
 	#endif
 }
@@ -217,8 +219,7 @@ TYPE &XArray<TYPE>::ElementAt(xsize index)
 {
 //	#ifdef _DEBUG
 		if ( index >= m_len ) {
-			DebugLog(2, "XArray::ElementAt(xsize) -> Operator [] : index > m_len");
-			panic();
+			panic("XArray::ElementAt(xsize) -> Operator [] : index > m_len");
 		}
 //	#endif
 	return  m_data[index];
@@ -230,8 +231,7 @@ const TYPE& XArray<TYPE>::ElementAt(xsize index) const
 {
 //	#ifdef _DEBUG
 		if ( index >= m_len ) {
-			DebugLog(2, "XArray::ElementAt(xsize) const -> Operator [] : index > m_len");
-			panic();
+			panic("XArray::ElementAt(xsize) const -> Operator [] : index > m_len");
 		}
 //	#endif
 	return  m_data[index];
@@ -246,8 +246,7 @@ TYPE &XArray<TYPE>::ElementAt(int index)
 			panic("XArray::ElementAt(int) -> Operator [] : index < 0");
 		}
 		if ( (unsigned int)index >= m_len ) { // cast safe, index > 0
-			DebugLog(2, "XArray::ElementAt(int) -> Operator [] : index > m_len");
-			panic();
+			panic("XArray::ElementAt(int) -> Operator [] : index > m_len");
 		}
 //	#endif
 	return  m_data[index];
@@ -262,8 +261,7 @@ const TYPE& XArray<TYPE>::ElementAt(int index) const
 			panic("XArray::ElementAt(int) const -> Operator [] : index < 0");
 		}
 		if ( (unsigned int)index >= m_len ) { // cast ok as index > 0. Ideally cast would be like '(unsigned __typeof__(index))'
-			DebugLog(2, "XArray::ElementAt(int) const -> Operator [] : index > m_len");
-			panic();
+			panic("XArray::ElementAt(int) const -> Operator [] : index > m_len");
 		}
 //	#endif
 	return  m_data[index];
@@ -344,11 +342,10 @@ void XArray<TYPE>::RemoveAtIndex(xsize nIndex)
 template<class TYPE>
 void XArray<TYPE>::RemoveAtIndex(int nIndex)
 {
-  #if defined(__XTOOLS_INT_CHECK__)
+  #if defined(__XTOOLS_CHECK_OVERFLOW__)
   	if ( nIndex < 0 ) {
-  	  DebugLog(2, "XArray<TYPE>::RemoveAtIndex(int nIndex) : BUG nIndex (%d) is < 0. System halted\n", nIndex);
-	  	panic();
-	  }
+  	  panic("XArray<TYPE>::RemoveAtIndex(int nIndex) : BUG nIndex (%d) is < 0. System halted\n", nIndex);
+	}
 	#endif
 
 	RemoveAtIndex( (xsize)nIndex ); // Check of nIndex is made in Remove(xsize nIndex)
