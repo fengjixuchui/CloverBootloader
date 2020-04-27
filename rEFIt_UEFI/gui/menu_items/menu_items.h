@@ -40,7 +40,7 @@
 #include "../../refit/lib.h"
 #ifdef __cplusplus
 #include "../../cpp_foundation/XObjArray.h"
-#include "../../cpp_foundation/XStringWArray.h"
+#include "../../cpp_foundation/XStringArray.h"
 #include "../../cpp_foundation/XString.h"
 #include "../../libeg/XPointer.h"
 #endif
@@ -260,7 +260,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
 	{
 	public:
 	  CONST CHAR16     *DevicePathString;
-	  XString          LoadOptions; //moved here for compatibility with legacy
+	  XStringArray          LoadOptions; //moved here for compatibility with legacy
 	  CONST CHAR16     *LoaderPath;
     XImage        DriveImage;
     XImage        BadgeImage;

@@ -61,7 +61,6 @@
 #ifdef __cplusplus
 #include "../cpp_foundation/XObjArray.h"
 #include "../cpp_foundation/XString.h"
-#include "../cpp_foundation/XStringWArray.h"
 #include "../libeg/XTheme.h"
 extern XTheme ThemeX; //global variable defined in lib.cpp
 
@@ -275,32 +274,6 @@ typedef enum {
 #define HDBADGES_INLINE (1<<2)
 
 
-typedef struct {
-  INTN        Timeout;
-  UINTN       DisableFlags; //to disable some volume types (optical, firewire etc)
-  BOOLEAN     TextOnly;
-  BOOLEAN     Quiet;
-  BOOLEAN     LegacyFirst;
-  BOOLEAN     NoLegacy;
-  BOOLEAN     DebugLog;
-  BOOLEAN     FastBoot;
-  BOOLEAN     NeverHibernate;
-  BOOLEAN     StrictHibernate;
-  BOOLEAN     RtcHibernateAware;
-  BOOLEAN     HibernationFixup;
-  BOOLEAN     SignatureFixup;
-  CHAR16      *Theme;
-  CHAR16      *ScreenResolution;
-  INTN        ConsoleMode;
-  BOOLEAN     CustomIcons;
-  INTN        IconFormat;
-  BOOLEAN     NoEarlyProgress;
-  INT32       Timezone;
-  BOOLEAN     ShowOptimus;
-  INTN        Codepage;
-  INTN        CodepageSize;
-} REFIT_CONFIG;
-
 // types
 #define ANIME_INFINITE ((UINTN)-1)
 //some unreal values
@@ -460,6 +433,7 @@ VOID DebugPause(VOID);
 #define BUILTIN_CHECKBOX                       (47)
 #define BUILTIN_CHECKBOX_CHECKED               (48)
 #define ICON_OTHER_OS                          (51)
+#define ICON_CLOVER                            (52)
 #define BUILTIN_ICON_BACKGROUND                (100)
 #define BUILTIN_ICON_SELECTION                 (101)
 #define BUILTIN_ICON_ANIME                     (102)
@@ -493,12 +467,6 @@ VOID DebugPause(VOID);
 extern XObjArray<REFIT_VOLUME> Volumes;
 #endif
 
-
-//
-// config module
-//
-
-extern REFIT_CONFIG GlobalConfig;
 
 //
 // BmLib

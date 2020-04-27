@@ -99,7 +99,7 @@ struct CUSTOM_LOADER_ENTRY {
   CONST CHAR16            *DriveImagePath;
   CONST CHAR16            *Volume;
   CONST CHAR16            *Path;
-  XString                  Options;
+  XStringArray             LoadOptions;
 
   XStringW FullTitle;
   XStringW Title;
@@ -148,7 +148,7 @@ struct CUSTOM_TOOL_ENTRY {
   CHAR16            *ImagePath;
   CHAR16            *Volume;
   CHAR16            *Path;
-  XString           Options;
+  XStringArray      LoadOptions;
   XStringW          FullTitle;
   XStringW          Title;
   CHAR16            Hotkey;
@@ -679,6 +679,39 @@ extern EFI_GUID                       gUuid;
 
 extern EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl;
 
+
+//
+// config module
+//
+
+typedef struct {
+  INTN        Timeout;
+  UINTN       DisableFlags; //to disable some volume types (optical, firewire etc)
+  BOOLEAN     TextOnly;
+  BOOLEAN     Quiet;
+  BOOLEAN     LegacyFirst;
+  BOOLEAN     NoLegacy;
+  BOOLEAN     DebugLog;
+  BOOLEAN     FastBoot;
+  BOOLEAN     NeverHibernate;
+  BOOLEAN     StrictHibernate;
+  BOOLEAN     RtcHibernateAware;
+  BOOLEAN     HibernationFixup;
+  BOOLEAN     SignatureFixup;
+  CHAR16      *Theme;
+  CHAR16      *ScreenResolution;
+  INTN        ConsoleMode;
+  BOOLEAN     CustomIcons;
+  INTN        IconFormat;
+  BOOLEAN     NoEarlyProgress;
+  INT32       Timezone;
+  BOOLEAN     ShowOptimus;
+  INTN        Codepage;
+  INTN        CodepageSize;
+} REFIT_CONFIG;
+
+
+extern REFIT_CONFIG GlobalConfig;
 
 
 EFI_STATUS
