@@ -156,6 +156,8 @@ static INTN OldTextWidth = 0;
 static UINTN OldRow = 0;
 static INTN OldTimeoutTextWidth = 0;
 static INTN MenuWidth , TimeoutPosY;
+static INTN MenuMaxPosX = 0;
+static UINTN MenuMaxTextLen = 0;
 static INTN EntriesPosX, EntriesPosY;
 static INTN EntriesWidth, EntriesHeight, EntriesGap;
 
@@ -1432,8 +1434,15 @@ VOID REFIT_MENU_SCREEN::DrawBCSText(IN CONST CHAR16 *Text, IN INTN XPos, IN INTN
 
 VOID REFIT_MENU_SCREEN::DrawMenuText(IN const XStringW& Text, IN INTN SelectedWidth, IN INTN XPos, IN INTN YPos, IN UINTN Cursor)
 {
-  XImage TextBufferX(UGAWidth-XPos, ThemeX.TextHeight);
-  XImage SelectionBar(UGAWidth-XPos, ThemeX.TextHeight);
+  INTN MaxWidth;
+  if (MenuMaxPosX > XPos && MenuMaxPosX < UGAWidth) {
+    MaxWidth = MenuMaxPosX - XPos;
+  } else {
+    MaxWidth = UGAWidth - XPos;
+  }
+  XImage TextBufferX(MaxWidth, ThemeX.TextHeight);
+  XImage SelectionBar(MaxWidth, ThemeX.TextHeight);
+
 /*
   if (Cursor == 0xFFFF) { //InfoLine = 0xFFFF
     TextBufferX.Fill(MenuBackgroundPixel);
@@ -1559,7 +1568,6 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
   UINTN OldChosenItem = ~(UINTN)0;
   INTN TitleLen = 0;
   INTN ScaledWidth = (INTN)(ThemeX.CharWidth * ThemeX.Scale);
-  UINTN MaxTextLen = (UINTN)(MenuWidth / ScaledWidth);
 
   // clovy
   INTN ctrlX, ctrlY, ctrlTextX;
@@ -1597,7 +1605,6 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
       //MenuWidth = 80;  // minimum
       MenuWidth = (int)(LAYOUT_TEXT_WIDTH * ThemeX.Scale); //500
 
-
       if (!TitleImage.isEmpty()) {
         if (MenuWidth > (INTN)(UGAWidth - (int)(TITLEICON_SPACING * ThemeX.Scale) - TitleImage.GetWidth())) {
           MenuWidth = UGAWidth - (int)(TITLEICON_SPACING * ThemeX.Scale) - TitleImage.GetWidth() - 2;
@@ -1610,6 +1617,11 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
         EntriesPosX = (UGAWidth - MenuWidth) >> 1;
       }
       TimeoutPosY = EntriesPosY + (Entries.size() + 1) * ThemeX.TextHeight;
+
+      // set maximum allowed X-Position for menu content (this is ctrlTextX + MenuWidth)
+      MenuMaxPosX = EntriesPosX + (ThemeX.TypeSVG ? 0 : (INTN)(TEXT_XMARGIN * ThemeX.Scale)) + ThemeX.Buttons[0].GetWidth() + (INTN)(TEXT_XMARGIN * ThemeX.Scale / 2) + MenuWidth;
+      // set maximum allowed text length for menu content (this is applicable only for non-svg)
+      MenuMaxTextLen = (UINTN)(MenuWidth / ScaledWidth);
 
       // initial painting
       ThemeX.MeasureText(Title, &ItemWidth, NULL);
@@ -1668,16 +1680,15 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
 
       for (INTN i = ScrollState.FirstVisible, j = 0; i <= ScrollState.LastVisible; i++, j++) {
         REFIT_ABSTRACT_MENU_ENTRY *Entry = &Entries[i];
-        TitleLen = Entry->Title.length();
-
+        ResultString = Entry->Title; //create a copy to modify later
+        if (!ThemeX.TypeSVG && ResultString.length() > MenuMaxTextLen) {
+          ResultString = ResultString.subString(0,MenuMaxTextLen-3) + L".."_XSW;
+        }
+        TitleLen = ResultString.length();
         Entry->Place.XPos = EntriesPosX;
         Entry->Place.YPos = EntriesPosY + j * ThemeX.TextHeight;
         Entry->Place.Width = TitleLen * ScaledWidth;
         Entry->Place.Height = (UINTN)ThemeX.TextHeight;
-        ResultString = Entry->Title; //create a copy to modify later
-        if (ResultString.length() > MaxTextLen) {
-          ResultString = ResultString.subString(0,MaxTextLen-1);
-        }
         PlaceCentre = (INTN)((ThemeX.TextHeight - (INTN)(ThemeX.Buttons[2].GetHeight())) * ThemeX.Scale / 2);
         PlaceCentre1 = (INTN)((ThemeX.TextHeight - (INTN)(ThemeX.Buttons[0].GetHeight())) * ThemeX.Scale / 2);
         // clovy
@@ -1693,9 +1704,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
         if ( Entry->getREFIT_INPUT_DIALOG() ) {
           REFIT_INPUT_DIALOG* inputDialogEntry = Entry->getREFIT_INPUT_DIALOG();
           if (inputDialogEntry->Item && inputDialogEntry->Item->ItemType == BoolValue) {
-            Entry->Place.Width = ResultString.length() * ScaledWidth;
             //possible artefacts
-            //DrawMenuText(XStringW().takeValueFrom(" "), 0, EntriesPosX, Entry->Place.YPos, 0xFFFF);
             DrawMenuText(ResultString, (i == ScrollState.CurrentSelection) ? (MenuWidth) : 0,
                          ctrlTextX,
                          Entry->Place.YPos, 0xFFFF);
@@ -1753,11 +1762,12 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
       // last selection
       REFIT_ABSTRACT_MENU_ENTRY *EntryL = &Entries[ScrollState.LastSelection];
       REFIT_ABSTRACT_MENU_ENTRY *EntryC = &Entries[ScrollState.CurrentSelection];
-      TitleLen = EntryL->Title.length();
+
       ResultString = EntryL->Title;
-      if (ResultString.length() > MaxTextLen) {
-        ResultString = ResultString.subString(0,MaxTextLen-1);
+      if (!ThemeX.TypeSVG && ResultString.length() > MenuMaxTextLen) {
+        ResultString = ResultString.subString(0,MenuMaxTextLen-3) + L".."_XSW;
       }
+      TitleLen = ResultString.length();
       //clovy//PlaceCentre = (TextHeight - (INTN)(Buttons[2]->Height * GlobalConfig.Scale)) / 2;
       //clovy//PlaceCentre = (PlaceCentre>0)?PlaceCentre:0;
       //clovy//PlaceCentre1 = (TextHeight - (INTN)(Buttons[0]->Height * GlobalConfig.Scale)) / 2;
@@ -1810,16 +1820,16 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
                      EntryL->Place.YPos, 0xFFFF);
         ThemeX.Buttons[(EntryL->getREFIT_MENU_CHECKBIT()->Item->IValue & EntryL->Row) ?3:2].DrawOnBack(ctrlX, EntryL->Place.YPos + PlaceCentre, ThemeX.Background);
       } else {
-        DrawMenuText(EntryL->Title, 0, EntriesPosX,
+        DrawMenuText(ResultString, 0, EntriesPosX,
                      EntriesPosY + (ScrollState.LastSelection - ScrollState.FirstVisible) * ThemeX.TextHeight, 0xFFFF);
       }
 
       // current selection
       ResultString = EntryC->Title;
-      if (ResultString.length() > MaxTextLen) {
-        ResultString = ResultString.subString(0,MaxTextLen-1);
+      if (!ThemeX.TypeSVG && ResultString.length() > MenuMaxTextLen) {
+        ResultString = ResultString.subString(0,MenuMaxTextLen-3) + L".."_XSW;
       }
-      TitleLen = EntryC->Title.length();
+      TitleLen = ResultString.length();
       if ( EntryC->getREFIT_MENU_SWITCH() ) {
         if (EntryC->getREFIT_MENU_SWITCH()->Item->IValue == 3) {
           OldChosenItem = (OldChosenTheme == 0xFFFF) ? 0: OldChosenTheme + 1;;
@@ -1848,7 +1858,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
                        TitleLen + inputDialogEntry->Row);
         }
       } else if (EntryC->getREFIT_MENU_SWITCH()) { //radio
-        DrawMenuText(EntryC->Title, MenuWidth,
+        DrawMenuText(ResultString, MenuWidth,
                      ctrlTextX,
                      EntriesPosY + (ScrollState.CurrentSelection - ScrollState.FirstVisible) * ThemeX.TextHeight,
                      0xFFFF);
@@ -1859,7 +1869,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
                      EntryC->Place.YPos, 0xFFFF);
         ThemeX.Buttons[(EntryC->getREFIT_MENU_CHECKBIT()->Item->IValue & EntryC->Row)?3:2].DrawOnBack(ctrlX, EntryC->Place.YPos + PlaceCentre, ThemeX.Background);
       }else{
-        DrawMenuText(EntryC->Title, MenuWidth, EntriesPosX,
+        DrawMenuText(ResultString, MenuWidth, EntriesPosX,
                      EntriesPosY + (ScrollState.CurrentSelection - ScrollState.FirstVisible) * ThemeX.TextHeight,
                      0xFFFF);
       }
@@ -2534,7 +2544,6 @@ VOID REFIT_MENU_SCREEN::AddMenuCheck(CONST CHAR8 *Text, UINTN Bit, INTN ItemNum)
 {
   REFIT_MENU_CHECKBIT *InputBootArgs;
 
-//  InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
   InputBootArgs = new REFIT_MENU_CHECKBIT;
   InputBootArgs->Title.takeValueFrom(Text);
 //  InputBootArgs->Tag = TAG_CHECKBIT_OLD;
@@ -2561,17 +2570,9 @@ VOID REFIT_MENU_SCREEN::AddMenuItem_(REFIT_MENU_ENTRY_ITEM_ABSTRACT* InputBootAr
 
   AddMenuEntry(InputBootArgs, true);
 }
-//
-//VOID AddMenuItem(REFIT_MENU_SCREEN  *SubScreen, INTN Inx, CONST CHAR8 *Title, UINTN Tag, BOOLEAN Cursor)
-//{
-////  REFIT_INPUT_DIALOG *InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
-//  REFIT_INPUT_DIALOG *InputBootArgs = new REFIT_INPUT_DIALOG;
-//  AddMenuItem_(SubScreen, InputBootArgs, Inx, Title, Tag, Cursor);
-//}
 
 VOID REFIT_MENU_SCREEN::AddMenuItemInput(INTN Inx, CONST CHAR8 *Line, BOOLEAN Cursor)
 {
-//  REFIT_INPUT_DIALOG *InputBootArgs = (__typeof__(InputBootArgs))AllocateZeroPool(sizeof(REFIT_INPUT_DIALOG));
   REFIT_INPUT_DIALOG *InputBootArgs = new REFIT_INPUT_DIALOG;
   AddMenuItem_(InputBootArgs, Inx, Line, Cursor);
 }

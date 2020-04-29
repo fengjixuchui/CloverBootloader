@@ -180,7 +180,7 @@ BootThisFile (
 
   Option = (BDS_COMMON_OPTION *) AllocatePool (sizeof (BDS_COMMON_OPTION));
   ASSERT (Option != NULL);
-  Option->Description     = (CHAR16 *) AllocateCopyPool (StrSize (FileContext->FileName), FileContext->FileName);
+  Option->Description     = (CHAR16 *) AllocateCopyPool(StrSize (FileContext->FileName), FileContext->FileName);
   Option->DevicePath      = FileContext->DevicePath;
   Option->LoadOptionsSize = 0;
   Option->LoadOptions     = NULL;
@@ -813,7 +813,7 @@ UpdateConModePage (
 //  ASSERT (OptionsOpCodeHandle != NULL);
   if (!OptionsOpCodeHandle) return;
 
-  ModeToken           = AllocateZeroPool (sizeof (EFI_STRING_ID) * ValidMode);
+  ModeToken           = AllocateZeroPool(sizeof (EFI_STRING_ID) * ValidMode);
 //  ASSERT(ModeToken != NULL);
   if (!ModeToken) return;
 

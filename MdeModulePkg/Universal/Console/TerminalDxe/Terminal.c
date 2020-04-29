@@ -312,7 +312,7 @@ InitializeTerminalConsoleTextMode (
 
   ASSERT (TextModeCount != NULL);
 
-  TextModeData = AllocateCopyPool (sizeof (mTerminalConsoleModeData), mTerminalConsoleModeData);
+  TextModeData = AllocateCopyPool(sizeof (mTerminalConsoleModeData), mTerminalConsoleModeData);
   if (TextModeData == NULL) {
     return NULL;
   }
@@ -597,7 +597,7 @@ TerminalDriverBindingStart (
   //
   // Initialize the Terminal Dev
   //
-  TerminalDevice = AllocateCopyPool (sizeof (TERMINAL_DEV), &mTerminalDevTemplate);
+  TerminalDevice = AllocateCopyPool(sizeof (TERMINAL_DEV), &mTerminalDevTemplate);
   if (TerminalDevice == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
     goto CloseProtocols;
@@ -669,19 +669,19 @@ TerminalDriverBindingStart (
   // Allocates and initializes the FIFO buffer to be zero, used for accommodating
   // the pre-read pending characters.
   //
-  TerminalDevice->RawFiFo = AllocateZeroPool (sizeof (RAW_DATA_FIFO));
+  TerminalDevice->RawFiFo = AllocateZeroPool(sizeof (RAW_DATA_FIFO));
   if (TerminalDevice->RawFiFo == NULL) {
     goto FreeResources;
   }
-  TerminalDevice->UnicodeFiFo = AllocateZeroPool (sizeof (UNICODE_FIFO));
+  TerminalDevice->UnicodeFiFo = AllocateZeroPool(sizeof (UNICODE_FIFO));
   if (TerminalDevice->UnicodeFiFo == NULL) {
     goto FreeResources;
   }
-  TerminalDevice->EfiKeyFiFo = AllocateZeroPool (sizeof (EFI_KEY_FIFO));
+  TerminalDevice->EfiKeyFiFo = AllocateZeroPool(sizeof (EFI_KEY_FIFO));
   if (TerminalDevice->EfiKeyFiFo == NULL) {
     goto FreeResources;
   }
-  TerminalDevice->EfiKeyFiFoForNotify = AllocateZeroPool (sizeof (EFI_KEY_FIFO));
+  TerminalDevice->EfiKeyFiFoForNotify = AllocateZeroPool(sizeof (EFI_KEY_FIFO));
   if (TerminalDevice->EfiKeyFiFoForNotify == NULL) {
     goto FreeResources;
   }

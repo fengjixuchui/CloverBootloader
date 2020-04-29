@@ -394,7 +394,7 @@ SmmMemLibInternalGetGcdMemoryMap (
     }
   }
 
-  mSmmMemLibGcdMemSpace = AllocateZeroPool (mSmmMemLibGcdMemNumberOfDesc * sizeof (EFI_GCD_MEMORY_SPACE_DESCRIPTOR));
+  mSmmMemLibGcdMemSpace = AllocateZeroPool(mSmmMemLibGcdMemNumberOfDesc * sizeof (EFI_GCD_MEMORY_SPACE_DESCRIPTOR));
   ASSERT (mSmmMemLibGcdMemSpace != NULL);
   if (mSmmMemLibGcdMemSpace == NULL) {
     mSmmMemLibGcdMemNumberOfDesc = 0;
@@ -435,7 +435,7 @@ SmmMemLibInternalGetUefiMemoryAttributesTable (
   Status = EfiGetSystemConfigurationTable (&gEfiMemoryAttributesTableGuid, (VOID **)&MemoryAttributesTable);
   if (!EFI_ERROR(Status) && (MemoryAttributesTable != NULL)) {
     MemoryAttributesTableSize = sizeof(EFI_MEMORY_ATTRIBUTES_TABLE) + MemoryAttributesTable->DescriptorSize * MemoryAttributesTable->NumberOfEntries;
-    mSmmMemLibMemoryAttributesTable = AllocateCopyPool (MemoryAttributesTableSize, MemoryAttributesTable);
+    mSmmMemLibMemoryAttributesTable = AllocateCopyPool(MemoryAttributesTableSize, MemoryAttributesTable);
     ASSERT (mSmmMemLibMemoryAttributesTable != NULL);
   }
 }

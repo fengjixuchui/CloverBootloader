@@ -44,7 +44,7 @@ BmForEachVariable (
   UINTN                       NewNameSize;
 
   NameSize = sizeof (CHAR16);
-  Name = AllocateZeroPool (NameSize);
+  Name = AllocateZeroPool(NameSize);
   ASSERT (Name != NULL);
   while (TRUE) {
     NewNameSize = NameSize;
@@ -497,10 +497,10 @@ EfiBootManagerInitializeLoadOption (
   Option->OptionNumber       = OptionNumber;
   Option->OptionType         = OptionType;
   Option->Attributes         = Attributes;
-  Option->Description        = AllocateCopyPool (StrSize (Description), Description);
+  Option->Description        = AllocateCopyPool(StrSize (Description), Description);
   Option->FilePath           = DuplicateDevicePath (FilePath);
   if (OptionalData != NULL) {
-    Option->OptionalData     = AllocateCopyPool (OptionalDataSize, OptionalData);
+    Option->OptionalData     = AllocateCopyPool(OptionalDataSize, OptionalData);
     Option->OptionalDataSize = OptionalDataSize;
   }
 

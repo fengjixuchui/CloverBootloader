@@ -93,7 +93,7 @@ GetEfiTimeInMs (
 }
 
 /** Reads and returns value of NVRAM variable. */
-VOID *GetNvramVariable (
+VOID *GetNvramVariable(
 	IN      CONST CHAR16   *VariableName,
 	IN      EFI_GUID *VendorGuid,
 	   OUT  UINT32   *Attributes    OPTIONAL,
@@ -115,7 +115,7 @@ VOID *GetNvramVariable (
     //
     // Allocate the buffer to return
     //
-    Data = (__typeof__(Data))AllocateZeroPool (IntDataSize + 1);
+    Data = (__typeof__(Data))AllocateZeroPool(IntDataSize + 1);
     if (Data != NULL) {
       //
       // Read variable into the allocated buffer.
@@ -151,7 +151,7 @@ SetNvramVariable (
   UINT32 OldAttributes = 0;
   
   //DBG("SetNvramVariable (%ls, guid, 0x%X, %d):", VariableName, Attributes, DataSize);
-  OldData = (__typeof__(OldData))GetNvramVariable (VariableName, VendorGuid, &OldAttributes, &OldDataSize);
+  OldData = (__typeof__(OldData))GetNvramVariable(VariableName, VendorGuid, &OldAttributes, &OldDataSize);
   if (OldData != NULL) {
     // var already exists - check if it equal to new value
     //DBG(" exists(0x%X, %d)", OldAttributes, OldDataSize);
@@ -194,7 +194,7 @@ AddNvramVariable (
   VOID       *OldData;
 
   //DBG("SetNvramVariable (%ls, guid, 0x%X, %d):\n", VariableName, Attributes, DataSize);
-  OldData = (__typeof__(OldData))GetNvramVariable (VariableName, VendorGuid, NULL, NULL);
+  OldData = (__typeof__(OldData))GetNvramVariable(VariableName, VendorGuid, NULL, NULL);
   if (OldData == NULL)
   {
     // set new value
@@ -288,7 +288,7 @@ ResetNativeNvram ()
   //DbgHeader("ResetNativeNvram: cleanup NVRAM variables");
 
   NameSize = sizeof (CHAR16);
-  Name = (__typeof__(Name))AllocateZeroPool (NameSize);
+  Name = (__typeof__(Name))AllocateZeroPool(NameSize);
   if (Name == NULL) {
     return Status;
   }
@@ -417,7 +417,7 @@ GetSmcKeys (BOOLEAN WriteToSMC)
   
 
   NameSize = sizeof (CHAR16);
-  Name = (__typeof__(Name))AllocateZeroPool (NameSize);
+  Name = (__typeof__(Name))AllocateZeroPool(NameSize);
   if (Name == NULL) {
     return;
   }
@@ -451,7 +451,7 @@ GetSmcKeys (BOOLEAN WriteToSMC)
       continue; //the variable is not interesting for us
     }
 
-    Data = (__typeof__(Data))GetNvramVariable (Name, &Guid, NULL, &DataSize);
+    Data = (__typeof__(Data))GetNvramVariable(Name, &Guid, NULL, &DataSize);
     if (Data) {
  /*     UINTN                       Index;
       DBG("   %ls:", Name);
@@ -715,7 +715,7 @@ GetEfiBootDeviceFromNvram ()
     return EFI_SUCCESS;
   }
 
-  gEfiBootDeviceData = (__typeof__(gEfiBootDeviceData))GetNvramVariable (L"efi-boot-next-data", &gEfiAppleBootGuid, NULL, &Size);
+  gEfiBootDeviceData = (__typeof__(gEfiBootDeviceData))GetNvramVariable(L"efi-boot-next-data", &gEfiAppleBootGuid, NULL, &Size);
   if (gEfiBootDeviceData != NULL) {
 //    DBG("Got efi-boot-next-data size=%d\n", Size);
     if (IsDevicePathValid(gEfiBootDeviceData, Size)) {
@@ -732,9 +732,9 @@ GetEfiBootDeviceFromNvram ()
     EFI_STATUS Status;
     Status = GetVariable2 (L"aptiofixflag", &gEfiAppleBootGuid, &Value, &Size2);
     if (EFI_ERROR(Status)) {
-      gEfiBootDeviceData = (__typeof__(gEfiBootDeviceData))GetNvramVariable (L"efi-boot-device-data", &gEfiAppleBootGuid, NULL, &Size);
+      gEfiBootDeviceData = (__typeof__(gEfiBootDeviceData))GetNvramVariable(L"efi-boot-device-data", &gEfiAppleBootGuid, NULL, &Size);
     } else {
-      gEfiBootDeviceData = (__typeof__(gEfiBootDeviceData))GetNvramVariable (L"specialbootdevice", &gEfiAppleBootGuid, NULL, &Size);
+      gEfiBootDeviceData = (__typeof__(gEfiBootDeviceData))GetNvramVariable(L"specialbootdevice", &gEfiAppleBootGuid, NULL, &Size);
     }
     
     if (gEfiBootDeviceData != NULL) {
@@ -761,7 +761,7 @@ GetEfiBootDeviceFromNvram ()
   // then Startup Disk sets BootCampHD to Win disk dev path.
   //
   if (DevicePathType(gEfiBootDeviceData) == HARDWARE_DEVICE_PATH && DevicePathSubType (gEfiBootDeviceData) == HW_MEMMAP_DP) {
-    gBootCampHD = (__typeof__(gBootCampHD))GetNvramVariable (L"BootCampHD", &gEfiAppleBootGuid, NULL, &Size);
+    gBootCampHD = (__typeof__(gBootCampHD))GetNvramVariable(L"BootCampHD", &gEfiAppleBootGuid, NULL, &Size);
     gEfiBootVolume = gBootCampHD;
 
     if (gBootCampHD == NULL) {
@@ -785,7 +785,7 @@ GetEfiBootDeviceFromNvram ()
   gEfiBootLoaderPath = NULL;
   FileDevPath = (FILEPATH_DEVICE_PATH *)FindDevicePathNodeWithType (gEfiBootVolume, MEDIA_DEVICE_PATH, MEDIA_FILEPATH_DP);
   if (FileDevPath != NULL) {
-    gEfiBootLoaderPath = (__typeof__(gEfiBootLoaderPath))AllocateCopyPool (StrSize(FileDevPath->PathName), FileDevPath->PathName);
+    gEfiBootLoaderPath = (__typeof__(gEfiBootLoaderPath))AllocateCopyPool(StrSize(FileDevPath->PathName), FileDevPath->PathName);
     // copy DevPath and write end of path node after in place of file path node
     gEfiBootVolume = DuplicateDevicePath (gEfiBootVolume);
     FileDevPath = (FILEPATH_DEVICE_PATH *)FindDevicePathNodeWithType (gEfiBootVolume, MEDIA_DEVICE_PATH, MEDIA_FILEPATH_DP);
@@ -1016,7 +1016,7 @@ PutNvramPlistToRtVars ()
     }
 
     // key to unicode; check if key buffer is large enough
-    if (AsciiStrLen (Tag->string) > (sizeof(KeyBuf) / 2 - 1)) {
+    if (AsciiStrLen(Tag->string) > (sizeof(KeyBuf) / 2 - 1)) {
       DBG(" ERROR: Skipping too large key %s\n", Tag->string);
       continue;
     }
@@ -1100,7 +1100,7 @@ FindStartupDiskVolume (
   REFIT_VOLUME *Volume;
   REFIT_VOLUME *DiskVolume;
   BOOLEAN      IsPartitionVolume;
-  CONST CHAR16       *LoaderPath;
+  XStringW     LoaderPath;
   CHAR16       *EfiBootVolumeStr;
   
   
@@ -1142,9 +1142,9 @@ FindStartupDiskVolume (
           //DBG("  checking '%ls'\n", DevicePathToStr (Volume->DevicePath));
           //DBG("   '%ls'\n", LoaderPath);
           // case insensitive cmp
-          if (LoaderPath != NULL && StriCmp(gEfiBootLoaderPath, LoaderPath) == 0) {
+          if ( LoaderPath.equalIC(gEfiBootLoaderPath) ) {
             // that's the one
-			  DBG("    - found entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderPath);
+			  DBG("    - found entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderPath.wc_str());
             return Index;
           }
         }
@@ -1165,9 +1165,9 @@ FindStartupDiskVolume (
           //DBG("  checking '%ls'\n", DevicePathToStr (Volume->DevicePath));
           //DBG("   '%ls'\n", LoaderPath);
           // case insensitive cmp
-          if (LoaderPath != NULL && StriCmp(gEfiBootLoaderPath, LoaderPath) == 0) {
+          if ( LoaderPath.equalIC(gEfiBootLoaderPath) ) {
             // that's the one
-			  DBG("   - found entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderPath);
+			  DBG("   - found entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderPath.wc_str());
             return Index;
           }
         }
@@ -1268,7 +1268,7 @@ FindStartupDiskVolume (
         //DBG("   LoaderType = %d\n", LoaderEntry.LoaderType);
         if (LoaderEntry.LoaderType == OSTYPE_WINEFI) {
           // that's the one - win loader entry
-			DBG("    - found loader entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderEntry.LoaderPath);
+			DBG("    - found loader entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderEntry.LoaderPath.wc_str());
           return Index;
         }
       }
@@ -1297,7 +1297,7 @@ FindStartupDiskVolume (
       Volume = LoaderEntry.Volume;
       if (Volume != NULL && Volume->WholeDiskBlockIO == DiskVolume->BlockIO) {
         // that's the one
-		  DBG("    - found loader entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderEntry.LoaderPath);
+		  DBG("    - found loader entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName, LoaderEntry.LoaderPath.wc_str());
 
         return Index;
       }
@@ -1312,7 +1312,7 @@ FindStartupDiskVolume (
 /** Sets efi-boot-device-data RT var to currently selected Volume and LoadePath. */
 EFI_STATUS SetStartupDiskVolume (
   IN  REFIT_VOLUME *Volume,
-  IN  CONST CHAR16       *LoaderPath
+  IN  CONST XStringW&  LoaderPath
   )
 {
   EFI_STATUS               Status;
@@ -1327,13 +1327,13 @@ EFI_STATUS SetStartupDiskVolume (
   
   DBG("SetStartupDiskVolume:\n");
   DBG("  * Volume: '%ls'\n",     Volume->VolName);
-  DBG("  * LoaderPath: '%ls'\n", LoaderPath);
+  DBG("  * LoaderPath: '%ls'\n", LoaderPath.wc_str());
   
   //
   // construct dev path for Volume/LoaderPath
   //
   DevPath = Volume->DevicePath;
-  if (LoaderPath != NULL) {
+  if (LoaderPath.notEmpty()) {
     FileDevPath = FileDevicePath (NULL, LoaderPath);
     DevPath     = AppendDevicePathNode (DevPath, FileDevPath);
   }
@@ -1375,10 +1375,10 @@ EFI_STATUS SetStartupDiskVolume (
 //	    "</dict>"
 //	    "</dict></array>";
 //
-//    Size          = AsciiStrLen (EfiBootDeviceTmpl) + 36;
-//    EfiBootDevice = (__typeof__(EfiBootDevice))AllocateZeroPool(AsciiStrLen (EfiBootDeviceTmpl) + 36);
+//    Size          = AsciiStrLen(EfiBootDeviceTmpl) + 36;
+//    EfiBootDevice = (__typeof__(EfiBootDevice))AllocateZeroPool(AsciiStrLen(EfiBootDeviceTmpl) + 36);
 //    AsciiSPrint (EfiBootDevice, Size, EfiBootDeviceTmpl, strguid(Guid));
-//    Size          = AsciiStrLen (EfiBootDevice);
+//    Size          = AsciiStrLen(EfiBootDevice);
 //    DBG("  * efi-boot-device: %s\n", EfiBootDevice);
 //
 //    Status        = SetNvramVariable (L"efi-boot-device", &gEfiAppleBootGuid, Attributes, Size, EfiBootDevice);

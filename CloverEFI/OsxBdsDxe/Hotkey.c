@@ -571,7 +571,7 @@ HotkeyInsertList (
   EFI_INPUT_KEY      *InputKey;
   EFI_KEY_DATA       *KeyData;
 
-  HotkeyLeft = AllocateZeroPool (sizeof (BDS_HOTKEY_OPTION));
+  HotkeyLeft = AllocateZeroPool(sizeof (BDS_HOTKEY_OPTION));
   if (HotkeyLeft == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -630,7 +630,7 @@ HotkeyInsertList (
     //
     // Need an extra hotkey for shift key on right
     //
-    HotkeyRight = AllocateCopyPool (sizeof (BDS_HOTKEY_OPTION), HotkeyLeft);
+    HotkeyRight = AllocateCopyPool(sizeof (BDS_HOTKEY_OPTION), HotkeyLeft);
     if (HotkeyRight == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }
@@ -723,7 +723,7 @@ HotkeyGetOptionNumbers (
   OptionNumbers = NULL;
 
   NameSize = sizeof (CHAR16);
-  Name     = AllocateZeroPool (NameSize);
+  Name     = AllocateZeroPool(NameSize);
 //  ASSERT (Name != NULL);
   if (Name == NULL) {
     return NULL;

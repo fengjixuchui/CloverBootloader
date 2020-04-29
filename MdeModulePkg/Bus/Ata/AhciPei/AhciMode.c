@@ -1594,13 +1594,13 @@ CreateNewDevice (
   PEI_AHCI_ATA_DEVICE_DATA    *DeviceData;
   EFI_STATUS                  Status;
 
-  DeviceData = AllocateZeroPool (sizeof (PEI_AHCI_ATA_DEVICE_DATA));
+  DeviceData = AllocateZeroPool(sizeof (PEI_AHCI_ATA_DEVICE_DATA));
   if (DeviceData == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
 
   if (IdentifyData != NULL) {
-    DeviceData->IdentifyData = AllocateCopyPool (sizeof (ATA_IDENTIFY_DATA), IdentifyData);
+    DeviceData->IdentifyData = AllocateCopyPool(sizeof (ATA_IDENTIFY_DATA), IdentifyData);
     if (DeviceData->IdentifyData == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }

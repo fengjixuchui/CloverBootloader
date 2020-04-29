@@ -179,7 +179,7 @@ AddImageStruct(
   mImageStruct[mImageStructCount].EntryPoint = EntryPoint;
   if (PdbString != NULL) {
     PdbStringSize = AsciiStrSize(PdbString);
-    mImageStruct[mImageStructCount].PdbString = AllocateCopyPool (PdbStringSize, PdbString);
+    mImageStruct[mImageStructCount].PdbString = AllocateCopyPool(PdbStringSize, PdbString);
     if (mImageStruct[mImageStructCount].PdbString != NULL) {
       mImageStruct[mImageStructCount].PdbStringSize = (UINT16) PdbStringSize;
     }
@@ -266,7 +266,7 @@ GetSmmLoadedImage(
   if (Status != EFI_BUFFER_TOO_SMALL) {
     return;
   }
-  HandleBuffer = AllocateZeroPool (HandleBufferSize);
+  HandleBuffer = AllocateZeroPool(HandleBufferSize);
   if (HandleBuffer == NULL) {
     return;
   }
@@ -1198,7 +1198,7 @@ SmiHandlerProfileRegisterHandler (
     return EFI_INVALID_PARAMETER;
   }
 
-  SmiHandler = AllocateZeroPool (sizeof (SMI_HANDLER));
+  SmiHandler = AllocateZeroPool(sizeof (SMI_HANDLER));
   if (SmiHandler == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -1215,7 +1215,7 @@ SmiHandlerProfileRegisterHandler (
     } else if (CompareGuid (HandlerGuid, &gEfiSmmSwDispatch2ProtocolGuid)) {
       SmiHandler->Context = ConvertSmiHandlerSwContext (Context, ContextSize, &SmiHandler->ContextSize);
     } else {
-      SmiHandler->Context = AllocateCopyPool (ContextSize, Context);
+      SmiHandler->Context = AllocateCopyPool(ContextSize, Context);
     }
   }
   if (SmiHandler->Context == NULL) {

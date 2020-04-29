@@ -305,7 +305,7 @@ BdsLibRegisterNewOption (
 
   OptionSize          = sizeof (UINT32) + sizeof (UINT16) + StrSize (String);
   OptionSize          += GetDevicePathSize (DevicePath);
-  OptionPtr           = AllocateZeroPool (OptionSize);
+  OptionPtr           = AllocateZeroPool(OptionSize);
 //  ASSERT (OptionPtr != NULL);
   if (!OptionPtr) {
     return EFI_OUT_OF_RESOURCES;
@@ -396,7 +396,7 @@ BdsLibRegisterNewOption (
   // Append the new option number to the original option order
   //
   OrderItemNum = (TempOptionSize / sizeof (UINT16)) + 1 ;
-  OptionOrderPtr = AllocateZeroPool ( OrderItemNum * sizeof (UINT16));
+  OptionOrderPtr = AllocateZeroPool( OrderItemNum * sizeof (UINT16));
 //  ASSERT (OptionOrderPtr!= NULL);
   if (!OptionOrderPtr) {
     return EFI_NOT_FOUND;
@@ -693,14 +693,14 @@ BdsLibVariableToOption (
   // The Console variables may have multiple device paths, so make
   // an Entry for each one.
   //
-  Option = AllocateZeroPool (sizeof (BDS_COMMON_OPTION));
+  Option = AllocateZeroPool(sizeof (BDS_COMMON_OPTION));
   if (Option == NULL) {
     FreePool(Variable);
     return NULL;
   }
 
   Option->Signature   = BDS_LOAD_OPTION_SIGNATURE;
-  Option->DevicePath  = AllocateCopyPool (GetDevicePathSize (DevicePath), DevicePath);
+  Option->DevicePath  = AllocateCopyPool(GetDevicePathSize (DevicePath), DevicePath);
 //  ASSERT(Option->DevicePath != NULL);
   if (!Option->DevicePath) {
     FreePool(Option);
@@ -709,7 +709,7 @@ BdsLibVariableToOption (
 //  CopyMem (Option->DevicePath, DevicePath, GetDevicePathSize (DevicePath));
 
   Option->Attribute   = Attribute;
-  Option->Description = AllocateCopyPool (StrSize (Description), Description);
+  Option->Description = AllocateCopyPool(StrSize (Description), Description);
 //  ASSERT(Option->Description != NULL);
   if (!Option->Description) {
     FreePool(Option);
@@ -717,7 +717,7 @@ BdsLibVariableToOption (
   }
 //  CopyMem (Option->Description, Description, StrSize (Description));
 
-  Option->LoadOptions = AllocateCopyPool (LoadOptionsSize, LoadOptions);
+  Option->LoadOptions = AllocateCopyPool(LoadOptionsSize, LoadOptions);
 //  ASSERT(Option->LoadOptions != NULL);
   if (!Option->LoadOptions) {
     FreePool(Option);
@@ -860,7 +860,7 @@ BdsLibGetVariableAndSize (
     //
     // Allocate the buffer to return
     //
-    Buffer = AllocateZeroPool (BufferSize);
+    Buffer = AllocateZeroPool(BufferSize);
     if (Buffer == NULL) {
       *VariableSize = 0;
       return NULL;
@@ -1157,12 +1157,12 @@ SetupResetReminder (
   if (IsResetReminderFeatureEnable ()) {
     if (IsResetRequired ()) {
 
-      StringBuffer1 = AllocateZeroPool (MAX_STRING_LEN * sizeof (CHAR16));
+      StringBuffer1 = AllocateZeroPool(MAX_STRING_LEN * sizeof (CHAR16));
  //     ASSERT (StringBuffer1 != NULL);
       if (!StringBuffer1) {
         return;
       }
-      StringBuffer2 = AllocateZeroPool (MAX_STRING_LEN * sizeof (CHAR16));
+      StringBuffer2 = AllocateZeroPool(MAX_STRING_LEN * sizeof (CHAR16));
  //     ASSERT (StringBuffer2 != NULL);
       if (!StringBuffer2) {
         FreePool(StringBuffer1);

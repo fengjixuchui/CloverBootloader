@@ -2315,7 +2315,7 @@ NetLibGetMacString (
   // Plus one unicode character for the null-terminator.
   //
   BufferSize = (2 * HwAddressSize + 5 + 1) * sizeof (CHAR16);
-  String = AllocateZeroPool (BufferSize);
+  String = AllocateZeroPool(BufferSize);
   if (String == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -2468,7 +2468,7 @@ NetLibDetectMedia (
     ResetMCastFilters = TRUE;
     MCastFilterCount  = Snp->Mode->MCastFilterCount;
     if (MCastFilterCount != 0) {
-      MCastFilter = AllocateCopyPool (
+      MCastFilter = AllocateCopyPool(
                       MCastFilterCount * sizeof (EFI_MAC_ADDRESS),
                       Snp->Mode->MCastFilter
                       );
@@ -3370,7 +3370,7 @@ NetLibCreateDnsQName (
     return NULL;
   }
 
-  QueryName = AllocateZeroPool (QueryNameSize);
+  QueryName = AllocateZeroPool(QueryNameSize);
   if (QueryName == NULL) {
     return NULL;
   }

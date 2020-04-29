@@ -114,7 +114,7 @@ StartMainVolumeDescriptorSequence (
   //
   // Allocate buffer for reading disk blocks
   //
-  Buffer = AllocateZeroPool ((UINTN)BlockSize);
+  Buffer = AllocateZeroPool((UINTN)BlockSize);
   if (Buffer == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -482,7 +482,7 @@ DuplicateFid (
   )
 {
   *NewFileIdentifierDesc =
-    (UDF_FILE_IDENTIFIER_DESCRIPTOR *)AllocateCopyPool (
+    (UDF_FILE_IDENTIFIER_DESCRIPTOR *)AllocateCopyPool(
       (UINTN) GetFidDescriptorLength (FileIdentifierDesc), FileIdentifierDesc);
 }
 
@@ -503,7 +503,7 @@ DuplicateFe (
   OUT  VOID                   **NewFileEntry
   )
 {
-  *NewFileEntry = AllocateCopyPool (Volume->FileEntrySize, FileEntry);
+  *NewFileEntry = AllocateCopyPool(Volume->FileEntrySize, FileEntry);
 }
 
 /**
@@ -1727,7 +1727,7 @@ FindFileEntry (
 
   LogicalBlockSize  = Volume->LogicalVolDesc.LogicalBlockSize;
 
-  ReadBuffer = AllocateZeroPool (Volume->FileEntrySize);
+  ReadBuffer = AllocateZeroPool(Volume->FileEntrySize);
   if (ReadBuffer == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }

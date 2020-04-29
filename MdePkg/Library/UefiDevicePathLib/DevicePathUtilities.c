@@ -419,7 +419,7 @@ UefiDevicePathLibDuplicateDevicePath (
   // Allocate space for duplicate device path
   //
 
-  return AllocateCopyPool (Size, DevicePath);
+  return AllocateCopyPool(Size, DevicePath);
 }
 
 /**
@@ -752,7 +752,7 @@ UefiDevicePathLibCreateDeviceNode (
     return NULL;
   }
 
-  DevicePath = AllocateZeroPool (NodeLength);
+  DevicePath = AllocateZeroPool(NodeLength);
   if (DevicePath != NULL) {
      DevicePath->Type    = NodeType;
      DevicePath->SubType = NodeSubType;

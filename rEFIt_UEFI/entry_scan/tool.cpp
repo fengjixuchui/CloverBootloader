@@ -43,10 +43,10 @@
 //
 // Clover File location to boot from on removable media devices
 //
-#define CLOVER_MEDIA_FILE_NAME_IA32    L"\\EFI\\CLOVER\\CLOVERIA32.EFI"
-#define CLOVER_MEDIA_FILE_NAME_IA64    L"\\EFI\\CLOVER\\CLOVERIA64.EFI"
-#define CLOVER_MEDIA_FILE_NAME_X64     L"\\EFI\\CLOVER\\CLOVERX64.EFI"
-#define CLOVER_MEDIA_FILE_NAME_ARM     L"\\EFI\\CLOVER\\CLOVERARM.EFI"
+#define CLOVER_MEDIA_FILE_NAME_IA32    "\\EFI\\CLOVER\\CLOVERIA32.EFI"_XSW
+#define CLOVER_MEDIA_FILE_NAME_IA64    "\\EFI\\CLOVER\\CLOVERIA64.EFI"_XSW
+#define CLOVER_MEDIA_FILE_NAME_X64     "\\EFI\\CLOVER\\CLOVERX64.EFI"_XSW
+#define CLOVER_MEDIA_FILE_NAME_ARM     "\\EFI\\CLOVER\\CLOVERARM.EFI"_XSW
 
 #if   defined (MDE_CPU_IA32)
 #define CLOVER_MEDIA_FILE_NAME   CLOVER_MEDIA_FILE_NAME_IA32
@@ -73,13 +73,13 @@
 #define DBG(...) DebugLog(DEBUG_SCAN_TOOL, __VA_ARGS__)
 #endif
 
-STATIC BOOLEAN AddToolEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
+STATIC BOOLEAN AddToolEntry(IN CONST XStringW& LoaderPath, IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
                             IN REFIT_VOLUME *Volume, const XImage& Image,
                             IN CHAR16 ShortcutLetter, IN CONST XStringArray& Options)
 {
   REFIT_MENU_ENTRY_LOADER_TOOL *Entry;
   // Check the loader exists
-  if ((LoaderPath == NULL) || (Volume == NULL) || (Volume->RootDir == NULL) ||
+  if ((LoaderPath.isEmpty()) || (Volume == NULL) || (Volume->RootDir == NULL) ||
       !FileExists(Volume->RootDir, LoaderPath)) {
     return FALSE;
   }
@@ -100,7 +100,7 @@ STATIC BOOLEAN AddToolEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *FullTi
   Entry->ShortcutLetter = ShortcutLetter;
   Entry->Image = Image;
 //  Entry->ImageHover = ImageHover;
-  Entry->LoaderPath = EfiStrDuplicate(LoaderPath);
+  Entry->LoaderPath = LoaderPath;
   Entry->DevicePath = FileDevicePath(Volume->DeviceHandle, Entry->LoaderPath);
   Entry->DevicePathString = FileDevicePathToStr(Entry->DevicePath);
   Entry->LoadOptions = Options;
@@ -109,12 +109,12 @@ STATIC BOOLEAN AddToolEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *FullTi
   Entry->AtDoubleClick = ActionEnter;
   Entry->AtRightClick = ActionHelp;
 
-  DBG("found tool %ls\n", LoaderPath);
+  DBG("found tool %ls\n", LoaderPath.s());
   MainMenu.AddMenuEntry(Entry, true);
   return TRUE;
 }
 
-STATIC VOID AddCloverEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *LoaderTitle, IN REFIT_VOLUME *Volume)
+STATIC VOID AddCloverEntry(IN CONST XStringW& LoaderPath, IN CONST CHAR16 *LoaderTitle, IN REFIT_VOLUME *Volume)
 {
   REFIT_MENU_ENTRY_CLOVER      *Entry;
   REFIT_MENU_ENTRY_CLOVER      *SubEntry;
@@ -130,7 +130,7 @@ STATIC VOID AddCloverEntry(IN CONST CHAR16 *LoaderPath, IN CONST CHAR16 *LoaderT
   Entry->ShortcutLetter = 'C';
   Entry->Image          = ThemeX.GetIcon(BUILTIN_ICON_FUNC_CLOVER);
   Entry->Volume = Volume;
-  Entry->LoaderPath      = EfiStrDuplicate(LoaderPath);
+  Entry->LoaderPath      = LoaderPath;
   Entry->VolName         = Volume->VolName;
   Entry->DevicePath      = FileDevicePath(Volume->DeviceHandle, Entry->LoaderPath);
   Entry->DevicePathString = FileDevicePathToStr(Entry->DevicePath);
@@ -199,8 +199,8 @@ VOID ScanTool(VOID)
 
   //    DBG("Scanning for tools...\n");
   if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_SHELL)) {
-    if (!AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64U.efi", NULL, L"UEFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', NullXStringArray)) {
-      AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64.efi", NULL, L"EFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', NullXStringArray);
+    if (!AddToolEntry(L"\\EFI\\CLOVER\\tools\\Shell64U.efi"_XSW, NULL, L"UEFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', NullXStringArray)) {
+      AddToolEntry("\\EFI\\CLOVER\\tools\\Shell64.efi"_XSW, NULL, L"EFI Shell 64", SelfVolume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), 'S', NullXStringArray);
     }
   }
 

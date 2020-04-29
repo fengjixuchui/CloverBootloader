@@ -600,7 +600,7 @@ AllocateReservedPool (
 
 **/
 VOID *
-InternalAllocateZeroPool (
+InternalAllocateZeroPool(
   IN EFI_MEMORY_TYPE  PoolType,
   IN UINTN            AllocationSize
   )
@@ -629,11 +629,11 @@ InternalAllocateZeroPool (
 **/
 VOID *
 EFIAPI
-AllocateZeroPool (
+AllocateZeroPool(
   IN UINTN  AllocationSize
   )
 {
-  return InternalAllocateZeroPool (EfiRuntimeServicesData, AllocationSize);
+  return InternalAllocateZeroPool(EfiRuntimeServicesData, AllocationSize);
 }
 
 /**
@@ -655,7 +655,7 @@ AllocateRuntimeZeroPool (
   IN UINTN  AllocationSize
   )
 {
-  return InternalAllocateZeroPool (EfiRuntimeServicesData, AllocationSize);
+  return InternalAllocateZeroPool(EfiRuntimeServicesData, AllocationSize);
 }
 
 /**
@@ -698,7 +698,7 @@ AllocateReservedZeroPool (
 
 **/
 VOID *
-InternalAllocateCopyPool (
+InternalAllocateCopyPool(
   IN EFI_MEMORY_TYPE  PoolType,
   IN UINTN            AllocationSize,
   IN CONST VOID       *Buffer
@@ -736,12 +736,12 @@ InternalAllocateCopyPool (
 **/
 VOID *
 EFIAPI
-AllocateCopyPool (
+AllocateCopyPool(
   IN UINTN       AllocationSize,
   IN CONST VOID  *Buffer
   )
 {
-  return InternalAllocateCopyPool (EfiRuntimeServicesData, AllocationSize, Buffer);
+  return InternalAllocateCopyPool(EfiRuntimeServicesData, AllocationSize, Buffer);
 }
 
 /**
@@ -769,7 +769,7 @@ AllocateRuntimeCopyPool (
   IN CONST VOID  *Buffer
   )
 {
-  return InternalAllocateCopyPool (EfiRuntimeServicesData, AllocationSize, Buffer);
+  return InternalAllocateCopyPool(EfiRuntimeServicesData, AllocationSize, Buffer);
 }
 
 /**
@@ -832,7 +832,7 @@ InternalReallocatePool (
 {
   VOID  *NewBuffer;
 
-  NewBuffer = InternalAllocateZeroPool (PoolType, NewSize);
+  NewBuffer = InternalAllocateZeroPool(PoolType, NewSize);
   if (NewBuffer != NULL && OldBuffer != NULL) {
     CopyMem (NewBuffer, OldBuffer, MIN (OldSize, NewSize));
     FreePool(OldBuffer);

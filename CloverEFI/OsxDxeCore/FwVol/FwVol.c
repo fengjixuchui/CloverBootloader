@@ -497,7 +497,7 @@ FvCheck (
       //
       // Create a FFS list entry for each non-deleted file
       //
-      FfsFileEntry = AllocateZeroPool (sizeof (FFS_FILE_LIST_ENTRY));
+      FfsFileEntry = AllocateZeroPool(sizeof (FFS_FILE_LIST_ENTRY));
       if (FfsFileEntry == NULL) {
         Status = EFI_OUT_OF_RESOURCES;
         goto Done;
@@ -642,7 +642,7 @@ NotifyFwVolBlock (
       //
       // No FwVol protocol on the handle so create a new one
       //
-      FvDevice = AllocateCopyPool (sizeof (FV_DEVICE), &mFvDevice);
+      FvDevice = AllocateCopyPool(sizeof (FV_DEVICE), &mFvDevice);
       if (FvDevice == NULL) {
         return;
       }

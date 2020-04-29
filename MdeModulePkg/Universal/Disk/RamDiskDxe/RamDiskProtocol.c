@@ -242,7 +242,7 @@ RamDiskPublishNfit (
 
     NfitHeader = (EFI_ACPI_DESCRIPTION_HEADER *)TableHeader;
     NfitLen    = NfitHeader->Length + sizeof (EFI_ACPI_6_1_NFIT_SYSTEM_PHYSICAL_ADDRESS_RANGE_STRUCTURE);
-    Nfit       = AllocateZeroPool (NfitLen);
+    Nfit       = AllocateZeroPool(NfitLen);
     if (Nfit == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }
@@ -305,7 +305,7 @@ RamDiskPublishNfit (
 
     NfitLen = sizeof (EFI_ACPI_6_1_NVDIMM_FIRMWARE_INTERFACE_TABLE) +
               sizeof (EFI_ACPI_6_1_NFIT_SYSTEM_PHYSICAL_ADDRESS_RANGE_STRUCTURE);
-    Nfit    = AllocateZeroPool (NfitLen);
+    Nfit    = AllocateZeroPool(NfitLen);
     if (Nfit == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }
@@ -465,7 +465,7 @@ RamDiskUnpublishNfit (
     return EFI_SUCCESS;
   }
 
-  NewNfit = AllocateZeroPool (NewNfitLen);
+  NewNfit = AllocateZeroPool(NewNfitLen);
   if (NewNfit == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -617,7 +617,7 @@ RamDiskRegister (
   //
   // Create a new RAM disk instance and initialize its private data
   //
-  PrivateData = AllocateCopyPool (
+  PrivateData = AllocateCopyPool(
                   sizeof (RAM_DISK_PRIVATE_DATA),
                   &mRamDiskPrivateDataTemplate
                   );
@@ -633,7 +633,7 @@ RamDiskRegister (
   //
   // Generate device path information for the registered RAM disk
   //
-  RamDiskDevNode = AllocateCopyPool (
+  RamDiskDevNode = AllocateCopyPool(
                      sizeof (MEDIA_RAM_DISK_DEVICE_PATH),
                      &mRamDiskDeviceNodeTemplate
                      );

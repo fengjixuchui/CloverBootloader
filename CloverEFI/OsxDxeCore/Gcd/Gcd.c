@@ -381,12 +381,12 @@ CoreAllocateGcdMapEntry (
   IN OUT EFI_GCD_MAP_ENTRY  **BottomEntry
   )
 {
-  *TopEntry = AllocateZeroPool (sizeof (EFI_GCD_MAP_ENTRY));
+  *TopEntry = AllocateZeroPool(sizeof (EFI_GCD_MAP_ENTRY));
   if (*TopEntry == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
 
-  *BottomEntry = AllocateZeroPool (sizeof (EFI_GCD_MAP_ENTRY));
+  *BottomEntry = AllocateZeroPool(sizeof (EFI_GCD_MAP_ENTRY));
   if (*BottomEntry == NULL) {
     CoreFreePool(*TopEntry);
     return EFI_OUT_OF_RESOURCES;
@@ -2306,7 +2306,7 @@ CoreInitializeGcdServices (
   //
   // Initialize the GCD Memory Space Map
   //
-  Entry = AllocateCopyPool (sizeof (EFI_GCD_MAP_ENTRY), &mGcdMemorySpaceMapEntryTemplate);
+  Entry = AllocateCopyPool(sizeof (EFI_GCD_MAP_ENTRY), &mGcdMemorySpaceMapEntryTemplate);
 //  ASSERT (Entry != NULL);
   if (!Entry) {
     return EFI_NOT_AVAILABLE_YET;
@@ -2321,7 +2321,7 @@ CoreInitializeGcdServices (
   //
   // Initialize the GCD I/O Space Map
   //
-  Entry = AllocateCopyPool (sizeof (EFI_GCD_MAP_ENTRY), &mGcdIoSpaceMapEntryTemplate);
+  Entry = AllocateCopyPool(sizeof (EFI_GCD_MAP_ENTRY), &mGcdIoSpaceMapEntryTemplate);
 //  ASSERT (Entry != NULL);
   if (!Entry) {
     return EFI_NOT_AVAILABLE_YET;
@@ -2466,7 +2466,7 @@ CoreInitializeGcdServices (
   //
   // Relocate HOB List to an allocated pool buffer.
   //
-  NewHobList = AllocateCopyPool (
+  NewHobList = AllocateCopyPool(
                  (UINTN)PhitHob->EfiFreeMemoryBottom - (UINTN)(*HobStart),
                  *HobStart
                  );

@@ -1354,6 +1354,11 @@ BOOLEAN FileExists(IN CONST EFI_FILE *Root, IN CONST CHAR16 *RelativePath)
   return FALSE;
 }
 
+BOOLEAN FileExists(IN CONST EFI_FILE *Root, IN CONST XStringW& RelativePath)
+{
+	return FileExists(Root, RelativePath.wc_str());
+}
+
 BOOLEAN DeleteFile(IN EFI_FILE *Root, IN CONST CHAR16 *RelativePath)
 {
   EFI_STATUS  Status;
@@ -1409,7 +1414,7 @@ EFI_STATUS DirNextEntry(IN EFI_FILE *Directory, IN OUT EFI_FILE_INFO **DirEntry,
     
     // read next directory entry
     LastBufferSize = BufferSize = 256;
-    Buffer = (__typeof__(Buffer))AllocateZeroPool (BufferSize);
+    Buffer = (__typeof__(Buffer))AllocateZeroPool(BufferSize);
     for (IterCount = 0; ; IterCount++) {
       Status = Directory->Read(Directory, &BufferSize, Buffer);
       if (Status != EFI_BUFFER_TOO_SMALL || IterCount >= 4)

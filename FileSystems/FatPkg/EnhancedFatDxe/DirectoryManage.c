@@ -360,7 +360,7 @@ Returns:
       );
   }
 
-  DirEnt->FileString = AllocateCopyPool (StrSize (LfnBuffer), LfnBuffer);
+  DirEnt->FileString = AllocateCopyPool(StrSize (LfnBuffer), LfnBuffer);
 }
 
 STATIC
@@ -465,7 +465,7 @@ Returns:
     //
     // This is a valid directory entry
     //
-    DirEnt = AllocateZeroPool (sizeof (FAT_DIRENT));
+    DirEnt = AllocateZeroPool(sizeof (FAT_DIRENT));
     if (DirEnt == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }
@@ -1197,13 +1197,13 @@ Returns:
     return EFI_NOT_FOUND;
   }
   ODir = OFile->ODir;
-  DirEnt = AllocateZeroPool (sizeof (FAT_DIRENT));
+  DirEnt = AllocateZeroPool(sizeof (FAT_DIRENT));
   if (DirEnt == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
 
   DirEnt->Signature   = FAT_DIRENT_SIGNATURE;
-  DirEnt->FileString  = AllocateCopyPool (StrSize (FileName), FileName);
+  DirEnt->FileString  = AllocateCopyPool(StrSize (FileName), FileName);
   if (DirEnt->FileString == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
     goto Done;
@@ -1307,7 +1307,7 @@ Returns:
     //
     // Open the directory entry
     //
-    OFile = AllocateZeroPool (sizeof (FAT_OFILE));
+    OFile = AllocateZeroPool(sizeof (FAT_OFILE));
     if (OFile == NULL) {
       return EFI_OUT_OF_RESOURCES;
     }

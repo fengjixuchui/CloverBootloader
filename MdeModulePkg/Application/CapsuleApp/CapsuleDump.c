@@ -744,7 +744,7 @@ DumpCapsuleFromDisk (
     goto Done;
   }
 
-  FileInfoBuffer = AllocateZeroPool (sizeof (FileInfo) * FileCount);
+  FileInfoBuffer = AllocateZeroPool(sizeof (FileInfo) * FileCount);
   if (FileInfoBuffer == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
     goto Done;
@@ -762,7 +762,7 @@ DumpCapsuleFromDisk (
     }
 
     if ((FileInfo->Attribute & (EFI_FILE_SYSTEM | EFI_FILE_ARCHIVE)) != 0) {
-      FileInfoBuffer[Index++] = AllocateCopyPool ((UINTN)FileInfo->Size, FileInfo);
+      FileInfoBuffer[Index++] = AllocateCopyPool((UINTN)FileInfo->Size, FileInfo);
     }
 
     Status = FileHandleFindNextFile (DirHandle, FileInfo, &NoFile);
@@ -1148,7 +1148,7 @@ DumpFmpData (
     }
 
     FmpImageInfoBuf = NULL;
-    FmpImageInfoBuf = AllocateZeroPool (ImageInfoSize);
+    FmpImageInfoBuf = AllocateZeroPool(ImageInfoSize);
     if (FmpImageInfoBuf == NULL) {
       Status = EFI_OUT_OF_RESOURCES;
       goto EXIT;
@@ -1323,7 +1323,7 @@ FindFmpFromImageTypeId (
     }
 
     FmpImageInfoBuf = NULL;
-    FmpImageInfoBuf = AllocateZeroPool (ImageInfoSize);
+    FmpImageInfoBuf = AllocateZeroPool(ImageInfoSize);
     if (FmpImageInfoBuf == NULL) {
       FreePool(HandleBuffer);
       Print(L"Out of resource\n");

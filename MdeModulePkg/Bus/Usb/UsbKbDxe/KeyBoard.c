@@ -611,7 +611,7 @@ SetKeyboardLayoutEvent (
   // Re-allocate resource for KeyConvertionTable
   //
   ReleaseKeyboardLayoutResources (UsbKeyboardDevice);
-  UsbKeyboardDevice->KeyConvertionTable = AllocateZeroPool ((NUMBER_OF_VALID_USB_KEYCODE) * sizeof (EFI_KEY_DESCRIPTOR));
+  UsbKeyboardDevice->KeyConvertionTable = AllocateZeroPool((NUMBER_OF_VALID_USB_KEYCODE) * sizeof (EFI_KEY_DESCRIPTOR));
   ASSERT (UsbKeyboardDevice->KeyConvertionTable != NULL);
 
   //
@@ -640,7 +640,7 @@ SetKeyboardLayoutEvent (
     // For non-spacing key, create the list with a non-spacing key followed by physical keys.
     //
     if (TempKey.Modifier == EFI_NS_KEY_MODIFIER) {
-      UsbNsKey = AllocateZeroPool (sizeof (USB_NS_KEY));
+      UsbNsKey = AllocateZeroPool(sizeof (USB_NS_KEY));
       ASSERT (UsbNsKey != NULL);
 
       //
@@ -660,7 +660,7 @@ SetKeyboardLayoutEvent (
 
       UsbNsKey->Signature = USB_NS_KEY_SIGNATURE;
       UsbNsKey->KeyCount = KeyCount;
-      UsbNsKey->NsKey = AllocateCopyPool (
+      UsbNsKey->NsKey = AllocateCopyPool(
                           (KeyCount + 1) * sizeof (EFI_KEY_DESCRIPTOR),
                           KeyDescriptor
                           );
@@ -738,7 +738,7 @@ InitKeyboardLayout (
   EFI_HII_KEYBOARD_LAYOUT   *KeyboardLayout;
   EFI_STATUS                Status;
 
-  UsbKeyboardDevice->KeyConvertionTable = AllocateZeroPool ((NUMBER_OF_VALID_USB_KEYCODE) * sizeof (EFI_KEY_DESCRIPTOR));
+  UsbKeyboardDevice->KeyConvertionTable = AllocateZeroPool((NUMBER_OF_VALID_USB_KEYCODE) * sizeof (EFI_KEY_DESCRIPTOR));
   ASSERT (UsbKeyboardDevice->KeyConvertionTable != NULL);
 
   InitializeListHead (&UsbKeyboardDevice->NsKeyList);

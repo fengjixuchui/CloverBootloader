@@ -318,7 +318,7 @@ ExtractDisplayedHiiFormFromHiiHandle (
               if (CompareGuid (SetupClassGuid, ClassGuid)) {
                 CopyMem (FormSetTitle, &((EFI_IFR_FORM_SET *) OpCodeData)->FormSetTitle, sizeof (EFI_STRING_ID));
                 CopyMem (FormSetHelp, &((EFI_IFR_FORM_SET *) OpCodeData)->Help, sizeof (EFI_STRING_ID));
-                *FormSetGuid = AllocateCopyPool (sizeof (EFI_GUID), &((EFI_IFR_FORM_SET *) OpCodeData)->Guid);
+                *FormSetGuid = AllocateCopyPool(sizeof (EFI_GUID), &((EFI_IFR_FORM_SET *) OpCodeData)->Guid);
                 ASSERT (*FormSetGuid != NULL);
                 FreePool(HiiPackageList);
                 return TRUE;
@@ -328,7 +328,7 @@ ExtractDisplayedHiiFormFromHiiHandle (
            } else {
              CopyMem (FormSetTitle, &((EFI_IFR_FORM_SET *) OpCodeData)->FormSetTitle, sizeof (EFI_STRING_ID));
              CopyMem (FormSetHelp, &((EFI_IFR_FORM_SET *) OpCodeData)->Help, sizeof (EFI_STRING_ID));
-             *FormSetGuid = AllocateCopyPool (sizeof (EFI_GUID), &((EFI_IFR_FORM_SET *) OpCodeData)->Guid);
+             *FormSetGuid = AllocateCopyPool(sizeof (EFI_GUID), &((EFI_IFR_FORM_SET *) OpCodeData)->Guid);
              ASSERT (*FormSetGuid != NULL);
              FreePool(HiiPackageList);
              return TRUE;
@@ -387,7 +387,7 @@ GetMacAddressString(
   // The size is the Number size + ":" size + Vlan size(\XXXX) + End
   //
   BufferLen = (4 + 2 * HwAddressSize + (HwAddressSize - 1) + 5 + 1) * sizeof (CHAR16);
-  String = AllocateZeroPool (BufferLen);
+  String = AllocateZeroPool(BufferLen);
   if (String == NULL) {
     return FALSE;
   }
@@ -479,7 +479,7 @@ AddIdToMacDeviceList (
   } else {
     mMacDeviceList.MaxListLen += MAX_MAC_ADDRESS_NODE_LIST_LEN;
     if (mMacDeviceList.CurListLen != 0) {
-      TempDeviceList = (MENU_INFO_ITEM *)AllocateCopyPool (sizeof (MENU_INFO_ITEM) * mMacDeviceList.MaxListLen, (VOID *)mMacDeviceList.NodeList);
+      TempDeviceList = (MENU_INFO_ITEM *)AllocateCopyPool(sizeof (MENU_INFO_ITEM) * mMacDeviceList.MaxListLen, (VOID *)mMacDeviceList.NodeList);
     } else {
       TempDeviceList = (MENU_INFO_ITEM *)AllocatePool (sizeof (MENU_INFO_ITEM) * mMacDeviceList.MaxListLen);
     }
@@ -770,14 +770,14 @@ AdjustArrayData (
   //
   // +2 means include the new HiiHandle and the last empty NULL pointer.
   //
-  NewHiiHandles = AllocateZeroPool ((ArrayCount + 2) * sizeof (EFI_HII_HANDLE));
+  NewHiiHandles = AllocateZeroPool((ArrayCount + 2) * sizeof (EFI_HII_HANDLE));
   ASSERT (NewHiiHandles != NULL);
 
   CopyMem (NewHiiHandles, *HiiHandles, Offset * sizeof (EFI_HII_HANDLE));
   NewHiiHandles[Offset] = NewHiiHandles[Offset - 1];
   CopyMem (NewHiiHandles + Offset + 1, *HiiHandles + Offset, (ArrayCount - Offset) * sizeof (EFI_HII_HANDLE));
 
-  NewGuidLists = AllocateZeroPool ((ArrayCount + 2) * sizeof (EFI_GUID *));
+  NewGuidLists = AllocateZeroPool((ArrayCount + 2) * sizeof (EFI_GUID *));
   ASSERT (NewGuidLists != NULL);
 
   CopyMem (NewGuidLists, *GuidLists, Offset * sizeof (EFI_GUID *));
@@ -932,7 +932,7 @@ CallDeviceManager (
   }
 
   HandleNum = GetHiiHandleCount (HiiHandles);
-  GuidLists = AllocateZeroPool ((HandleNum + 1) * sizeof (EFI_GUID *));
+  GuidLists = AllocateZeroPool((HandleNum + 1) * sizeof (EFI_GUID *));
   ASSERT (GuidLists != NULL);
 
   //
@@ -1392,7 +1392,7 @@ CallDriverHealth (
     //
     // Assume no line strings is longer than 512 bytes.
     //
-    String = (EFI_STRING) AllocateZeroPool (0x200);
+    String = (EFI_STRING) AllocateZeroPool(0x200);
 //    ASSERT (String != NULL);
     if (!String) {
       break;
@@ -1722,7 +1722,7 @@ GetSingleControllerHealthStatus (
       //
       // Add the driver health related information into the list
       //
-      DriverHealthInfo = AllocateZeroPool (sizeof (DRIVER_HEALTH_INFO));
+      DriverHealthInfo = AllocateZeroPool(sizeof (DRIVER_HEALTH_INFO));
       if (DriverHealthInfo == NULL) {
         return EFI_OUT_OF_RESOURCES;
       }
@@ -1759,7 +1759,7 @@ GetSingleControllerHealthStatus (
   //
   // Add the driver health related information into the list
   //
-  DriverHealthInfo = AllocateZeroPool (sizeof (DRIVER_HEALTH_INFO));
+  DriverHealthInfo = AllocateZeroPool(sizeof (DRIVER_HEALTH_INFO));
   if (DriverHealthInfo == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }

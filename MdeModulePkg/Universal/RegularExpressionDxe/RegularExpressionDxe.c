@@ -160,14 +160,14 @@ OnigurumaMatch (
   //
   if (*Result && Captures != NULL) {
     *CapturesCount = Region->num_regs;
-    *Captures = AllocateZeroPool (*CapturesCount * sizeof(**Captures));
+    *Captures = AllocateZeroPool(*CapturesCount * sizeof(**Captures));
     if (*Captures != NULL) {
       for (Index = 0; Index < *CapturesCount; ++Index) {
         //
         // Region beg/end values represent bytes, not characters
         //
         (*Captures)[Index].Length = (Region->end[Index] - Region->beg[Index]) / sizeof(CHAR16);
-        (*Captures)[Index].CapturePtr = AllocateCopyPool (
+        (*Captures)[Index].CapturePtr = AllocateCopyPool(
                                           ((*Captures)[Index].Length) * sizeof (CHAR16),
                                           (CHAR16*)((UINTN)String + Region->beg[Index])
                                           );
