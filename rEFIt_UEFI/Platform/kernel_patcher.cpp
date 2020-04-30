@@ -80,17 +80,11 @@ VOID SetKernelRelocBase()
 }
 
 //search a procedure by Name and return its offset in the kernel
-UINTN searchProc(unsigned char * kernel, UINTN kernelSize, const char *procedure, UINTN *procLen)
+UINTN searchProc(unsigned char * kernel, const char *procedure, UINTN *procLen)
 {
   if (!procedure) {
     return 0;
   }
-  INT32 TextAdr = FindBin(kernel, 0x60, (const UINT8 *)kTextSegment, (UINT32)strlen(kTextSegment));
-  if (TextAdr == -1) {
-    TextAdr = 0x28; //ugly hack, not really needed
-  }
-  SEGMENT *TextSeg = (SEGMENT*)&kernel[TextAdr];
-  UINT64 Absolut = TextSeg->SegAddress;
   
   INT32 LinkAdr = FindBin(kernel, 0x1000, (const UINT8 *)kLinkEditSegment, (UINT32)strlen(kLinkEditSegment));
   if (LinkAdr == -1) {
@@ -102,7 +96,6 @@ UINTN searchProc(unsigned char * kernel, UINTN kernelSize, const char *procedure
   const char* Names = (const char*)(&kernel[LinkSeg->AddrNames]);
   VTABLE * vArray = (VTABLE*)(&kernel[AddrVtable]);
   //search for the name
-//  UINTN nameLen = strlen(procedure);
   size_t i;
   bool found = false;
   for (i=0; i<SizeVtable; ++i) {
@@ -115,17 +108,38 @@ UINTN searchProc(unsigned char * kernel, UINTN kernelSize, const char *procedure
   if (!found) {
     return 0;
   }
-  UINT64 procAddr = vArray[i].ProcAddr - Absolut;
-  if (vArray[i].Attr == 0x1a0f) {
-    procAddr += 0x9e000;
+  INT32 SegVAddr;
+  switch (vArray[i].Seg) {
+  case ID_SEG_TEXT:
+    SegVAddr = FindBin(kernel, 0x60, (const UINT8 *)kTextSegment, (UINT32)strlen(kTextSegment));
+    break;
+  case ID_SEG_DATA:
+    SegVAddr = FindBin(kernel, 0x600, (const UINT8 *)kDataSegment, (UINT32)strlen(kDataSegment));
+    break;
+  case ID_SEG_DATA_CONST:
+    SegVAddr = FindBin(kernel, 0x1000, (const UINT8 *)kDataConstSegment, (UINT32)strlen(kDataConstSegment));
+    break;
+  case ID_SEG_KLD:
+  case ID_SEG_KLD2:
+    SegVAddr = FindBin(kernel, 0x1000, (const UINT8 *)kKldSegment, (UINT32)strlen(kKldSegment));
+    break;
+  default:
+ //   DBG_RT(Entry, "unknown segment %x \n", vArray[i].Seg);
+    return 0; //
   }
+  
+  SEGMENT *TextSeg = (SEGMENT*)&kernel[SegVAddr];
+  UINT64 Absolut = TextSeg->SegAddress;
+  UINT64 FileOff = TextSeg->fileoff;
+  UINT64 procAddr = vArray[i].ProcAddr - Absolut + FileOff;
+  
   UINT64 prevAddr;
   if (i == 0) {
     prevAddr = Absolut;
   } else {
     prevAddr = vArray[i-1].ProcAddr;
   }
-  *procLen = vArray[i].ProcAddr - prevAddr;
+  *procLen = vArray[i].ProcAddr - prevAddr; //never worked
   return procAddr;
 }
 
@@ -1852,8 +1866,7 @@ KernelUserPatch(IN UINT8 *UKernelData, LOADER_ENTRY *Entry)
     }
     bool once = false;
     UINTN procLen = 0;
-    UINTN procAddr = searchProc(UKernelData, KERNEL_MAX_SIZE,
-                                Entry->KernelAndKextPatches->KernelPatches[i].ProcedureName, &procLen);
+    UINTN procAddr = searchProc(UKernelData, Entry->KernelAndKextPatches->KernelPatches[i].ProcedureName, &procLen);
 
     if (Entry->KernelAndKextPatches->KernelPatches[i].SearchLen == 0) {
       Entry->KernelAndKextPatches->KernelPatches[i].SearchLen = KERNEL_MAX_SIZE;

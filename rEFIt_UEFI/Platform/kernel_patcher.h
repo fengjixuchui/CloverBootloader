@@ -20,7 +20,7 @@
 #define CPUID_MODEL_6_13	 	    13
 #define CPUID_MODEL_YONAH			14
 #define CPUID_MODEL_MEROM			15
-#define CPUID_MODEL_PENRYN			35
+#define CPUID_MODEL_PENRYN			23
 
 #define MACH_GET_MAGIC(hdr)        (((struct mach_header_64*)(hdr))->magic)
 #define MACH_GET_NCMDS(hdr)        (((struct mach_header_64*)(hdr))->ncmds)
@@ -39,8 +39,16 @@
 #define kPrelinkInfoSegment                "__PRELINK_INFO"
 #define kPrelinkInfoSection                "__info"
 
-#define kTextSegment                       "__TEXT"
 #define kLinkEditSegment                   "__LINKEDIT"
+#define kTextSegment                       "__TEXT"
+#define ID_SEG_TEXT                            0x010f
+#define kDataSegment                       "__DATA"
+#define ID_SEG_DATA                            0x0f0f
+#define kDataConstSegment                   "__DATA_CONST"
+#define ID_SEG_DATA_CONST                      0x110f
+#define kKldSegment                         "__KLD"
+#define ID_SEG_KLD                             0x180f
+#define ID_SEG_KLD2                            0x1a0f
 
 #define kPrelinkBundlePathKey              "_PrelinkBundlePath"
 #define kPrelinkExecutableRelativePathKey  "_PrelinkExecutableRelativePath"
@@ -76,17 +84,24 @@ typedef struct _DeviceTreeBuffer {
 
 typedef struct VTABLE {
   UINT32 NameOffset;
-  UINT32 Attr;
+  UINT32 Seg;
   UINT64 ProcAddr;
 } VTABLE;
 
 typedef struct SEGMENT {
   CHAR8  Name[16];    //0
-  UINT64 SegAddress;  //16
-  UINT32 Cmd[12];     //24
-  UINT32 AddrVtable;  //72
-  UINT32 SizeVtable;  //76
-  UINT32 AddrNames;   //80
+  UINT64 SegAddress;  //16 0x10
+  UINT64 vmsize;      //0x18 0x16FB60
+  UINT64 fileoff;     //0x20 0xDDA000
+  UINT64 filesize;    //0x28 0x16FB60
+  UINT32 maxprot;     //0x30 01-Cat 07-Moj
+  UINT32 initprot;    //0x34 01
+  UINT32 NumSects;    //0x38 00
+  UINT32 Flags;       //0x3C 00
+  UINT32 Cmd[2];      //0x40 02, 18
+  UINT32 AddrVtable;  //0x48
+  UINT32 SizeVtable;  //0x4C
+  UINT32 AddrNames;   //0x50
 } SEGMENT;
 
 
@@ -176,6 +191,6 @@ UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINTN Se
 
 UINTN SearchAndReplaceMask(UINT8 *Source, UINT64 SourceSize, UINT8 *Search, UINT8 *MaskSearch, UINTN SearchSize, UINT8 *Replace, UINT8 *MaskReplace, INTN MaxReplaces);
 
-UINTN searchProc(unsigned char * kernel, UINTN kernelSize, const char *procedure, UINTN *procLen);
+UINTN searchProc(unsigned char * kernel, const char *procedure, UINTN *procLen);
 
 #endif /* !__LIBSAIO_KERNEL_PATCHER_H */
