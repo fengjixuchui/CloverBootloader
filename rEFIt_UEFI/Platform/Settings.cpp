@@ -65,7 +65,7 @@ INTN LayoutBannerOffset = 64;
 INTN LayoutTextOffset = 0;
 INTN LayoutButtonOffset = 0;
 
-ACPI_PATCHED_AML                *ACPIPatchedAML;
+ACPI_PATCHED_AML                *ACPIPatchedAML = NULL;
 SIDELOAD_KEXT                   *InjectKextList = NULL;
 //SYSVARIABLES                    *SysVariables;
 CHAR16                          *IconFormat = NULL;
@@ -96,7 +96,7 @@ UINTN                           ThemesNum                   = 0;
 CONST CHAR16                          *ThemesList[100]; //no more then 100 themes?
 UINTN                           ConfigsNum;
 CHAR16                          *ConfigsList[20];
-UINTN                           DsdtsNum;
+UINTN                           DsdtsNum = 0;
 CHAR16                          *DsdtsList[20];
 UINTN                           AudioNum;
 HDA_OUTPUTS                     AudioList[20];
@@ -536,7 +536,7 @@ UINT8
     if (Prop->data != NULL /*&& Prop->dataLen > 0*/) { //rehabman: allow zero length data
       // data property
       Data = (__typeof__(Data))AllocateZeroPool(Prop->dataLen);
-      CopyMem (Data, Prop->data, Prop->dataLen);
+      CopyMem(Data, Prop->data, Prop->dataLen);
 
       if (DataLen != NULL) {
         *DataLen = Prop->dataLen;
@@ -831,8 +831,8 @@ CopyKernelAndKextPatches (IN OUT  KERNEL_AND_KEXT_PATCHES *Dst,
         Dst->KernelPatches[Dst->NrKernels].StartPattern = NULL;
         Dst->KernelPatches[Dst->NrKernels].StartMask    = NULL;
       }
-      Dst->KernelPatches[Dst->NrKernels].StartPatternLen = Src->KernelPatches[Dst->NrKernels].StartPatternLen;
-      Dst->KernelPatches[Dst->NrKernels].SearchLen = Src->KernelPatches[Dst->NrKernels].SearchLen;
+      Dst->KernelPatches[Dst->NrKernels].StartPatternLen = Src->KernelPatches[i].StartPatternLen;
+      Dst->KernelPatches[Dst->NrKernels].SearchLen = Src->KernelPatches[i].SearchLen;
       if (Src->KernelPatches[i].ProcedureName != NULL) {
         INTN len = strlen(Src->KernelPatches[i].ProcedureName);
         Dst->KernelPatches[Dst->NrKernels].ProcedureName = (__typeof__(Dst->KernelPatches[Dst->NrKernels].ProcedureName))AllocateCopyPool(len, Src->KernelPatches[i].ProcedureName);
@@ -1021,7 +1021,7 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
       CHAR16 **newForceKexts = (__typeof__(newForceKexts))AllocateZeroPool((Patches->NrForceKexts + Count) * sizeof(CHAR16 *));
 
       if (Patches->ForceKexts != NULL) {
-        CopyMem (newForceKexts, Patches->ForceKexts, (Patches->NrForceKexts * sizeof(CHAR16 *)));
+        CopyMem(newForceKexts, Patches->ForceKexts, (Patches->NrForceKexts * sizeof(CHAR16 *)));
         FreePool(Patches->ForceKexts);
       }
 
@@ -1905,12 +1905,12 @@ FillinCustomEntry (
 //    } else {
 //      Entry->Options.SPrintf("%s", Prop->string);
 //    }
-	Entry->LoadOptions = Split<XStringArray>(Prop->string, " ");
+	Entry->LoadOptions.import(Split<XStringArray>(Prop->string, " "));
   } else {
     Prop = GetProperty(DictPointer, "Arguments");
     if (Prop != NULL && (Prop->type == kTagTypeString)) {
 //      Entry->Options.SPrintf("%s", Prop->string);
-	  Entry->LoadOptions = Split<XStringArray>(Prop->string, " ");
+      Entry->LoadOptions = Split<XStringArray>(Prop->string, " ");
       Entry->Flags       = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
     }
   }
@@ -2046,6 +2046,7 @@ FillinCustomEntry (
       Entry->Type = OSTYPE_WINEFI;
     } else if (AsciiStriCmp(Prop->string, "Linux") == 0) {
       Entry->Type = OSTYPE_LIN;
+      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
     } else if (AsciiStriCmp(Prop->string, "LinuxKernel") == 0) {
       Entry->Type = OSTYPE_LINEFI;
     } else {
@@ -3261,6 +3262,13 @@ GetListOfDsdts ()
   INTN              NameLen;
   CHAR16*     AcpiPath = PoolPrint(L"%s\\ACPI\\patched", OEMPath);
 
+  if (DsdtsNum > 0) {
+    for (UINTN i = 0; i < DsdtsNum; i++) {
+      if (DsdtsList[DsdtsNum] != NULL) {
+        FreePool(DsdtsList[DsdtsNum]);
+      }
+    }
+  }   
   DsdtsNum = 0;
   OldChosenDsdt = 0xFFFF;
 
@@ -3272,13 +3280,13 @@ GetListOfDsdts ()
       continue;
     }
 
-	  snwprintf(FullName, 512, "%ls\\%ls", AcpiPath, DirEntry->FileName);
+    snwprintf(FullName, 512, "%ls\\%ls", AcpiPath, DirEntry->FileName);
     if (FileExists(SelfRootDir, FullName)) {
       if (StriCmp(DirEntry->FileName, gSettings.DsdtName) == 0) {
         OldChosenDsdt = DsdtsNum;
       }
       NameLen = StrLen(DirEntry->FileName); //with ".aml"
-      DsdtsList[DsdtsNum] = (CHAR16*)AllocateCopyPool(NameLen * sizeof(CHAR16) + 2, DirEntry->FileName);
+      DsdtsList[DsdtsNum] = (CHAR16*)AllocateCopyPool(NameLen * sizeof(CHAR16) + 2, DirEntry->FileName); // if changing, notice freepool above
       DsdtsList[DsdtsNum++][NameLen] = L'\0';
       DBG("- %ls\n", DirEntry->FileName);
     }
@@ -3296,6 +3304,14 @@ GetListOfACPI ()
   INTN i, Count = gSettings.DisabledAMLCount;
   CHAR16*     AcpiPath = PoolPrint(L"%s\\ACPI\\patched", OEMPath);
 
+  while (ACPIPatchedAML != NULL) {
+    if (ACPIPatchedAML->FileName) {
+      FreePool(ACPIPatchedAML->FileName);
+    }
+    ACPIPatchedAMLTmp = ACPIPatchedAML;
+    ACPIPatchedAML = ACPIPatchedAML->Next;
+    FreePool(ACPIPatchedAMLTmp);
+  }
   ACPIPatchedAML = NULL;
 
   DirIterOpen(SelfRootDir, AcpiPath, &DirIter);
@@ -3309,11 +3325,11 @@ GetListOfACPI ()
       continue;
     }
 
-	  snwprintf(FullName, 512, "%ls\\%ls", AcpiPath, DirEntry->FileName);
+    snwprintf(FullName, 512, "%ls\\%ls", AcpiPath, DirEntry->FileName);
     if (FileExists(SelfRootDir, FullName)) {
       BOOLEAN ACPIDisabled = FALSE;
-      ACPIPatchedAMLTmp = (__typeof__(ACPIPatchedAMLTmp))AllocateZeroPool(sizeof(ACPI_PATCHED_AML));
-      ACPIPatchedAMLTmp->FileName = PoolPrint(L"%s", DirEntry->FileName);
+      ACPIPatchedAMLTmp = (__typeof__(ACPIPatchedAMLTmp))AllocateZeroPool(sizeof(ACPI_PATCHED_AML)); // if changing, notice freepool above
+      ACPIPatchedAMLTmp->FileName = PoolPrint(L"%s", DirEntry->FileName); // if changing, notice freepool above
 
       for (i = 0; i < Count; i++) {
         if ((gSettings.DisabledAML[i] != NULL) &&
@@ -4948,7 +4964,7 @@ GetUserSettings(
                     gSettings.ArbProperties->ValueType = kTagTypeString;
                   } else if (Prop3 && (Prop3->type == kTagTypeInteger)) {
                     gSettings.ArbProperties->Value = (__typeof__(gSettings.ArbProperties->Value))AllocatePool(4);
-                    CopyMem (gSettings.ArbProperties->Value, &(Prop3->string), 4);
+                    CopyMem(gSettings.ArbProperties->Value, &(Prop3->string), 4);
                     gSettings.ArbProperties->ValueLen = 4;
                     gSettings.ArbProperties->ValueType = kTagTypeInteger;
                   } else if (Prop3 && (Prop3->type == kTagTypeTrue)) {
@@ -4970,7 +4986,7 @@ GetUserSettings(
 
                   //Special case. In future there must be more such cases
                   if ((AsciiStrStr(gSettings.ArbProperties->Key, "-platform-id") != NULL)) {
-                    CopyMem ((CHAR8*)&gSettings.IgPlatform, gSettings.ArbProperties->Value, 4);
+                    CopyMem((CHAR8*)&gSettings.IgPlatform, gSettings.ArbProperties->Value, 4);
                   }
                 }
               }   //for() device properties
@@ -5056,7 +5072,7 @@ GetUserSettings(
               gSettings.AddProperties[Index].ValueLen = AsciiStrLen(Prop2->string) + 1;
             } else if (Prop2 && (Prop2->type == kTagTypeInteger)) {
               gSettings.AddProperties[Index].Value = (__typeof__(gSettings.AddProperties[Index].Value))AllocatePool (4);
-              CopyMem (gSettings.AddProperties[Index].Value, &(Prop2->string), 4);
+              CopyMem(gSettings.AddProperties[Index].Value, &(Prop2->string), 4);
               gSettings.AddProperties[Index].ValueLen = 4;
             } else {
               //else  data
@@ -5266,7 +5282,7 @@ GetUserSettings(
                 }
               }
 
-              CopyMem (&TableId, (CHAR8*)&Id[0], 8);
+              CopyMem(&TableId, (CHAR8*)&Id[0], 8);
               DBG(" table-id=\"%s\" (%16.16llX)\n", Id, TableId);
             }
             // Get the table len to drop
@@ -6124,7 +6140,7 @@ GetUserSettings(
     // if CustomUUID and InjectSystemID are not specified
     // then use InjectSystemID=TRUE and SMBIOS UUID
     // to get Chameleon's default behaviour (to make user's life easier)
-    CopyMem ((VOID*)&gUuid, (VOID*)&gSettings.SmUUID, sizeof(EFI_GUID));
+    CopyMem((VOID*)&gUuid, (VOID*)&gSettings.SmUUID, sizeof(EFI_GUID));
     gSettings.InjectSystemID = TRUE;
 
     // SystemParameters again - values that can depend on previous params
@@ -6210,7 +6226,7 @@ GetUserSettings(
      {
      EFI_GUID AppleGuid;
 
-     CopyMem ((VOID*)&AppleGuid, (VOID*)&gUuid, sizeof(EFI_GUID));
+     CopyMem((VOID*)&AppleGuid, (VOID*)&gUuid, sizeof(EFI_GUID));
      AppleGuid.Data1 = SwapBytes32 (AppleGuid.Data1);
      AppleGuid.Data2 = SwapBytes16 (AppleGuid.Data2);
      AppleGuid.Data3 = SwapBytes16 (AppleGuid.Data3);
@@ -6781,7 +6797,7 @@ GetDevices ()
             if (NGFX != 0) {
                // we found GOP on a GPU scanned later, make space for this GPU at first position
                for (i=NGFX; i>0; i--) {
-                 CopyMem (&gGraphics[i], &gGraphics[i-1], sizeof(GFX_PROPERTIES));
+                 CopyMem(&gGraphics[i], &gGraphics[i-1], sizeof(GFX_PROPERTIES));
                }
                ZeroMem(&gGraphics[0], sizeof(GFX_PROPERTIES));
                gfx = &gGraphics[0]; // GPU with active GOP will be added at the first position
@@ -8111,13 +8127,9 @@ InjectKextsFromDir (
   return Status;
 }
 
-EFI_STATUS
-SetFSInjection (
-                IN LOADER_ENTRY *Entry
-                )
+EFI_STATUS LOADER_ENTRY::SetFSInjection ()
 {
   EFI_STATUS           Status;
-  REFIT_VOLUME         *Volume;
   FSINJECTION_PROTOCOL *FSInject;
   CHAR16               *SrcDir         = NULL;
   //BOOLEAN              InjectionNeeded = FALSE;
@@ -8126,19 +8138,6 @@ SetFSInjection (
   FSI_STRING_LIST      *ForceLoadKexts = NULL;
 
   MsgLog ("Beginning FSInjection\n");
-
-  Volume = Entry->Volume;
-
-  // some checks?
-  /*
-   // apianti - this seems to not work sometimes or ever, so just always start
-   if ((Volume->BootType == BOOTING_BY_PBR) ||
-   (Volume->BootType == BOOTING_BY_MBR) ||
-   (Volume->BootType == BOOTING_BY_CD)) {
-   MsgLog ("not started - not an EFI boot\n");
-   return EFI_UNSUPPORTED;
-   }
-   */
 
   // get FSINJECTION_PROTOCOL
   Status = gBS->LocateProtocol(&gFSInjectProtocolGuid, NULL, (void **)&FSInject);
@@ -8149,11 +8148,11 @@ SetFSInjection (
   }
 
   // check if blocking of caches is needed
-  if (  OSFLAG_ISSET(Entry->Flags, OSFLAG_NOCACHES) || Entry->LoadOptions.contains("-f")  ) {
+  if (  OSFLAG_ISSET(Flags, OSFLAG_NOCACHES) || LoadOptions.contains("-f")  ) {
     MsgLog ("Blocking kext caches\n");
     //  BlockCaches = TRUE;
     // add caches to blacklist
-    Blacklist = FSInject->CreateStringList ();
+    Blacklist = FSInject->CreateStringList();
     if (Blacklist == NULL) {
       MsgLog (" - ERROR: Not enough memory!\n");
       return EFI_NOT_STARTED;
@@ -8216,9 +8215,9 @@ SetFSInjection (
   // check if kext injection is needed
   // (will be done only if caches are blocked or if boot.efi refuses to load kernelcache)
   //SrcDir = NULL;
-  if (OSFLAG_ISSET(Entry->Flags, OSFLAG_WITHKEXTS)) {
+  if (OSFLAG_ISSET(Flags, OSFLAG_WITHKEXTS)) {
     SrcDir = GetOtherKextsDir(TRUE);
-    Status = FSInject->Install (
+    Status = FSInject->Install(
                                 Volume->DeviceHandle,
                                 L"\\System\\Library\\Extensions",
                                 SelfVolume->DeviceHandle,
@@ -8231,31 +8230,31 @@ SetFSInjection (
     InjectKextsFromDir(Status, SrcDir);
     FreePool(SrcDir);
 
-    SrcDir = GetOSVersionKextsDir (Entry->OSVersion);
-    Status = FSInject->Install (
+    SrcDir = GetOSVersionKextsDir(OSVersion);
+    Status = FSInject->Install(
                                 Volume->DeviceHandle,
                                 L"\\System\\Library\\Extensions",
                                 SelfVolume->DeviceHandle,
-                                //GetOSVersionKextsDir (Entry->OSVersion),
+                                //GetOSVersionKextsDir(OSVersion),
                                 SrcDir,
                                 Blacklist,
                                 ForceLoadKexts
                                 );
-    //InjectKextsFromDir(Status, GetOSVersionKextsDir(Entry->OSVersion));
+    //InjectKextsFromDir(Status, GetOSVersionKextsDir(OSVersion));
     InjectKextsFromDir(Status, SrcDir);
     FreePool(SrcDir);
   } else {
-    MsgLog ("skipping kext injection (not requested)\n");
+    MsgLog("skipping kext injection (not requested)\n");
   }
 
   // prepare list of kext that will be forced to load
-  ForceLoadKexts = FSInject->CreateStringList ();
+  ForceLoadKexts = FSInject->CreateStringList();
   if (ForceLoadKexts == NULL) {
-    MsgLog (" - Error: not enough memory!\n");
+    MsgLog(" - Error: not enough memory!\n");
     return EFI_NOT_STARTED;
   }
 
-  KextPatcherRegisterKexts (FSInject, ForceLoadKexts, Entry);
+  KextPatcherRegisterKexts(FSInject, ForceLoadKexts);
 
   // reinit Volume->RootDir? it seems it's not needed.
 

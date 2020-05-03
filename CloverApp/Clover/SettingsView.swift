@@ -202,7 +202,7 @@ final class SettingsViewController:
     
     self.progressBar.isHidden = true
     
-    self.runAtLoginButton.state = UDs.bool(forKey: kRunAtLogin) ? .on : .off
+    self.runAtLoginButton.state = AppSD.amILoginItem() ? .on : .off
     self.unmountButton.isEnabled = false
     self.autoMountButton.isEnabled = false
     self.autoMountButton.isHidden = true
@@ -630,20 +630,15 @@ final class SettingsViewController:
   // MARK: Controls actions
   @IBAction func openThemeManager(_ sender: NSButton!) {
     DispatchQueue.main.async {
-      if #available(OSX 10.11, *) {
-        if (AppSD.themeManagerWC == nil) {
-          AppSD.themeManagerWC = ThemeManagerWC.loadFromNib()
-        }
-        
-        AppSD.themeManagerWC?.showWindow(self)
-      } else {
-        if (AppSD.themeManagerWC == nil) {
-          AppSD.themeManagerWC = ThemeManagerWC.loadFromNib()
-        }
-        
-        AppSD.themeManagerWC?.showWindow(self)
+      if (AppSD.themeManagerWC == nil) {
+        AppSD.themeManagerWC = ThemeManagerWC.loadFromNib()
       }
+      AppSD.themeManagerWC?.showWindow(self)
+
+      AppSD.themeManagerWC?.window?.level = .floating
+      AppSD.themeManagerWC?.window?.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
+      AppSD.themeManagerWC?.window?.level = .normal
     }
   }
   
@@ -860,14 +855,21 @@ final class SettingsViewController:
         }
         
         AppSD.installerWC?.showWindow(self)
+        AppSD.installerWC?.window?.level = .floating
+        AppSD.installerWC?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        AppSD.installerWC?.window?.level = .normal
       } else {
         if (AppSD.installerOutWC == nil) {
           AppSD.installerOutWC = InstallerOutWindowController.loadFromNib()
         }
         
         AppSD.installerOutWC?.showWindow(self)
+        AppSD.installerOutWC?.window?.level = .floating
+        AppSD.installerOutWC?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        AppSD.installerOutWC?.window?.level = .normal
       }
-      //NSApp.activate(ignoringOtherApps: true)
     }
   }
   
@@ -961,13 +963,15 @@ final class SettingsViewController:
   // MARK: Run At Login
   @IBAction func runAtLogin(_ sender: NSButton!) {
     if sender.state == .on {
-      AppSD.setLaunchAtStartup()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        sender.state = AppSD.addAsLoginItem() ? .on : .off
+      }
     } else {
-      AppSD.removeLaunchAtStartup()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        //sender.state = AppSD.removeAsLoginItem() ? .on : .off
+        _ = AppSD.removeAsLoginItem()
+      }
     }
-    
-    // check the result
-    sender.state = UDs.bool(forKey: kRunAtLogin) ? .on : .off
   }
   
   // MARK: NVRAM editing

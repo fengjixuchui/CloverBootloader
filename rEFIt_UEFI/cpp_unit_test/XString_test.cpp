@@ -4,9 +4,9 @@
 
 
 
-int nbTest = 0;
-int nbTestFailed = 0;
-bool displayOnlyFailed = true;
+static int nbTest = 0;
+static int nbTestFailed = 0;
+static bool displayOnlyFailed = true;
 
 
 #define STRINGIFY_(s) #s
@@ -267,10 +267,10 @@ struct XStringClassInfo
 };
 
 template<>
-struct XStringClassInfo<XString>
+struct XStringClassInfo<XString8>
 {
 	typedef char ch_t;
-	typedef XString xs_t;
+	typedef XString8 xs_t;
 	static constexpr const char* prefix = "";
 	static constexpr const char* xStringClassName = "XString";
 };
@@ -306,7 +306,7 @@ template<>
 struct XStringClassInfo<char>
 {
 	typedef char ch_t;
-	typedef XString xs_t;
+	typedef XString8 xs_t;
 	static constexpr const char* prefix = "";
 	static constexpr const char* xStringClassName = "XString";
 };
@@ -342,7 +342,7 @@ template<>
 struct XStringClassInfo<TestString<char>>
 {
 	typedef char ch_t;
-	typedef XString xs_t;
+	typedef XString8 xs_t;
 	static constexpr const char* prefix = "";
 	static constexpr const char* xStringClassName = "XString";
 };
@@ -470,7 +470,7 @@ bool displayOnlyIfFailed_tmp;
 	__TEST_ALL_UTF2(test, XStringClass, classEncoding, wchar); \
 
 #define TEST_ALL_CLASSES(test, macro) \
-	macro(test, XString, utf8); \
+	macro(test, XString8, utf8); \
 	macro(test, XString16, utf16); \
 	macro(test, XString32, utf32); \
 	macro(test, XStringW, wchar); \
@@ -1486,7 +1486,6 @@ XStringClass xstr2 = initia__String.basename();
 
 
 /*****************************    *****************************/
-#undef realloc
 //
 //#include <type_traits>
 //#include <typeinfo>
@@ -1510,19 +1509,17 @@ class C
 
 //constexpr LString8 g_xs1 = "foobar";
 //constexpr LStringW g_xsw1 = L"foobar";
-//XString g_xs2 = "foobar"_XS;
+//XString g_xs2 = "foobar"_XS8;
 
 int XString_tests()
 {
 #ifdef JIEF_DEBUG
-//	printf("XString16_tests -> Enter\n");
+//	printf("XString_tests -> Enter\n");
 #endif
 
-//LString8 a = "dfsf"_XS;
-//XStringW b = "ssdfsdf"_XS;
-//XString c = a + b;
 
-//char c = 1;
+
+//char c = 'a';
 //int ii = sizeof(size_t);
 //unsigned long long ull = 1;
 //unsigned long long ll = 3;
@@ -1542,7 +1539,7 @@ int XString_tests()
 //size_t size = sizeof("ꇉ")-1; // this char is 3 bytes long
 //size_t size = sizeof("伽")-1; // this char is 3 bytes long
 //size_t size = sizeof("楘")-1; // this char is 3 bytes long
-//XString str = "ギꇉ伽楘"_XS;
+//XString str = "ギꇉ伽楘"_XS8;
 //char* s = str.data(42);
 
 //size_t size1 = sizeof("В")-1;

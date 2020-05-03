@@ -804,7 +804,7 @@ GetEfiBootDeviceFromNvram ()
   if (Guid != NULL) {
     gEfiBootDeviceGuid = (__typeof__(gEfiBootDeviceGuid))AllocatePool (sizeof(EFI_GUID));
     if (gEfiBootDeviceGuid != NULL) {
-      CopyMem (gEfiBootDeviceGuid, Guid, sizeof(EFI_GUID));
+      CopyMem(gEfiBootDeviceGuid, Guid, sizeof(EFI_GUID));
       DBG("  - Guid = %s\n", strguid(gEfiBootDeviceGuid));
     }
   }
@@ -1384,7 +1384,7 @@ EFI_STATUS SetStartupDiskVolume (
 //    Status        = SetNvramVariable (L"efi-boot-device", &gEfiAppleBootGuid, Attributes, Size, EfiBootDevice);
 //    FreePool(EfiBootDevice);
 
-    XString EfiBootDevice;
+    XString8 EfiBootDevice;
     EfiBootDevice.SPrintf(
 			"<array><dict>"
 	    "<key>IOMatch</key>"
