@@ -110,8 +110,66 @@ EFI_STATUS LOADER_ENTRY::getVTable(UINT8 * kernel)
   return EFI_SUCCESS;
 }
 
+UINTN LOADER_ENTRY::searchProcInDriver(UINT8 * driver, UINT32 driverLen, const char *procedure)
+{
+  if (!procedure) {
+    return 0;
+  }
+  INT32 LinkAdr = FindBin(driver, driverLen, (const UINT8 *)kLinkEditSegment, (UINT32)strlen(kLinkEditSegment));
+  if (LinkAdr == -1) {
+    return 0;
+  }
+  SEGMENT *LinkSeg = (SEGMENT*)&driver[LinkAdr];
+//  INT32 lAddrVtable = LinkSeg->AddrVtable;
+  INT32 lSizeVtable = LinkSeg->SizeVtable;
+//  INT32 lNamesTable = LinkSeg->AddrNames;
+  const char* Names = (const char*)(&driver[LinkSeg->AddrNames]);
+  VTABLE * vArray = (VTABLE*)(&driver[LinkSeg->AddrVtable]);
+
+  INT32 i;
+  bool found = false;
+  for (i = 0; i < lSizeVtable; ++i) {
+    size_t Offset = vArray[i].NameOffset;
+    if (strstr(&Names[Offset], procedure)) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    DBG_RT("%s not found\n", procedure);
+    return 0;
+  }
+  
+  size_t SegVAddr;
+  switch (vArray[i].Seg) {
+  case ID_SEG_DATA:
+    SegVAddr = FindBin(driver, 0x1600, (const UINT8 *)kDataSegment, (UINT32)strlen(kDataSegment));
+    break;
+  case ID_SEG_DATA_CONST:
+    SegVAddr = FindBin(driver, 0x1600, (const UINT8 *)kDataConstSegment, (UINT32)strlen(kDataConstSegment));
+    break;
+  case ID_SEG_KLD:
+  case ID_SEG_KLD2:
+    SegVAddr = FindBin(driver, 0x2000, (const UINT8 *)kKldSegment, (UINT32)strlen(kKldSegment));
+    break;
+  case ID_SEG_TEXT:
+  default:
+    SegVAddr = FindBin(driver, 0x600, (const UINT8 *)kTextSegment, (UINT32)strlen(kTextSegment));
+    break;
+  }
+  if (SegVAddr == 0) {
+    SegVAddr = 0x38;
+  }
+  SEGMENT *TextSeg = (SEGMENT*)&driver[SegVAddr];
+  UINT64 Absolut = TextSeg->SegAddress;
+  UINT64 FileOff = TextSeg->fileoff;
+  UINTN procAddr = vArray[i].ProcAddr - Absolut + FileOff;
+
+  return procAddr;
+}
+
 //search a procedure by Name and return its offset in the kernel
-UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure, UINTN *procLen)
+UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure)
 {
   if (!procedure) {
     return 0;
@@ -162,7 +220,7 @@ UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure, UINTN *pro
   UINT64 Absolut = TextSeg->SegAddress;  //KLD=C70000
   UINT64 FileOff = TextSeg->fileoff;     //950000
   UINT64 procAddr = vArray[i].ProcAddr - Absolut + FileOff;
-  
+/*
   UINT64 prevAddr;
   if (i == 0) {
     prevAddr = Absolut;
@@ -170,6 +228,7 @@ UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure, UINTN *pro
     prevAddr = vArray[i-1].ProcAddr;
   }
   *procLen = vArray[i].ProcAddr - prevAddr; //never worked
+ */
   return procAddr;
 }
 
@@ -409,7 +468,7 @@ VOID LOADER_ENTRY::KernelPatcher_64(VOID* kernelData)
   }
 }
 
-VOID LOADER_ENTRY::KernelPatcher_32(VOID* kernelData, CHAR8 *OSVersion)
+VOID LOADER_ENTRY::KernelPatcher_32(VOID* kernelData)
 {
   UINT8* bytes = (UINT8*)kernelData;
   UINT32 patchLocation=0, patchLocation1=0;
@@ -519,11 +578,12 @@ VOID LOADER_ENTRY::KernelPatcher_32(VOID* kernelData, CHAR8 *OSVersion)
 }
 
 //Slice - FakeCPUID substitution, (c)2014
+// _cpuid_set_info
 //TODO remake to patterns
 //procedure location
-STATIC UINT8 StrCpuid1_tigLeo[]  = {0xb9, 0x01, 0x00, 0x00, 0x00, 0x89, 0xc8, 0x0f, 0xa2};
-STATIC UINT8 StrCpuid1_snowLeo[] = {0xb8, 0x01, 0x00, 0x00, 0x00, 0x31, 0xdb, 0x89, 0xd9, 0x89, 0xda, 0x0f, 0xa2};
-STATIC UINT8 StrMsr8b[]          = {0xb9, 0x8b, 0x00, 0x00, 0x00, 0x0f, 0x32};
+const UINT8 StrCpuid1_tigLeo[]  = {0xb9, 0x01, 0x00, 0x00, 0x00, 0x89, 0xc8, 0x0f, 0xa2};
+const UINT8 StrCpuid1_snowLeo[] = {0xb8, 0x01, 0x00, 0x00, 0x00, 0x31, 0xdb, 0x89, 0xd9, 0x89, 0xda, 0x0f, 0xa2};
+const UINT8 StrMsr8b[]          = {0xb9, 0x8b, 0x00, 0x00, 0x00, 0x0f, 0x32};
 
 // Tiger/Leopard/Snow Leopard
 /*
@@ -533,9 +593,9 @@ STATIC UINT8 StrMsr8b[]          = {0xb9, 0x8b, 0x00, 0x00, 0x00, 0x0f, 0x32};
  and replaces to
   mov eax, FakeModel  | mov eax, FakeExt
  */
-STATIC UINT8 TigLeoSLSearchModel[]  = {0x25, 0xf0, 0x00, 0x00, 0x00, 0xc1, 0xe8, 0x04};
-STATIC UINT8 TigLeoSLSearchExt[]    = {0x25, 0x00, 0x00, 0x0f, 0x00, 0xc1, 0xe8, 0x10};
-STATIC UINT8 TigLeoSLReplaceModel[] = {0xb8, 0x07, 0x00, 0x00, 0x00, 0x90, 0x90, 0x90};
+const UINT8 TigLeoSLSearchModel[]  = {0x25, 0xf0, 0x00, 0x00, 0x00, 0xc1, 0xe8, 0x04};
+const UINT8 TigLeoSLSearchExt[]    = {0x25, 0x00, 0x00, 0x0f, 0x00, 0xc1, 0xe8, 0x10};
+const UINT8 TigLeoSLReplaceModel[] = {0xb8, 0x07, 0x00, 0x00, 0x00, 0x90, 0x90, 0x90};
 
 // Lion
 /*
@@ -545,9 +605,9 @@ STATIC UINT8 TigLeoSLReplaceModel[] = {0xb8, 0x07, 0x00, 0x00, 0x00, 0x90, 0x90,
  and replaces to
   mov ecx, FakeModel  || mov ecx, FakeExt
  */
-STATIC UINT8 LionSearchModel[]  = {0x89, 0xc1, 0xc1, 0xe9, 0x04};
-STATIC UINT8 LionSearchExt[]    = {0x89, 0xc1, 0xc1, 0xe9, 0x10};
-STATIC UINT8 LionReplaceModel[] = {0xb9, 0x07, 0x00, 0x00, 0x00};
+const UINT8 LionSearchModel[]  = {0x89, 0xc1, 0xc1, 0xe9, 0x04};
+const UINT8 LionSearchExt[]    = {0x89, 0xc1, 0xc1, 0xe9, 0x10};
+const UINT8 LionReplaceModel[] = {0xb9, 0x07, 0x00, 0x00, 0x00};
 
 // Mountain Lion/Mavericks
 /*
@@ -557,10 +617,10 @@ STATIC UINT8 LionReplaceModel[] = {0xb9, 0x07, 0x00, 0x00, 0x00};
  and replaces to
   mov ebx, FakeModel || mov eax, FakeExt
  */
-STATIC UINT8 MLMavSearchModel[]   = {0x88, 0xc3, 0xc0, 0xeb, 0x04};
-STATIC UINT8 MLMavSearchExt[]     = {0xc1, 0xe8, 0x10, 0x24, 0x0f};
-STATIC UINT8 MLMavReplaceModel[]  = {0xbb, 0x0a, 0x00, 0x00, 0x00};
-STATIC UINT8 MLMavReplaceExt[]    = {0xb8, 0x02, 0x00, 0x00, 0x00};
+const UINT8 MLMavSearchModel[]   = {0x88, 0xc3, 0xc0, 0xeb, 0x04};
+const UINT8 MLMavSearchExt[]     = {0xc1, 0xe8, 0x10, 0x24, 0x0f};
+const UINT8 MLMavReplaceModel[]  = {0xbb, 0x0a, 0x00, 0x00, 0x00};
+const UINT8 MLMavReplaceExt[]    = {0xb8, 0x02, 0x00, 0x00, 0x00};
 
 // Yosemite/El Capitan/Sierra
 /*
@@ -570,11 +630,11 @@ STATIC UINT8 MLMavReplaceExt[]    = {0xb8, 0x02, 0x00, 0x00, 0x00};
  and replaces to
   mov ecx, FakeModel || mov ecx, FakeExt
  */
-STATIC UINT8 YosECSieSearchModel[]   = {0x88, 0xc1, 0xc0, 0xe9, 0x04};
-STATIC UINT8 YosECSieSearchExt[]     = {0x89, 0xc1, 0xc1, 0xe9, 0x10};
+const UINT8 YosECSieSearchModel[]   = {0x88, 0xc1, 0xc0, 0xe9, 0x04};
+const UINT8 YosECSieSearchExt[]     = {0x89, 0xc1, 0xc1, 0xe9, 0x10};
 // Need to use LionReplaceModel
 
-// High Sierra/Mojave
+// High Sierra/Mojave @2c4baa {89 c1 c0 e9 04}
 /*
  This patch searches
   mov ecx, ecx   ||   mov ecx, eax
@@ -582,7 +642,7 @@ STATIC UINT8 YosECSieSearchExt[]     = {0x89, 0xc1, 0xc1, 0xe9, 0x10};
  and replaces to
   mov ecx, FakeModel || mov ecx, FakeExt
  */
-STATIC UINT8 HSieMojSearchModel[]   = {0x89, 0xc1, 0xc0, 0xe9, 0x04};
+const UINT8 HSieMojSearchModel[]   = {0x89, 0xc1, 0xc0, 0xe9, 0x04};
 // Need to use YosECSieSearchExt, LionReplaceModel
 
 // Catalina
@@ -594,13 +654,13 @@ STATIC UINT8 HSieMojSearchModel[]   = {0x89, 0xc1, 0xc0, 0xe9, 0x04};
   mov eax, FakeModel || mov eax, FakeExt
   nop                || nop
 */
-STATIC UINT8 CataSearchModel[]      = {0x44, 0x89, 0xE0, 0xC0, 0xE8, 0x04};
-STATIC UINT8 CataSearchExt[]        = {0x44, 0x89, 0xE0, 0xC1, 0xE8, 0x10};
-STATIC UINT8 CataReplaceMovEax[]    = {0xB8, 0x00, 0x00, 0x00, 0x00, 0x90}; // mov eax, val || nop
+const UINT8 CataSearchModel[]      = {0x44, 0x89, 0xE0, 0xC0, 0xE8, 0x04};
+const UINT8 CataSearchExt[]        = {0x44, 0x89, 0xE0, 0xC1, 0xE8, 0x10};
+const UINT8 CataReplaceMovEax[]    = {0xB8, 0x00, 0x00, 0x00, 0x00, 0x90}; // mov eax, val || nop
 
-BOOLEAN LOADER_ENTRY::PatchCPUID(UINT8* bytes, UINT8* Location, INT32 LenLoc,
-                   UINT8* Search4, UINT8* Search10, UINT8* ReplaceModel,
-                   UINT8* ReplaceExt, INT32 Len)
+BOOLEAN LOADER_ENTRY::PatchCPUID(UINT8* bytes, const UINT8* Location, INT32 LenLoc,
+                   const UINT8* Search4, const UINT8* Search10, const UINT8* ReplaceModel,
+                   const UINT8* ReplaceExt, INT32 Len)
 {
   INT32 patchLocation=0, patchLocation1=0;
   INT32 Adr = 0, Num;
@@ -608,18 +668,18 @@ BOOLEAN LOADER_ENTRY::PatchCPUID(UINT8* bytes, UINT8* Location, INT32 LenLoc,
   UINT8 FakeModel = (KernelAndKextPatches->FakeCPUID >> 4) & 0x0f;
   UINT8 FakeExt = (KernelAndKextPatches->FakeCPUID >> 0x10) & 0x0f;
   for (Num = 0; Num < 2; Num++) {
-    Adr = FindBin(&bytes[Adr], 0x800000 - Adr, (const UINT8*)Location, (UINT32)LenLoc);
+    Adr = FindBin(&bytes[Adr], 0x800000 - Adr, Location, (UINT32)LenLoc);
     if (Adr < 0) {
       break;
     }
     DBG_RT( "found location at %x\n", Adr);
-    patchLocation = FindBin(&bytes[Adr], 0x100, (const UINT8*)Search4, (UINT32)Len);
+    patchLocation = FindBin(&bytes[Adr], 0x100, Search4, (UINT32)Len);
     if (patchLocation > 0 && patchLocation < 70) {
       //found
       DBG_RT( "found Model location at %x\n", Adr + patchLocation);
       CopyMem(&bytes[Adr + patchLocation], ReplaceModel, Len);
       bytes[Adr + patchLocation + 1] = FakeModel;
-      patchLocation1 = FindBin(&bytes[Adr], 0x100, (const UINT8*)Search10, (UINT32)Len);
+      patchLocation1 = FindBin(&bytes[Adr], 0x100, Search10, (UINT32)Len);
       if (patchLocation1 > 0 && patchLocation1 < 100) {
         DBG_RT( "found ExtModel location at %x\n", Adr + patchLocation1);
         CopyMem(&bytes[Adr + patchLocation1], ReplaceExt, Len);
@@ -693,20 +753,71 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
   }
 }
 
-// Credits to RehabMan for the kernel patch information
-// new way by RehabMan 2017-08-13
-// cleanup by Sherlocks 2020-03-23
-#define CompareWithMask(x,m,c) (((x) & (m)) == (c))
-//TODO - remake using CompareMemMask
+#define NEW_PM 1
+
 BOOLEAN LOADER_ENTRY::KernelPatchPm(VOID *kernelData)
 {
+  DBG_RT("Patching kernel power management...\n");
+#if NEW_PM
+  UINT8 *Kernel = (UINT8 *)kernelData;
+  
+  //Slice
+  //1. procedure xcpm_idle
+  // wrmsr 0xe2 twice
+  // B9E2000000 0F30 replace to eb05
+//  UINTN procLen = 0;
+  UINTN procLocation = searchProc(Kernel, "xcpm_idle");
+  const UINT8 findJmp[]  = {0xB9, 0xE2, 0x00, 0x00, 0x00, 0x0F, 0x30};
+  const UINT8 patchJmp[] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+  DBG_RT("==> xcpm_idle at %llx\n", procLocation);
+  INTN Num = SearchAndReplace(&Kernel[procLocation], 0x400, findJmp, sizeof(findJmp), patchJmp, 0);
+  DBG_RT("==> found %lld patterns\n", Num);
+  //2. procedure xcpm_init
+  // indirect call to _xcpm_core_scope_msrs
+  //  488D3DDA317600                  lea        rdi, qword [ds:_xcpm_core_scope_msrs]
+  //  BE0B000000                      mov        esi, 0xb => replace to eb0a
+  //  31D2                            xor        edx, edx
+  //  E87EFCFFFF                      call       sub_ffffff80004fa610 => check e8?
+  // there are other occurence of _xcpm_core_scope_msrs so check 488D3D or E8 at .+7
+  // or restrict len = 0x200
+  procLocation = searchProc(Kernel, "xcpm_init");
+  UINTN symbol1 = searchProc(Kernel, "xcpm_core_scope_msrs");
+  UINTN patchLocation1 = FindRelative32(Kernel, procLocation, 0x200, symbol1);
+  if (patchLocation1 != 0) {
+    DBG_RT("=> xcpm_core_scope_msrs found at %llx\n", patchLocation1);
+    if (Kernel[patchLocation1 + 7] == 0xE8) {
+      DBG_RT("=> patch applied\n");
+      for (int i=0; i < 0x10; ++i) {
+        DBG_RT("%02x", Kernel[patchLocation1 + i]);
+      }
+      DBG_RT("\n");
+      Kernel[patchLocation1] = 0xEB;
+      Kernel[patchLocation1 + 1] = 0x0A;
+    } else {
+      DBG_RT("=> pattern not good\n");
+      for (int i=0; i < 0x10; ++i) {
+        DBG_RT("%02x", Kernel[patchLocation1 + i]);
+      }
+      DBG_RT("\n");
+    }
+  }
+
+  Stall(10000000);
+
+#else
+  // Credits to RehabMan for the kernel patch information
+  // new way by RehabMan 2017-08-13
+  // cleanup by Sherlocks 2020-03-23
+#define CompareWithMask(x,m,c) (((x) & (m)) == (c))
+  //TODO - remake using CompareMemMask
+
   UINT64* Ptr = (UINT64*)kernelData;
   UINT64* End = Ptr + 0x1000000/sizeof(UINT64);
   if (Ptr == NULL) {
     return FALSE;
   }
 
-  DBG_RT("Patching kernel power management...\n");
+  
 
   for (; Ptr < End; Ptr += 2) {
     // check for xcpm_scope_msr common 0xE2 prologue
@@ -747,7 +858,7 @@ BOOLEAN LOADER_ENTRY::KernelPatchPm(VOID *kernelData)
   if (KernelAndKextPatches->KPDebug) {
     gBS->Stall(3000000);
   }
-
+#endif
   return TRUE;
 }
 
@@ -775,6 +886,24 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_64(VOID *kernelData)
   UINT32      i, y;
 
   DBG_RT( "Looking for Lapic panic call (64-bit) Start\n");
+  //Slice - symbolic method
+  //start at lapic_interrupt ffffff80004e4950 => @2e4950
+  //    found pattern: 1
+  // address: 002e4a2f
+  // bytes:658b04251c0000003b058bb97b00
+  // call _panic -> change to nop {90,90,90,90,90}
+  if (AsciiOSVersionToUint64(OSVersion) >= AsciiOSVersionToUint64("10.10")) {
+    UINTN procAddr = searchProc(bytes, "lapic_interrupt");
+    patchLocation1 = searchProc(bytes, "_panic");
+    patchLocation2 = FindRelative32(bytes, procAddr, 0x140, patchLocation1);
+    if (patchLocation2 != 0) {
+      bytes[patchLocation2 - 5] = 0xEB;
+      bytes[patchLocation2 - 4] = 0x03;
+      DBG_RT( "Lapic panic patched\n");
+      return true;
+    }
+  }
+  //else old method
 
   for (i = 0; i < 0x1000000; i++) {
     if (bytes[i+0] == 0x65 && bytes[i+1] == 0x8B && bytes[i+2] == 0x04 && bytes[i+3] == 0x25 &&
@@ -826,7 +955,7 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_64(VOID *kernelData)
     DBG_RT( "Can't find Lapic panic, kernel patch aborted.\n");
     return FALSE;
   }
-
+  
   // Already patched?  May be running a non-vanilla kernel already?
   if (bytes[patchLocation1 + 0] == 0x90 && bytes[patchLocation1 + 1] == 0x90 &&
       bytes[patchLocation1 + 2] == 0x90 && bytes[patchLocation1 + 3] == 0x90 &&
@@ -967,7 +1096,7 @@ static inline VOID applyKernPatch(UINT8 *kern, const UINT8 *find, UINTN size, co
 {
     DBG("Searching %s...\n", comment);
     if (SearchAndReplace(kern, KERNEL_MAX_SIZE, find, size, repl, 0)) {
-        DBG("Found %s\nApplied %s patch\n", comment, comment);
+        DBG("Found %s\nApplied patch\n", comment);
     } else {
         DBG("%s no found, patched already?\n", comment);
     }
@@ -1901,14 +2030,12 @@ LOADER_ENTRY::KernelUserPatch(IN UINT8 *UKernelData)
     }
     bool once = false;
     UINTN procLen = 0;
-    UINTN procAddr = searchProc(UKernelData, KernelAndKextPatches->KernelPatches[i].ProcedureName, &procLen);
+    UINTN procAddr = searchProc(UKernelData, KernelAndKextPatches->KernelPatches[i].ProcedureName);
     DBG_RT("procedure %s found at 0x%llx\n", KernelAndKextPatches->KernelPatches[i].ProcedureName, procAddr);
     if (SearchLen == 0) {
       SearchLen = KERNEL_MAX_SIZE;
-      if (procLen > KERNEL_MAX_SIZE) {
-        procLen = KERNEL_MAX_SIZE - procAddr;
-        once = true;
-      }
+      procLen = KERNEL_MAX_SIZE - procAddr;
+      once = true;
     } else {
       procLen = SearchLen;
     }
@@ -1982,7 +2109,7 @@ LOADER_ENTRY::BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize)
                          KernelAndKextPatches->BootPatches[i].StartPatternLen)) {
         DBG_RT( " StartPattern found\n");
 
-        Num = SearchAndReplaceMask(BooterData,
+        Num = SearchAndReplaceMask(curs,
                                    SearchLen,
                                    (const UINT8*)KernelAndKextPatches->BootPatches[i].Data,
                                    (const UINT8*)KernelAndKextPatches->BootPatches[i].MaskFind,
@@ -2120,7 +2247,7 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
       KernelPatcher_64(KernelData);
     } else {
       DBG_RT( "32 bit patch ...\n");
-      KernelPatcher_32(KernelData, OSVersion);
+      KernelPatcher_32(KernelData);
     }
     DBG_RT( " OK\n");
   } else {

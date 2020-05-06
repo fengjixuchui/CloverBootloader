@@ -40,6 +40,7 @@ const char   kDataSegment[] =                        "__DATA";
 const char   kDataConstSegment[] =                    "__DATA_CONST";
 const char   kKldSegment[] =                          "__KLD";
 
+#define ID_SEG_STEXT                           0x010e
 #define ID_SEG_TEXT                            0x010f
 #define ID_SEG_DATA                            0x0f0f
 #define ID_SEG_DATA_CONST                      0x110f
@@ -191,6 +192,6 @@ UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, const UINT8 *Search, UI
 UINTN SearchAndReplaceMask(UINT8 *Source, UINT64 SourceSize, const UINT8 *Search, const UINT8 *MaskSearch, UINTN SearchSize,
                            const UINT8 *Replace, const UINT8 *MaskReplace, INTN MaxReplaces);
 
-//UINTN searchProc(LOADER_ENTRY *Entry, unsigned char * kernel, const char *procedure, UINTN *procLen);
+//UINTN searchProc(LOADER_ENTRY *Entry, unsigned char * kernel, const char *procedure);
 
 #endif /* !__LIBSAIO_KERNEL_PATCHER_H */
