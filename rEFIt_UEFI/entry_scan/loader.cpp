@@ -701,16 +701,17 @@ STATIC LOADER_ENTRY *CreateLoaderEntry(IN CONST XStringW& LoaderPath,
   BOOLEAN BootCampStyle = ThemeX.BootCampStyle;
 
   if ( Entry->Title.isEmpty()  &&  ((Entry->VolName == NULL) || (StrLen(Entry->VolName) == 0)) ) {
+    XStringW BasenameXW = XStringW(Basename(Volume->DevicePathString));
  //   DBG("encounter Entry->VolName ==%ls and StrLen(Entry->VolName) ==%llu\n",Entry->VolName, StrLen(Entry->VolName));
     if (BootCampStyle) {
       if (!LoaderTitle.isEmpty()) {
         Entry->Title = LoaderTitle;
       } else {
-        Entry->Title.takeValueFrom(Basename(Volume->DevicePathString));
+        Entry->Title = (BasenameXW.contains(L"-")) ? BasenameXW.subString(0,BasenameXW.indexOf(L"-") + 1) + L"..)" : BasenameXW;
       }
     } else {
       Entry->Title.SWPrintf("Boot %ls from %ls", (!LoaderTitle.isEmpty()) ? LoaderTitle.wc_str() : LoaderPath.basename().wc_str(),
-                            Basename(Volume->DevicePathString));
+                            (BasenameXW.contains(L"-")) ? (BasenameXW.subString(0,BasenameXW.indexOf(L"-") + 1) + L"..)").wc_str() : BasenameXW.wc_str());
     }
   }
 //  DBG("check Entry->Title \n");
@@ -791,6 +792,9 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
   EFI_GUID          *Guid = NULL;
   BOOLEAN           KernelIs64BitOnly;
   UINT64            os_version = AsciiOSVersionToUint64(Entry->OSVersion);
+	
+  constexpr LString8 quietLitteral = "quiet";
+  constexpr LString8 splashLitteral = "splash";
 
   if (Entry == NULL) {
     return;
@@ -869,6 +873,7 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
       SubEntry->Flags       = OSFLAG_SET(SubEntry->Flags, OSFLAG_WITHKEXTS);
       SubScreen->AddMenuEntry(SubEntry, true);
     }
+
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
       if (os_version < AsciiOSVersionToUint64("10.8")) {
@@ -924,8 +929,8 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     }
     
   } else if (Entry->LoaderType == OSTYPE_LINEFI) {
-    BOOLEAN Quiet = Entry->LoadOptions.contains("quiet");
-    BOOLEAN WithSplash = Entry->LoadOptions.contains("splash");
+    BOOLEAN Quiet = Entry->LoadOptions.contains(quietLitteral);
+    BOOLEAN WithSplash = Entry->LoadOptions.contains(splashLitteral);
     
     // default entry
     SubEntry = Entry->getPartiallyDuplicatedEntry();
@@ -938,48 +943,50 @@ STATIC VOID AddDefaultMenu(IN LOADER_ENTRY *Entry)
     if (SubEntry) {
       if (Quiet) {
         SubEntry->Title.SWPrintf("%ls verbose", Entry->Title.s());
-        SubEntry->LoadOptions.removeIC("quiet"_XS8);
+        SubEntry->LoadOptions.removeIC(quietLitteral);
       } else {
         SubEntry->Title.SWPrintf("%ls quiet", Entry->Title.s());
-        SubEntry->LoadOptions.AddID("quiet"_XS8);
+        SubEntry->LoadOptions.AddID(quietLitteral);
       }
+      SubScreen->AddMenuEntry(SubEntry, true);
     }
-    SubScreen->AddMenuEntry(SubEntry, true);
+
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
       if (WithSplash) {
         SubEntry->Title.SWPrintf("%ls without splash", Entry->Title.s());
-        SubEntry->LoadOptions.removeIC("splash"_XS8);
+        SubEntry->LoadOptions.removeIC(splashLitteral);
       } else {
         SubEntry->Title.SWPrintf("%ls with splash", Entry->Title.s());
-        SubEntry->LoadOptions.AddID("splash"_XS8);
+        SubEntry->LoadOptions.AddID(splashLitteral);
       }
+      SubScreen->AddMenuEntry(SubEntry, true);
     }
-    SubScreen->AddMenuEntry(SubEntry, true);
+
     SubEntry = Entry->getPartiallyDuplicatedEntry();
     if (SubEntry) {
       if (WithSplash) {
         if (Quiet) {
           SubEntry->Title.SWPrintf("%ls verbose without splash", Entry->Title.s());
-          SubEntry->LoadOptions.removeIC("splash"_XS8);
-          SubEntry->LoadOptions.removeIC("quiet"_XS8);
+          SubEntry->LoadOptions.removeIC(splashLitteral);
+          SubEntry->LoadOptions.removeIC(quietLitteral);
         } else {
           SubEntry->Title.SWPrintf("%ls quiet without splash", Entry->Title.s());
-          SubEntry->LoadOptions.removeIC("splash"_XS8);
-          SubEntry->LoadOptions.Add("quiet"_XS8);
+          SubEntry->LoadOptions.removeIC(splashLitteral);
+          SubEntry->LoadOptions.Add(quietLitteral);
         }
       } else if (Quiet) {
-//        TempOptions.RemoveIC("quiet"_XS8);
         SubEntry->Title.SWPrintf("%ls verbose with splash", Entry->Title.s());
-        SubEntry->LoadOptions.AddID("splash"_XS8);
-//        FreePool(TempOptions);
+        SubEntry->LoadOptions.removeIC(quietLitteral); //
+        SubEntry->LoadOptions.AddID(splashLitteral);
       } else {
         SubEntry->Title.SWPrintf("%ls quiet with splash", Entry->Title.s());
-        SubEntry->LoadOptions.AddID("quiet"_XS8);
-        SubEntry->LoadOptions.AddID("splash"_XS8);
+        SubEntry->LoadOptions.AddID(quietLitteral);
+        SubEntry->LoadOptions.AddID(splashLitteral);
       }
+      SubScreen->AddMenuEntry(SubEntry, true);
     }
-    SubScreen->AddMenuEntry(SubEntry, true);
+
   } else if ((Entry->LoaderType == OSTYPE_WIN) || (Entry->LoaderType == OSTYPE_WINEFI)) {
     // by default, skip the built-in selection and boot from hard disk only
     Entry->LoadOptions.setEmpty();
@@ -1158,7 +1165,9 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
       }
     }
 
-  } else if (Type != OSTYPE_LIN) { //OSTYPE_LINEFI or unspecified
+  }
+
+  if (Type != OSTYPE_LIN) { //OSTYPE_LINEFI or unspecified
     // check for linux kernels
     PartGUID = FindGPTPartitionGuidInDevicePath(Volume->DevicePath);
     if ((PartGUID != NULL) && (Volume->RootDir != NULL)) {
@@ -1184,15 +1193,11 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
           while (DirIterNext(&Iter, 2, LINUX_LOADER_SEARCH_PATH, &FileInfo)) {
             if (FileInfo != NULL) {
               if (FileInfo->FileSize == 0) {
-                FreePool(FileInfo);
-                FileInfo = NULL;
                 continue;
               }
               // get the kernel file path
               Path.SWPrintf("%ls\\%ls", LINUX_BOOT_PATH, FileInfo->FileName);
               // free the file info
-              FreePool(FileInfo);
-              FileInfo = NULL;
               break;
             }
           }
@@ -1205,9 +1210,6 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
                 // get the kernel file path
                 Path.SWPrintf("%ls\\%ls", LINUX_BOOT_PATH, FileInfo->FileName);
               }
-              // free the file info
-              FreePool(FileInfo);
-              FileInfo = NULL;
             }
           }
           break;
@@ -1222,9 +1224,6 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
                   PreviousTime = FileInfo->ModificationTime;
                 }
               }
-              // free the file info
-              FreePool(FileInfo);
-              FileInfo = NULL;
             }
           }
           break;
@@ -1239,9 +1238,6 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
                   PreviousTime = FileInfo->ModificationTime;
                 }
               }
-              // free the file info
-              FreePool(FileInfo);
-              FileInfo = NULL;
             }
           }
           break;
@@ -1258,9 +1254,6 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
                     Path.setEmpty();
                 }
               }
-              // free the file info
-              FreePool(FileInfo);
-              FileInfo = NULL;
             }
           }
           break;
@@ -1277,9 +1270,6 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
                   Path.setEmpty();
                 }
               }
-              // free the file info
-              FreePool(FileInfo);
-              FileInfo = NULL;
             }
           }
           break;
@@ -1311,14 +1301,11 @@ STATIC VOID LinuxScan(REFIT_VOLUME *Volume, UINT8 KernelScan, UINT8 Type, XStrin
             if (FileInfo->FileSize > 0) {
               // get the kernel file path
               Path.SWPrintf("%ls\\%ls", LINUX_BOOT_PATH, FileInfo->FileName);
-               XStringArray Options = LinuxKernelOptions(Iter.DirHandle, Basename(Path.wc_str()) + LINUX_LOADER_PATH.length(), PartUUID, NullXStringArray);
+              XStringArray Options = LinuxKernelOptions(Iter.DirHandle, Basename(Path.wc_str()) + LINUX_LOADER_PATH.length(), PartUUID, NullXStringArray);
               // Add the entry
               AddLoaderEntry(Path, (Options.isEmpty()) ? LINUX_DEFAULT_OPTIONS : Options, L""_XSW, Volume, NULL, OSTYPE_LINEFI, OSFLAG_NODEFAULTARGS);
               Path.setEmpty();
             }
-             // free the file info
-            FreePool(FileInfo);
-            FileInfo = NULL;
           }
         }
       }
@@ -1755,13 +1742,10 @@ STATIC VOID AddCustomEntry(IN UINTN                CustomIndex,
         }
         // who knows....
         if (FileInfo->FileSize == 0) {
-          FreePool(FileInfo);
           continue;
         }
         // get the kernel file path
         CustomPath.SWPrintf("%ls\\%ls", LINUX_BOOT_PATH, FileInfo->FileName);
-        // free the file info
-        FreePool(FileInfo);
       }
       if (CustomPath.isEmpty()) {
         DBG("skipped\n");
@@ -1772,6 +1756,7 @@ STATIC VOID AddCustomEntry(IN UINTN                CustomIndex,
       if (FindCustomPath && Custom->Type == OSTYPE_LINEFI && OSFLAG_ISUNSET(Custom->Flags, OSFLAG_NODEFAULTARGS)) {
         // Find the init ram image and select root
         CustomOptions = LinuxKernelOptions(Iter->DirHandle, Basename(CustomPath.wc_str()) + LINUX_LOADER_PATH.length(), PartUUID, Custom->LoadOptions);
+        Custom->Flags = OSFLAG_SET(Custom->Flags, OSFLAG_NODEFAULTARGS);
       }
 
       // Check to make sure that this entry is not hidden or disabled by another custom entry

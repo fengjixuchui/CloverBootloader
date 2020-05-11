@@ -151,35 +151,6 @@
 					<data>SU1FSQ==</data>
 				</dict>
 			</array>
-			<key>#DropOEM_DSM</key>
-			<dict>
-				<key>USB</key>
-				<true/>
-				<key>SmBUS</key>
-				<false/>
-				<key>ATI</key>
-				<true/>
-				<key>HDMI</key>
-				<true/>
-				<key>LAN</key>
-				<true/>
-				<key>IntelGFX</key>
-				<true/>
-				<key>WIFI</key>
-				<true/>
-				<key>LPC</key>
-				<false/>
-				<key>Firewire</key>
-				<true/>
-				<key>IDE</key>
-				<true/>
-				<key>NVidia</key>
-				<true/>
-				<key>HDA</key>
-				<true/>
-				<key>SATA</key>
-				<true/>
-			</dict>
 			<key>Debug</key>
 			<false/>
 			<key>#Rtc8Allowed</key>
@@ -619,8 +590,6 @@
 		<string>0x010676</string>
 		<key>#ATIConnectorsController</key>
 		<string>6000</string>
-		<key>KernelCpu</key>
-		<false/>
 		<key>#ATIConnectorsData</key>
 		<string>000400000403000000010000210302040400000014020000000100000000040310000000100000000001000000000001</string>
 		<key>Debug</key>
@@ -630,49 +599,6 @@
 	</dict>
 	<key>Devices</key>
 	<dict>
-		<key>#AddProperties</key>
-		<array>
-			<dict>
-				<key>Device</key>
-				<string>IntelGFX</string>
-				<key>Disabled</key>
-				<true/>
-				<key>Key</key>
-				<string>framebuffer-patch-enable</string>
-				<key>Value</key>
-				<data>AQAAAA==</data>
-			</dict>
-			<dict>
-				<key>Device</key>
-				<string>IntelGFX</string>
-				<key>Disabled</key>
-				<true/>
-				<key>Key</key>
-				<string>framebuffer-stolenmem</string>
-				<key>Value</key>
-				<data>AAAwAQ==</data>
-			</dict>
-			<dict>
-				<key>Device</key>
-				<string>IntelGFX</string>
-				<key>Disabled</key>
-				<true/>
-				<key>Key</key>
-				<string>framebuffer-fbmem</string>
-				<key>Value</key>
-				<data>AACQAA==</data>
-			</dict>
-			<dict>
-				<key>Device</key>
-				<string>IntelGFX</string>
-				<key>Disabled</key>
-				<true/>
-				<key>Key</key>
-				<string>framebuffer-unifiedmem</string>
-				<key>Value</key>
-				<data>AAAAgA==</data>
-			</dict>
-		</array>
 		<key>#FakeID</key>
 		<dict>
 			<key>#WIFI</key>

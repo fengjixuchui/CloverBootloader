@@ -288,8 +288,9 @@ VOID FillInputs(BOOLEAN New)
   InputItemsCount = 44;
   InputItems[InputItemsCount].ItemType = BoolValue; //44
   InputItems[InputItemsCount++].BValue = gSettings.KextPatchesAllowed;
-  InputItems[InputItemsCount].ItemType = BoolValue; //45
-  InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPKernelCpu;
+//  InputItems[InputItemsCount].ItemType = BoolValue; //45
+//  InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPKernelCpu;
+  InputItemsCount++; //vacant place for id = 45
   InputItems[InputItemsCount].ItemType = BoolValue; //46
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPAppleIntelCPUPM;
   InputItems[InputItemsCount].ItemType = BoolValue; //47
@@ -516,8 +517,8 @@ VOID FillInputs(BOOLEAN New)
     InputItems[InputItemsCount].SValue = (__typeof__(InputItems[InputItemsCount].SValue))AllocateZeroPool(26);
   }
   snwprintf(InputItems[InputItemsCount++].SValue, 26, "0x%08X", gSettings.FakeXHCI);
-  InputItems[InputItemsCount].ItemType = CheckBit;  //101
-  InputItems[InputItemsCount++].IValue = dropDSM;
+  InputItems[InputItemsCount].ItemType = CheckBit;  //101 - vacant
+  InputItems[InputItemsCount++].IValue = 0; //dropDSM;
 
   InputItems[InputItemsCount].ItemType = BoolValue; //102
   InputItems[InputItemsCount++].BValue = gSettings.DebugDSDT;
@@ -796,10 +797,10 @@ VOID ApplyInputs(VOID)
     gSettings.KextPatchesAllowed = InputItems[i].BValue;
     gBootChanged = TRUE;
   }
-  i++; //45
+  i++; //45 - vacant
   if (InputItems[i].Valid) {
-    gSettings.KernelAndKextPatches.KPKernelCpu = InputItems[i].BValue;
-    gBootChanged = TRUE;
+//    gSettings.KernelAndKextPatches.KPKernelCpu = InputItems[i].BValue;
+//    gBootChanged = TRUE;
   }
   i++; //46
   if (InputItems[i].Valid) {
@@ -1070,11 +1071,11 @@ VOID ApplyInputs(VOID)
     gSettings.FakeXHCI = (UINT32)StrHexToUint64(InputItems[i].SValue);
   }
 
-  i++; //101
+  i++; //101  - vacant
   if (InputItems[i].Valid) {
 //    gSettings.DropOEM_DSM = (UINT16)StrHexToUint64(InputItems[i].SValue);
-    gSettings.DropOEM_DSM = (UINT16)InputItems[i].IValue;
-    dropDSM = gSettings.DropOEM_DSM; //?
+//    gSettings.DropOEM_DSM = (UINT16)InputItems[i].IValue;
+//    dropDSM = gSettings.DropOEM_DSM; //?
 //    defDSM = TRUE;
   }
   i++; //102
@@ -1696,9 +1697,10 @@ VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
 
   } else if (ChosenEntry->SubScreen->ID == SCREEN_BLC) {
 	  ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04hx]->", gSettings.BooterConfig);
-  } else if (ChosenEntry->SubScreen->ID == SCREEN_DSM) {
-	  ChosenEntry->Title.SWPrintf("Drop OEM _DSM [0x%04hx]->", dropDSM);
   }
+  /*else if (ChosenEntry->SubScreen->ID == SCREEN_DSM) {
+	  ChosenEntry->Title.SWPrintf("Drop OEM _DSM [0x%04hx]->", dropDSM);
+  } */
 }
 
 REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
@@ -2140,7 +2142,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuBinaries()
   SubScreen->AddMenuInfo_f("----------------------");
   SubScreen->AddMenuItemInput(104, "Fake CPUID:", TRUE);
 //  SubScreen->AddMenuItemInput(108, "Kernel patching allowed", FALSE);
-  SubScreen->AddMenuItemInput(45,  "Kernel Support CPU", FALSE);
+//  SubScreen->AddMenuItemInput(45,  "Kernel Support CPU", FALSE);
   SubScreen->AddMenuItemInput(91,  "Kernel Lapic", FALSE);
   SubScreen->AddMenuItemInput(105, "Kernel XCPM", FALSE);
   SubScreen->AddMenuItemInput(48,  "Kernel PM", FALSE);
@@ -2249,7 +2251,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuSmbios()
   SubScreen->AddMenuEntry(&MenuEntryReturn, false);
   return Entry;
 }
-
+/*
 REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropDSM()
 {
   // init
@@ -2283,7 +2285,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropDSM()
 
   return Entry;
 }
-
+*/
 REFIT_ABSTRACT_MENU_ENTRY* SubMenuDsdtFix()
 {
   REFIT_MENU_ITEM_OPTIONS   *Entry; //, *SubEntry;
@@ -2404,7 +2406,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuACPI()
 
   SubScreen->AddMenuEntry(SubMenuDsdts(), true);
   SubScreen->AddMenuEntry(SubMenuDropTables(), true);
-  SubScreen->AddMenuEntry(SubMenuDropDSM(), true);
+//  SubScreen->AddMenuEntry(SubMenuDropDSM(), true);
   SubScreen->AddMenuEntry(SubMenuDsdtFix(), true);
   SubScreen->AddMenuEntry(SubMenuDSDTPatches(), true);
   SubScreen->AddMenuItemInput(49, "Fix MCFG", FALSE);

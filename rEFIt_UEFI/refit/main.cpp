@@ -379,7 +379,7 @@ VOID DumpKernelAndKextPatches(KERNEL_AND_KEXT_PATCHES *Patches)
   DBG("Kernel and Kext Patches at %p:\n", Patches);
   DBG("\tAllowed: %c\n", gSettings.KextPatchesAllowed ? 'y' : 'n');
   DBG("\tDebug: %c\n", Patches->KPDebug ? 'y' : 'n');
-  DBG("\tKernelCpu: %c\n", Patches->KPKernelCpu ? 'y' : 'n');
+//  DBG("\tKernelCpu: %c\n", Patches->KPKernelCpu ? 'y' : 'n');
   DBG("\tKernelLapic: %c\n", Patches->KPKernelLapic ? 'y' : 'n');
   DBG("\tKernelXCPM: %c\n", Patches->KPKernelXCPM ? 'y' : 'n');
   DBG("\tKernelPm: %c\n", Patches->KPKernelPm ? 'y' : 'n');
@@ -2322,10 +2322,10 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     gCPUStructure.ExternalClock = (UINT32)DivU64x32(gCPUStructure.FSBFrequency + kilo - 1, kilo);
   }
 
-  dropDSM = 0xFFFF; //by default we drop all OEM _DSM. They have no sense for us.
-  if (defDSM) {
-    dropDSM = gSettings.DropOEM_DSM;   //if set by user
-  }
+//  dropDSM = 0xFFFF; //by default we drop all OEM _DSM. They have no sense for us.
+//  if (defDSM) {
+//    dropDSM = gSettings.DropOEM_DSM;   //if set by user
+//  }
   // Load any extra SMBIOS information
   if (!EFI_ERROR(LoadUserSettings(SelfRootDir, L"smbios", &smbiosTags)) && (smbiosTags != NULL)) {
     TagPtr dictPointer = GetProperty(smbiosTags,"SMBIOS");

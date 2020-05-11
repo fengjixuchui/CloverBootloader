@@ -39,6 +39,7 @@
 #include "../../libeg/libeg.h"
 #include "../../refit/lib.h"
 #include "../../Platform/LoaderUefi.h"
+#include "../../Platform/boot.h"
 
 #include "../../cpp_foundation/XObjArray.h"
 #include "../../cpp_foundation/XStringArray.h"
@@ -357,41 +358,76 @@ class REFIT_ABSTRACT_MENU_ENTRY
 				XImage            CustomLogo;
 				KERNEL_AND_KEXT_PATCHES *KernelAndKextPatches;
 				CONST CHAR16            *Settings;
+        UINT8             *KernelData;
         UINT32            AddrVtable;
         UINT32            SizeVtable;
         UINT32            NamesTable;
         INT32             SegVAddr;
         INT32             shift;
+        BOOLEAN           PatcherInited;
+        BOOLEAN           gSNBEAICPUFixRequire; // SandyBridge-E AppleIntelCpuPowerManagement patch require or not
+        BOOLEAN           gBDWEIOPCIFixRequire; // Broadwell-E IOPCIFamily fix require or not
+        BOOLEAN           isKernelcache;
+        BOOLEAN           is64BitKernel;
+        UINT32            KernelSlide;
+        // notes:
+        // - 64bit segCmd64->vmaddr is 0xffffff80xxxxxxxx and we are taking
+        //   only lower 32bit part into PrelinkTextAddr
+        // - PrelinkTextAddr is segCmd64->vmaddr + KernelRelocBase
+        UINT32            PrelinkTextLoadCmdAddr;
+        UINT32            PrelinkTextAddr;
+        UINT32            PrelinkTextSize;
+        
+        // notes:
+        // - 64bit sect->addr is 0xffffff80xxxxxxxx and we are taking
+        //   only lower 32bit part into PrelinkInfoAddr
+        // - PrelinkInfoAddr is sect->addr + KernelRelocBase
+        UINT32            PrelinkInfoLoadCmdAddr;
+        UINT32            PrelinkInfoAddr;
+        UINT32            PrelinkInfoSize;
+        EFI_PHYSICAL_ADDRESS    KernelRelocBase;
+        BootArgs1         *bootArgs1;
+        BootArgs2         *bootArgs2;
+        CHAR8             *dtRoot;
+        UINT32            *dtLength;
+        
 
 				LOADER_ENTRY()
 						: REFIT_MENU_ITEM_BOOTNUM(), VolName(0), DevicePath(0), Flags(0), LoaderType(0), OSVersion(0), BuildVersion(0),
               BootBgColor({0,0,0,0}),
-              CustomBoot(0), KernelAndKextPatches(0), Settings(0),
-              AddrVtable(0), SizeVtable(0), NamesTable(0), shift(0)
+              CustomBoot(0), KernelAndKextPatches(0), Settings(0), KernelData(0),
+              AddrVtable(0), SizeVtable(0), NamesTable(0), shift(0),
+              PatcherInited(false), gSNBEAICPUFixRequire(false), gBDWEIOPCIFixRequire(false), isKernelcache(false), is64BitKernel(false),
+              KernelSlide(0), PrelinkTextLoadCmdAddr(0), PrelinkTextAddr(0), PrelinkTextSize(0),
+              PrelinkInfoLoadCmdAddr(0), PrelinkInfoAddr(0), PrelinkInfoSize(0),
+              KernelRelocBase(0), bootArgs1(0), bootArgs2(0), dtRoot(0), dtLength(0)
 						{};
         
+        VOID          SetKernelRelocBase();
         VOID          FindBootArgs();
-        EFI_STATUS    getVTable(UINT8* kernel);
-        UINTN         searchProc(UINT8 * kernel, const char *procedure);
+        EFI_STATUS    getVTable();
+        VOID          Get_PreLink();
+        UINTN         searchProc(const char *procedure);
         UINTN         searchProcInDriver(UINT8 * driver, UINT32 driverLen, const char *procedure);
         VOID          KernelAndKextsPatcherStart();
         VOID          KernelAndKextPatcherInit();
-        BOOLEAN       KernelUserPatch(UINT8 * kernel);
-        BOOLEAN       KernelPatchPm(VOID *kernelData);
-        BOOLEAN       KernelLapicPatch_32(VOID *kernelData);
-        BOOLEAN       KernelLapicPatch_64(VOID *kernelData);
+        BOOLEAN       KernelUserPatch();
+        BOOLEAN       KernelPatchPm();
+        BOOLEAN       KernelLapicPatch_32();
+        BOOLEAN       KernelLapicPatch_64();
         BOOLEAN       BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize);
-        VOID EFIAPI   KernelBooterExtensionsPatch(IN UINT8 *Kernel);
-        BOOLEAN       KernelPanicNoKextDump(VOID *kernelData);
-        VOID          KernelCPUIDPatch(UINT8* kernelData);
-        BOOLEAN       PatchCPUID(UINT8* bytes, const UINT8* Location, INT32 LenLoc,
+        VOID EFIAPI   KernelBooterExtensionsPatch();
+        BOOLEAN       KernelPanicNoKextDump();
+        VOID          KernelCPUIDPatch();
+        BOOLEAN       PatchCPUID(const UINT8* Location, INT32 LenLoc,
                                  const UINT8* Search4, const UINT8* Search10, const UINT8* ReplaceModel,
                                  const UINT8* ReplaceExt, INT32 Len);
-        VOID          KernelPatcher_32(VOID* kernelData);
-        VOID          KernelPatcher_64(VOID* kernelData);
+        VOID          KernelPatcher_32();
+ //       VOID          KernelPatcher_64();
         VOID          FilterKernelPatches();
         VOID          FilterKextPatches();
         VOID          FilterBootPatches();
+        VOID          applyKernPatch(const UINT8 *find, UINTN size, const UINT8 *repl, const CHAR8 *comment);
         
         EFI_STATUS    SetFSInjection();
         EFI_STATUS    InjectKexts(IN UINT32 deviceTreeP, IN UINT32 *deviceTreeLength);
@@ -418,12 +454,12 @@ class REFIT_ABSTRACT_MENU_ENTRY
         VOID      DellSMBIOSPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
         VOID      SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
         VOID      BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
-        BOOLEAN   SandyBridgeEPM(VOID *kernelData, BOOLEAN use_xcpm_idle);
-        BOOLEAN   HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle);
-        BOOLEAN   HaswellLowEndXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle);
-        BOOLEAN   BroadwellEPM(VOID *kernelData, BOOLEAN use_xcpm_idle);
-        BOOLEAN   KernelIvyBridgeXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle);
-        BOOLEAN   KernelIvyE5XCPM(VOID *kernelData, BOOLEAN use_xcpm_idle);
+        BOOLEAN   SandyBridgeEPM();
+        BOOLEAN   HaswellEXCPM();
+        BOOLEAN   HaswellLowEndXCPM();
+        BOOLEAN   BroadwellEPM();
+        BOOLEAN   KernelIvyBridgeXCPM();
+        BOOLEAN   KernelIvyE5XCPM();
         
         VOID Stall(int Pause) { if ((KernelAndKextPatches != NULL) && KernelAndKextPatches->KPDebug) { gBS->Stall(Pause); } };
         VOID StartLoader();

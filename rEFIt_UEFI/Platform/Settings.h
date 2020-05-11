@@ -348,7 +348,7 @@ typedef struct {
   UINTN                   PatchVBiosBytesCount;
   BOOLEAN                 InjectEDID;
   BOOLEAN                 LpcTune;
-  UINT16                  DropOEM_DSM;
+  UINT16                  DropOEM_DSM; //vacant
   UINT8                   *CustomEDID;
   UINT16                  CustomEDIDsize;
   UINT16                  EdidFixHorizontalSyncPulseWidth;
@@ -650,8 +650,8 @@ extern UINTN                           gEvent;
 
 extern UINT16                          gBacklightLevel;
 
-extern BOOLEAN                         defDSM;
-extern UINT16                          dropDSM;
+//extern BOOLEAN                         defDSM;
+//extern UINT16                          dropDSM;
 
 extern TagPtr                          gConfigDict[];
 

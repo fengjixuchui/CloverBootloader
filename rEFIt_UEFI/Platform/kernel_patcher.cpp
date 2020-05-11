@@ -35,39 +35,26 @@
 //#define DBG_RT( ...)    if ((KernelAndKextPatches != NULL) && KernelAndKextPatches->KPDebug) { printf(__VA_ARGS__); }
 
 
-EFI_PHYSICAL_ADDRESS    KernelRelocBase = 0;
-BootArgs1   *bootArgs1 = NULL;
-BootArgs2   *bootArgs2 = NULL;
-CHAR8       *dtRoot = NULL;
-UINT32      *dtLength;
-UINT8       *KernelData = NULL;
-UINT32      KernelSlide = 0;
-BOOLEAN     isKernelcache = FALSE;
-BOOLEAN     is64BitKernel = FALSE;
-BOOLEAN     SSSE3;
+//EFI_PHYSICAL_ADDRESS    KernelRelocBase = 0;
+//BootArgs1   *bootArgs1 = NULL;
+//BootArgs2   *bootArgs2 = NULL;
+//CHAR8       *dtRoot = NULL;
+//UINT32      *dtLength;
+//UINT8       *KernelData = NULL;
+//UINT32      KernelSlide = 0;
+//BOOLEAN     isKernelcache = FALSE;
+//BOOLEAN     is64BitKernel = FALSE;
+//BOOLEAN     SSSE3;
 
-BOOLEAN     PatcherInited = FALSE;
-BOOLEAN     gSNBEAICPUFixRequire = FALSE; // SandyBridge-E AppleIntelCpuPowerManagement patch require or not
-BOOLEAN     gBDWEIOPCIFixRequire = FALSE; // Broadwell-E IOPCIFamily fix require or not
+//BOOLEAN     PatcherInited = FALSE;
+//BOOLEAN     gSNBEAICPUFixRequire = FALSE; // SandyBridge-E AppleIntelCpuPowerManagement patch require or not
+//BOOLEAN     gBDWEIOPCIFixRequire = FALSE; // Broadwell-E IOPCIFamily fix require or not
 
-// notes:
-// - 64bit segCmd64->vmaddr is 0xffffff80xxxxxxxx and we are taking
-//   only lower 32bit part into PrelinkTextAddr
-// - PrelinkTextAddr is segCmd64->vmaddr + KernelRelocBase
-UINT32     PrelinkTextLoadCmdAddr = 0;
-UINT32     PrelinkTextAddr = 0;
-UINT32     PrelinkTextSize = 0;
-
-// notes:
-// - 64bit sect->addr is 0xffffff80xxxxxxxx and we are taking
-//   only lower 32bit part into PrelinkInfoAddr
-// - PrelinkInfoAddr is sect->addr + KernelRelocBase
-UINT32     PrelinkInfoLoadCmdAddr = 0;
-UINT32     PrelinkInfoAddr = 0;
-UINT32     PrelinkInfoSize = 0;
-
-
-VOID SetKernelRelocBase()
+/*
+ * the driver OsxAptioFixDrv is old and mostly not used in favour of its successors.
+ * anyway we will keep it for new investigations.
+ */
+VOID LOADER_ENTRY::SetKernelRelocBase()
 {
 //  EFI_STATUS      Status;
   UINTN           DataSize = sizeof(KernelRelocBase);
@@ -82,22 +69,22 @@ VOID SetKernelRelocBase()
 
 //Slice
 // the purpose of the procedure is to find a table of symbols in the kernel
-EFI_STATUS LOADER_ENTRY::getVTable(UINT8 * kernel)
+EFI_STATUS LOADER_ENTRY::getVTable()
 {
-  INT32 LinkAdr = FindBin(kernel, 0x3000, (const UINT8 *)kLinkEditSegment, (UINT32)strlen(kLinkEditSegment));
+  INT32 LinkAdr = FindBin(KernelData, 0x3000, (const UINT8 *)kLinkEditSegment, (UINT32)strlen(kLinkEditSegment));
   if (LinkAdr == -1) {
     return EFI_NOT_FOUND;
   }
 //  const UINT8 vtable[] = {0x04, 00,00,00, 0x0F, 0x08, 00, 00};
 
 //  INT32 Tabble = FindBin(kernel, 0x2000000, vtable, 8);
-  INT32 NTabble = FindBin(kernel, 0x2000000, (const UINT8 *)ctor_used, (UINT32)strlen(ctor_used));
+  INT32 NTabble = FindBin(KernelData, 0x2000000, (const UINT8 *)ctor_used, (UINT32)strlen(ctor_used));
   if (NTabble < 0) {
     return EFI_NOT_FOUND;
   }
   NTabble -=4;
 //  DBG_RT("LinkAdr=%x Tabble=%x\n",LinkAdr, NTabble);
-  SEGMENT *LinkSeg = (SEGMENT*)&kernel[LinkAdr];
+  SEGMENT *LinkSeg = (SEGMENT*)&KernelData[LinkAdr];
   AddrVtable = LinkSeg->AddrVtable;
   SizeVtable = LinkSeg->SizeVtable;
   NamesTable = LinkSeg->AddrNames;
@@ -106,7 +93,7 @@ EFI_STATUS LOADER_ENTRY::getVTable(UINT8 * kernel)
 //  DBG_RT("AddrVtable=%x Size=%x AddrNames=%x shift=%x\n", AddrVtable, SizeVtable, NamesTable, shift);
   NamesTable = NTabble;
   AddrVtable += shift;
-  SegVAddr = FindBin(kernel, 0x600, (const UINT8 *)kTextSegment, (UINT32)strlen(kTextSegment));
+  SegVAddr = FindBin(KernelData, 0x600, (const UINT8 *)kTextSegment, (UINT32)strlen(kTextSegment));
   return EFI_SUCCESS;
 }
 
@@ -169,14 +156,14 @@ UINTN LOADER_ENTRY::searchProcInDriver(UINT8 * driver, UINT32 driverLen, const c
 }
 
 //search a procedure by Name and return its offset in the kernel
-UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure)
+UINTN LOADER_ENTRY::searchProc(const char *procedure)
 {
   if (!procedure) {
     return 0;
   }
   
-  const char* Names = (const char*)(&kernel[NamesTable]);
-  VTABLE * vArray = (VTABLE*)(&kernel[AddrVtable]);
+  const char* Names = (const char*)(&KernelData[NamesTable]);
+  VTABLE * vArray = (VTABLE*)(&KernelData[AddrVtable]);
   //search for the name
 //  gBS->Stall(9000000);
   size_t i;
@@ -216,7 +203,7 @@ UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure)
     return 0;
   }
 */
-  SEGMENT *TextSeg = (SEGMENT*)&kernel[SegVAddr];
+  SEGMENT *TextSeg = (SEGMENT*)&KernelData[SegVAddr];
   UINT64 Absolut = TextSeg->SegAddress;  //KLD=C70000
   UINT64 FileOff = TextSeg->fileoff;     //950000
   UINT64 procAddr = vArray[i].ProcAddr - Absolut + FileOff;
@@ -232,12 +219,12 @@ UINTN LOADER_ENTRY::searchProc(UINT8 * kernel, const char *procedure)
   return procAddr;
 }
 
-
+#if 0
 //TimeWalker - extended and corrected for systems up to Yosemite
 //TODO - Slice: no more needed
-VOID LOADER_ENTRY::KernelPatcher_64(VOID* kernelData)
+VOID LOADER_ENTRY::KernelPatcher_64()
 {
-  UINT8       *bytes = (UINT8*)kernelData;
+  UINT8       *bytes = KernelData;
   UINT32      patchLocation=0, patchLocation1=0;
   UINT32      i;
   UINT32      switchaddr=0;
@@ -372,7 +359,7 @@ VOID LOADER_ENTRY::KernelPatcher_64(VOID* kernelData)
       Patcher_SSE3_6((VOID*)bytes);
     }
     if (!SSSE3 && (AsciiStrnCmp(OSVersion,"10.7",4)==0)) {
-      Patcher_SSE3_7((VOID*)bytes);
+      Patcher_SSE3_7();
     }
   }
 
@@ -468,9 +455,9 @@ VOID LOADER_ENTRY::KernelPatcher_64(VOID* kernelData)
   }
 }
 
-VOID LOADER_ENTRY::KernelPatcher_32(VOID* kernelData)
+VOID LOADER_ENTRY::KernelPatcher_32()
 {
-  UINT8* bytes = (UINT8*)kernelData;
+  UINT8* bytes = KernelData;
   UINT32 patchLocation=0, patchLocation1=0;
   UINT32 i;
   UINT32 jumpaddr;
@@ -576,7 +563,7 @@ VOID LOADER_ENTRY::KernelPatcher_32(VOID* kernelData)
     }
   }
 }
-
+#endif
 //Slice - FakeCPUID substitution, (c)2014
 // _cpuid_set_info
 //TODO remake to patterns
@@ -658,7 +645,8 @@ const UINT8 CataSearchModel[]      = {0x44, 0x89, 0xE0, 0xC0, 0xE8, 0x04};
 const UINT8 CataSearchExt[]        = {0x44, 0x89, 0xE0, 0xC1, 0xE8, 0x10};
 const UINT8 CataReplaceMovEax[]    = {0xB8, 0x00, 0x00, 0x00, 0x00, 0x90}; // mov eax, val || nop
 
-BOOLEAN LOADER_ENTRY::PatchCPUID(UINT8* bytes, const UINT8* Location, INT32 LenLoc,
+
+BOOLEAN LOADER_ENTRY::PatchCPUID(const UINT8* Location, INT32 LenLoc,
                    const UINT8* Search4, const UINT8* Search10, const UINT8* ReplaceModel,
                    const UINT8* ReplaceExt, INT32 Len)
 {
@@ -668,22 +656,22 @@ BOOLEAN LOADER_ENTRY::PatchCPUID(UINT8* bytes, const UINT8* Location, INT32 LenL
   UINT8 FakeModel = (KernelAndKextPatches->FakeCPUID >> 4) & 0x0f;
   UINT8 FakeExt = (KernelAndKextPatches->FakeCPUID >> 0x10) & 0x0f;
   for (Num = 0; Num < 2; Num++) {
-    Adr = FindBin(&bytes[Adr], 0x800000 - Adr, Location, (UINT32)LenLoc);
+    Adr = FindBin(&KernelData[Adr], 0x800000 - Adr, Location, (UINT32)LenLoc);
     if (Adr < 0) {
       break;
     }
     DBG_RT( "found location at %x\n", Adr);
-    patchLocation = FindBin(&bytes[Adr], 0x100, Search4, (UINT32)Len);
+    patchLocation = FindBin(&KernelData[Adr], 0x100, Search4, (UINT32)Len);
     if (patchLocation > 0 && patchLocation < 70) {
       //found
       DBG_RT( "found Model location at %x\n", Adr + patchLocation);
-      CopyMem(&bytes[Adr + patchLocation], ReplaceModel, Len);
-      bytes[Adr + patchLocation + 1] = FakeModel;
-      patchLocation1 = FindBin(&bytes[Adr], 0x100, Search10, (UINT32)Len);
+      CopyMem(&KernelData[Adr + patchLocation], ReplaceModel, Len);
+      KernelData[Adr + patchLocation + 1] = FakeModel;
+      patchLocation1 = FindBin(&KernelData[Adr], 0x100, Search10, (UINT32)Len);
       if (patchLocation1 > 0 && patchLocation1 < 100) {
         DBG_RT( "found ExtModel location at %x\n", Adr + patchLocation1);
-        CopyMem(&bytes[Adr + patchLocation1], ReplaceExt, Len);
-        bytes[Adr + patchLocation1 + 1] = FakeExt;
+        CopyMem(&KernelData[Adr + patchLocation1], ReplaceExt, Len);
+        KernelData[Adr + patchLocation1 + 1] = FakeExt;
       }
       Patched = TRUE;
     }
@@ -691,11 +679,11 @@ BOOLEAN LOADER_ENTRY::PatchCPUID(UINT8* bytes, const UINT8* Location, INT32 LenL
   return Patched;
 }
 
-VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
+VOID LOADER_ENTRY::KernelCPUIDPatch()
 {
 // Tiger/Leopard patterns
   DBG_RT( "CPUID: try Tiger/Leopard patch...\n");
-  if (PatchCPUID(kernelData, &StrCpuid1_tigLeo[0], sizeof(StrCpuid1_tigLeo), &TigLeoSLSearchModel[0],
+  if (PatchCPUID(&StrCpuid1_tigLeo[0], sizeof(StrCpuid1_tigLeo), &TigLeoSLSearchModel[0],
                  &TigLeoSLSearchExt[0], &TigLeoSLReplaceModel[0], &TigLeoSLReplaceModel[0],
                  sizeof(TigLeoSLSearchModel))) {
     DBG_RT( "...done!\n");
@@ -703,7 +691,7 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
   }
 // Snow Leopard patterns
   DBG_RT( "CPUID: try Snow Leopard patch...\n");
-  if (PatchCPUID(kernelData, &StrCpuid1_snowLeo[0], sizeof(StrCpuid1_snowLeo), &TigLeoSLSearchModel[0],
+  if (PatchCPUID(&StrCpuid1_snowLeo[0], sizeof(StrCpuid1_snowLeo), &TigLeoSLSearchModel[0],
                  &TigLeoSLSearchExt[0], &TigLeoSLReplaceModel[0], &TigLeoSLReplaceModel[0],
                  sizeof(TigLeoSLSearchModel))) {
     DBG_RT( "...done!\n");
@@ -711,7 +699,7 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
   }
 // Lion patterns
   DBG_RT( "CPUID: try Lion patch...\n");
-  if (PatchCPUID(kernelData, &StrMsr8b[0], sizeof(StrMsr8b), &LionSearchModel[0],
+  if (PatchCPUID(&StrMsr8b[0], sizeof(StrMsr8b), &LionSearchModel[0],
                  &LionSearchExt[0], &LionReplaceModel[0], &LionReplaceModel[0],
                  sizeof(LionSearchModel))) {
     DBG_RT( "...done!\n");
@@ -719,7 +707,7 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
   }
 // Mountain Lion/Mavericks patterns
   DBG_RT( "CPUID: try Mountain Lion/Mavericks patch...\n");
-  if (PatchCPUID(kernelData, &StrMsr8b[0], sizeof(StrMsr8b), &MLMavSearchModel[0],
+  if (PatchCPUID(&StrMsr8b[0], sizeof(StrMsr8b), &MLMavSearchModel[0],
                  &MLMavSearchExt[0], &MLMavReplaceModel[0], &MLMavReplaceExt[0],
                  sizeof(MLMavSearchModel))) {
     DBG_RT( "...done!\n");
@@ -727,7 +715,7 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
   }
 // Yosemite/El Capitan/Sierra patterns
   DBG_RT( "CPUID: try Yosemite/El Capitan/Sierra patch...\n");
-  if (PatchCPUID(kernelData, &StrMsr8b[0], sizeof(StrMsr8b), &YosECSieSearchModel[0],
+  if (PatchCPUID(&StrMsr8b[0], sizeof(StrMsr8b), &YosECSieSearchModel[0],
                  &YosECSieSearchExt[0], &LionReplaceModel[0], &LionReplaceModel[0],
                  sizeof(YosECSieSearchModel))) {
     DBG_RT( "...done!\n");
@@ -736,7 +724,7 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
 // High Sierra/Mojave patterns
 // Sherlocks: 10.13/10.14
   DBG_RT( "CPUID: try High Sierra/Mojave patch...\n");
-  if (PatchCPUID(kernelData, &StrMsr8b[0], sizeof(StrMsr8b), &HSieMojSearchModel[0],
+  if (PatchCPUID(&StrMsr8b[0], sizeof(StrMsr8b), &HSieMojSearchModel[0],
                  &YosECSieSearchExt[0], &LionReplaceModel[0], &LionReplaceModel[0],
                  sizeof(HSieMojSearchModel))) {
     DBG_RT( "...done!\n");
@@ -745,7 +733,7 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
 // Catalina patterns
 // PMheart: 10.15.DP1
   DBG_RT( "CPUID: try Catalina patch...\n");
-  if (PatchCPUID(kernelData, &StrMsr8b[0], sizeof(StrMsr8b), &CataSearchModel[0],
+  if (PatchCPUID(&StrMsr8b[0], sizeof(StrMsr8b), &CataSearchModel[0],
                  &CataSearchExt[0], &CataReplaceMovEax[0], &CataReplaceMovEax[0],
                  sizeof(CataSearchModel))) {
     DBG_RT( "...done!\n");
@@ -755,50 +743,61 @@ VOID LOADER_ENTRY::KernelCPUIDPatch(UINT8* kernelData)
 
 #define NEW_PM 1
 
-BOOLEAN LOADER_ENTRY::KernelPatchPm(VOID *kernelData)
+BOOLEAN LOADER_ENTRY::KernelPatchPm()
 {
   DBG_RT("Patching kernel power management...\n");
 #if NEW_PM
-  UINT8 *Kernel = (UINT8 *)kernelData;
-  
+
   //Slice
   //1. procedure xcpm_idle
   // wrmsr 0xe2 twice
   // B9E2000000 0F30 replace to eb05
 //  UINTN procLen = 0;
-  UINTN procLocation = searchProc(Kernel, "xcpm_idle");
+  UINTN procLocation = searchProc("xcpm_idle");
   const UINT8 findJmp[]  = {0xB9, 0xE2, 0x00, 0x00, 0x00, 0x0F, 0x30};
   const UINT8 patchJmp[] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
   DBG_RT("==> xcpm_idle at %llx\n", procLocation);
-  INTN Num = SearchAndReplace(&Kernel[procLocation], 0x400, findJmp, sizeof(findJmp), patchJmp, 0);
+  INTN Num = SearchAndReplace(&KernelData[procLocation], 0x400, findJmp, sizeof(findJmp), patchJmp, 0);
   DBG_RT("==> found %lld patterns\n", Num);
   //2. procedure xcpm_init
-  // indirect call to _xcpm_core_scope_msrs
+  // indirect call to _xcpm_core_scope_msrs and to _xcpm_SMT_scope_msrs
   //  488D3DDA317600                  lea        rdi, qword [ds:_xcpm_core_scope_msrs]
   //  BE0B000000                      mov        esi, 0xb => replace to eb0a
   //  31D2                            xor        edx, edx
   //  E87EFCFFFF                      call       sub_ffffff80004fa610 => check e8?
   // there are other occurence of _xcpm_core_scope_msrs so check 488D3D or E8 at .+7
   // or restrict len = 0x200
-  procLocation = searchProc(Kernel, "xcpm_init");
-  UINTN symbol1 = searchProc(Kernel, "xcpm_core_scope_msrs");
-  UINTN patchLocation1 = FindRelative32(Kernel, procLocation, 0x200, symbol1);
+  procLocation = searchProc("xcpm_init");
+  UINTN symbol1 = searchProc("xcpm_core_scope_msrs");
+  UINTN patchLocation1 = FindRelative32(KernelData, procLocation, 0x200, symbol1);
   if (patchLocation1 != 0) {
     DBG_RT("=> xcpm_core_scope_msrs found at %llx\n", patchLocation1);
-    if (Kernel[patchLocation1 + 7] == 0xE8) {
+    if (KernelData[patchLocation1 + 7] == 0xE8) {
       DBG_RT("=> patch applied\n");
-      for (int i=0; i < 0x10; ++i) {
-        DBG_RT("%02x", Kernel[patchLocation1 + i]);
-      }
-      DBG_RT("\n");
-      Kernel[patchLocation1] = 0xEB;
-      Kernel[patchLocation1 + 1] = 0x0A;
+//      for (int i=0; i < 0x10; ++i) {
+//        DBG_RT("%02x", KernelData[patchLocation1 + i]);
+//      }
+//      DBG_RT("\n");
+      KernelData[patchLocation1] = 0xEB;
+      KernelData[patchLocation1 + 1] = 0x0A;
     } else {
       DBG_RT("=> pattern not good\n");
-      for (int i=0; i < 0x10; ++i) {
-        DBG_RT("%02x", Kernel[patchLocation1 + i]);
-      }
-      DBG_RT("\n");
+//      for (int i=0; i < 0x10; ++i) {
+//        DBG_RT("%02x", KernelData[patchLocation1 + i]);
+//     }
+//      DBG_RT("\n");
+    }
+  }
+  UINTN symbol2 = searchProc("xcpm_SMT_scope_msrs");
+  patchLocation1 = FindRelative32(KernelData, procLocation, 0x200, symbol2);
+  if (patchLocation1 != 0) {
+    DBG_RT("=> xcpm_SMT_scope_msrs found at %llx\n", patchLocation1);
+    if (KernelData[patchLocation1 + 7] == 0xE8) {
+      DBG_RT("=> SMT patch applied\n");
+      KernelData[patchLocation1] = 0xEB;
+      KernelData[patchLocation1 + 1] = 0x0A;
+    } else {
+      DBG_RT("=> pattern not good\n");
     }
   }
 
@@ -811,7 +810,7 @@ BOOLEAN LOADER_ENTRY::KernelPatchPm(VOID *kernelData)
 #define CompareWithMask(x,m,c) (((x) & (m)) == (c))
   //TODO - remake using CompareMemMask
 
-  UINT64* Ptr = (UINT64*)kernelData;
+  UINT64* Ptr = (UINT64*)KernelData;
   UINT64* End = Ptr + 0x1000000/sizeof(UINT64);
   if (Ptr == NULL) {
     return FALSE;
@@ -865,23 +864,22 @@ BOOLEAN LOADER_ENTRY::KernelPatchPm(VOID *kernelData)
 const UINT8 PanicNoKextDumpFind[]    = {0x00, 0x25, 0x2E, 0x2A, 0x73, 0x00};
 //STATIC UINT8 PanicNoKextDumpReplace[6] = {0x00, 0x00, 0x2E, 0x2A, 0x73, 0x00};
 
-BOOLEAN LOADER_ENTRY::KernelPanicNoKextDump(VOID *kernelData)
+BOOLEAN LOADER_ENTRY::KernelPanicNoKextDump()
 {
-  UINT8      *bytes = (UINT8*)kernelData;
   INT32      patchLocation;
-  patchLocation = FindBin(bytes, 0xF00000, PanicNoKextDumpFind, 6);
+  patchLocation = FindBin(KernelData, 0xF00000, PanicNoKextDumpFind, 6);
   if (patchLocation > 0) {
-    bytes[patchLocation + 1] = 0;
+    KernelData[patchLocation + 1] = 0;
     return TRUE;
   }
   return FALSE;
 }
 
-BOOLEAN LOADER_ENTRY::KernelLapicPatch_64(VOID *kernelData)
+BOOLEAN LOADER_ENTRY::KernelLapicPatch_64()
 {
   // Credits to donovan6000 and Sherlocks for providing the lapic kernel patch source used to build this function
 
-  UINT8       *bytes = (UINT8*)kernelData;
+  UINT8 *bytes = KernelData;
   UINT32      patchLocation1 = 0, patchLocation2 = 0;
   UINT32      i, y;
 
@@ -893,12 +891,12 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_64(VOID *kernelData)
   // bytes:658b04251c0000003b058bb97b00
   // call _panic -> change to nop {90,90,90,90,90}
   if (AsciiOSVersionToUint64(OSVersion) >= AsciiOSVersionToUint64("10.10")) {
-    UINTN procAddr = searchProc(bytes, "lapic_interrupt");
-    patchLocation1 = searchProc(bytes, "_panic");
-    patchLocation2 = FindRelative32(bytes, procAddr, 0x140, patchLocation1);
+    UINTN procAddr = searchProc("lapic_interrupt");
+    patchLocation1 = searchProc("_panic");
+    patchLocation2 = FindRelative32(KernelData, procAddr, 0x140, patchLocation1);
     if (patchLocation2 != 0) {
-      bytes[patchLocation2 - 5] = 0xEB;
-      bytes[patchLocation2 - 4] = 0x03;
+      KernelData[patchLocation2 - 5] = 0xEB;
+      KernelData[patchLocation2 - 4] = 0x03;
       DBG_RT( "Lapic panic patched\n");
       return true;
     }
@@ -906,29 +904,29 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_64(VOID *kernelData)
   //else old method
 
   for (i = 0; i < 0x1000000; i++) {
-    if (bytes[i+0] == 0x65 && bytes[i+1] == 0x8B && bytes[i+2] == 0x04 && bytes[i+3] == 0x25 &&
-        bytes[i+4] == 0x3C && bytes[i+5] == 0x00 && bytes[i+6] == 0x00 && bytes[i+7] == 0x00 &&
-        bytes[i+45] == 0x65 && bytes[i+46] == 0x8B && bytes[i+47] == 0x04 && bytes[i+48] == 0x25 &&
-        bytes[i+49] == 0x3C && bytes[i+50] == 0x00 && bytes[i+51] == 0x00 && bytes[i+52] == 0x00) {
+    if (KernelData[i+0] == 0x65 && KernelData[i+1] == 0x8B && KernelData[i+2] == 0x04 && KernelData[i+3] == 0x25 &&
+        KernelData[i+4] == 0x3C && KernelData[i+5] == 0x00 && KernelData[i+6] == 0x00 && KernelData[i+7] == 0x00 &&
+        KernelData[i+45] == 0x65 && KernelData[i+46] == 0x8B && KernelData[i+47] == 0x04 && KernelData[i+48] == 0x25 &&
+        KernelData[i+49] == 0x3C && KernelData[i+50] == 0x00 && KernelData[i+51] == 0x00 && KernelData[i+52] == 0x00) {
       patchLocation1 = i+40;
       DBG_RT( "Found Lapic panic (10.6) at 0x%08x\n", patchLocation1);
       break;
-    } else if (bytes[i+0]  == 0x65 && bytes[i+1]  == 0x8B && bytes[i+2]  == 0x04 && bytes[i+3]  == 0x25 &&
-               bytes[i+4]  == 0x14 && bytes[i+5]  == 0x00 && bytes[i+6]  == 0x00 && bytes[i+7]  == 0x00 &&
-               bytes[i+35] == 0x65 && bytes[i+36] == 0x8B && bytes[i+37] == 0x04 && bytes[i+38] == 0x25 &&
-               bytes[i+39] == 0x14 && bytes[i+40] == 0x00 && bytes[i+41] == 0x00 && bytes[i+42] == 0x00) {
+    } else if (KernelData[i+0]  == 0x65 && KernelData[i+1]  == 0x8B && KernelData[i+2]  == 0x04 && KernelData[i+3]  == 0x25 &&
+               KernelData[i+4]  == 0x14 && KernelData[i+5]  == 0x00 && KernelData[i+6]  == 0x00 && KernelData[i+7]  == 0x00 &&
+               KernelData[i+35] == 0x65 && KernelData[i+36] == 0x8B && KernelData[i+37] == 0x04 && KernelData[i+38] == 0x25 &&
+               KernelData[i+39] == 0x14 && KernelData[i+40] == 0x00 && KernelData[i+41] == 0x00 && KernelData[i+42] == 0x00) {
       patchLocation1 = i+30;
       DBG_RT( "Found Lapic panic (10.7 - 10.8) at 0x%08x\n", patchLocation1);
       break;
-    } else if (bytes[i+0] == 0x65 && bytes[i+1] == 0x8B && bytes[i+2] == 0x04 && bytes[i+3] == 0x25 &&
-               bytes[i+4] == 0x1C && bytes[i+5] == 0x00 && bytes[i+6] == 0x00 && bytes[i+7] == 0x00 &&
-               bytes[i+36] == 0x65 && bytes[i+37] == 0x8B && bytes[i+38] == 0x04 && bytes[i+39] == 0x25 &&
-               bytes[i+40] == 0x1C && bytes[i+41] == 0x00 && bytes[i+42] == 0x00 && bytes[i+43] == 0x00) {
+    } else if (KernelData[i+0] == 0x65 && KernelData[i+1] == 0x8B && KernelData[i+2] == 0x04 && KernelData[i+3] == 0x25 &&
+               KernelData[i+4] == 0x1C && KernelData[i+5] == 0x00 && KernelData[i+6] == 0x00 && KernelData[i+7] == 0x00 &&
+               KernelData[i+36] == 0x65 && KernelData[i+37] == 0x8B && KernelData[i+38] == 0x04 && KernelData[i+39] == 0x25 &&
+               KernelData[i+40] == 0x1C && KernelData[i+41] == 0x00 && KernelData[i+42] == 0x00 && KernelData[i+43] == 0x00) {
       patchLocation1 = i+31;
       DBG_RT( "Found Lapic panic (10.9) at 0x%08x\n", patchLocation1);
       break;
     // 00 29 C7 78 XX 31 DB 8D 47 FA 83
-    } else if (bytes[i+0] == 0x00 && bytes[i+1] == 0x29 && bytes[i+2] == 0xC7 && bytes[i+3] == 0x78 &&
+    } else if (KernelData[i+0] == 0x00 && KernelData[i+1] == 0x29 && KernelData[i+2] == 0xC7 && KernelData[i+3] == 0x78 &&
                //(bytes[i+4] == 0x3F || bytes[i+4] == 0x4F) && // 3F:10.10-10.12/4F:10.13+
                bytes[i+5] == 0x31 && bytes[i+6] == 0xDB && bytes[i+7] == 0x8D && bytes[i+8] == 0x47 &&
                bytes[i+9] == 0xFA && bytes[i+10] == 0x83) {
@@ -1027,18 +1025,18 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_64(VOID *kernelData)
     }
   }
     
-  if (KernelAndKextPatches->KPDebug) {
-    gBS->Stall(3000000);
-  }
+//  if (KernelAndKextPatches->KPDebug) {
+    Stall(3000000);
+//  }
     
   return TRUE;
 }
 
-BOOLEAN LOADER_ENTRY::KernelLapicPatch_32(VOID *kernelData)
+BOOLEAN LOADER_ENTRY::KernelLapicPatch_32()
 {
   // Credits to donovan6000 and Sherlocks for providing the lapic kernel patch source used to build this function
 
-  UINT8       *bytes = (UINT8*)kernelData;
+  UINT8       *bytes = KernelData;
   UINT32      patchLocation = 0;
   UINT32      i;
 
@@ -1074,9 +1072,9 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_32(VOID *kernelData)
     }
   }
 
-  if (KernelAndKextPatches->KPDebug) {
-    gBS->Stall(3000000);
-  }
+//  if (KernelAndKextPatches->KPDebug) {
+    Stall(3000000);
+//  }
 
   return TRUE;
 }
@@ -1087,15 +1085,15 @@ BOOLEAN LOADER_ENTRY::KernelLapicPatch_32(VOID *kernelData)
 // SandyBridge-E, Ivy Bridge, Ivy Bridge-E, Haswell Celeron/Pentium, Haswell-E, Broadwell-E, ...
 // credit Pike R.Alpha, stinga11, syscl
 //
-BOOLEAN (*EnableExtCpuXCPM)(VOID *kernelData, BOOLEAN use_xcpm_idle);
+//BOOLEAN (*EnableExtCpuXCPM)(VOID *kernelData);
 
 //
 // syscl - applyKernPatch a wrapper for SearchAndReplace() to make the CpuPM patch tidy and clean
 //
-static inline VOID applyKernPatch(UINT8 *kern, const UINT8 *find, UINTN size, const UINT8 *repl, const CHAR8 *comment)
+VOID LOADER_ENTRY::applyKernPatch(const UINT8 *find, UINTN size, const UINT8 *repl, const CHAR8 *comment)
 {
     DBG("Searching %s...\n", comment);
-    if (SearchAndReplace(kern, KERNEL_MAX_SIZE, find, size, repl, 0)) {
+    if (SearchAndReplace(KernelData, KERNEL_MAX_SIZE, find, size, repl, 0)) {
         DBG("Found %s\nApplied patch\n", comment);
     } else {
         DBG("%s no found, patched already?\n", comment);
@@ -1116,7 +1114,7 @@ static inline BOOLEAN IsXCPMOSVersionCompat(UINT64 os_version)
 //
 // syscl - SandyBridgeEPM(): enable PowerManagement on SandyBridge-E
 //
-BOOLEAN LOADER_ENTRY::SandyBridgeEPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
+BOOLEAN LOADER_ENTRY::SandyBridgeEPM()
 {
     // note: a dummy function that made patches consistency
     return TRUE;
@@ -1126,14 +1124,14 @@ BOOLEAN LOADER_ENTRY::SandyBridgeEPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
 // syscl - Enable Haswell-E XCPM
 // Hex data provided and polished (c) PMheart, idea (c) Pike R.Alpha
 //
-BOOLEAN LOADER_ENTRY::HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
+BOOLEAN LOADER_ENTRY::HaswellEXCPM()
 {
   DBG("HaswellEXCPM() ===>\n");
-  UINT8       *kern = (UINT8*)kernelData;
+  UINT8       *kern = KernelData;
   CONST CHAR8       *comment;
   UINT32      i;
-  UINT32      patchLocation;
-  UINT64      os_version = AsciiOSVersionToUint64(OSVersion);
+  UINTN      patchLocation;
+  UINT64     os_version = AsciiOSVersionToUint64(OSVersion);
 
   // check OS version suit for patches
   if (!IsXCPMOSVersionCompat(os_version)) {
@@ -1148,17 +1146,17 @@ BOOLEAN LOADER_ENTRY::HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
     // 10.8.5
     const UINT8 find[] = { 0x83, 0xF8, 0x3C, 0x74, 0x2D };
     const UINT8 repl[] = { 0x83, 0xF8, 0x3F, 0x74, 0x2D };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.10")) {
     // 10.9.x
     const UINT8 find[] = { 0x83, 0xF8, 0x3C, 0x75, 0x07 };
     const UINT8 repl[] = { 0x83, 0xF8, 0x3F, 0x75, 0x07 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.10.1")) {
     // 10.10 - 10.10.1
     const UINT8 find[] = { 0x74, 0x11, 0x83, 0xF8, 0x3C };
     const UINT8 repl[] = { 0x74, 0x11, 0x83, 0xF8, 0x3F };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } // 10.10.2+: native support reached, no need to patch
 
   // _xcpm_bootstrap
@@ -1167,58 +1165,73 @@ BOOLEAN LOADER_ENTRY::HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
     // 10.8.5
     const UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x54 };
     const UINT8 repl[] = { 0x83, 0xFB, 0x3F, 0x75, 0x54 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.10")) {
     // 10.9.x
     const UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x68 };
     const UINT8 repl[] = { 0x83, 0xFB, 0x3F, 0x75, 0x68 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.10.2")) {
     // 10.10 - 10.10.2
     const UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x63 };
     const UINT8 repl[] = { 0x83, 0xFB, 0x3F, 0x75, 0x63 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.10.5")) {
     // 10.10.3 - 10.10.5
     const UINT8 find[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x0D };
     const UINT8 repl[] = { 0x83, 0xC3, 0xC3, 0x83, 0xFB, 0x0D };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.11")) {
     // 10.11 DB/PB - 10.11.0
     const UINT8 find[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x0D };
     const UINT8 repl[] = { 0x83, 0xC3, 0xC3, 0x83, 0xFB, 0x0D };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.11.6")) {
     // 10.11.1 - 10.11.6
     const UINT8 find[] = { 0x83, 0xC3, 0xBB, 0x83, 0xFB, 0x09 };
     const UINT8 repl[] = { 0x83, 0xC3, 0xB8, 0x83, 0xFB, 0x09 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
-  } else if (os_version <= AsciiOSVersionToUint64("10.12.5")) {
+    applyKernPatch(find, sizeof(find), repl, comment);
+  } else {
+    UINTN procLocation = searchProc(comment);
+    UINTN featureCall = searchProc("_cpuid_features");
+    UINTN place = FindRelative32(KernelData, procLocation, 0x100, featureCall);
+    for (UINTN i = 10; i < 20; ++i) {
+      if (KernelData[place + i] == 0xC4) {
+        KernelData[place + i] = 0xC1;
+        if (KernelData[(place + i) - 5] == 0x3B) {
+          KernelData[(place + i) - 5] = 0x00;
+        }
+        break;
+      }
+    }
+
+    /*if (os_version <= AsciiOSVersionToUint64("10.12.5")) {
     // 10.12 - 10.12.5
     const UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
     const UINT8 repl[] = { 0x83, 0xC3, 0xC1, 0x83, 0xFB, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.13")) {
     // 10.12.6
     const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
     const UINT8 repl[] = { 0x8D, 0x43, 0xC1, 0x83, 0xF8, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
     // PMheart: attempt to add 10.14 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15")) {
     // 10.13/10.14
     const UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
     const UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC1, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
     // PMheart: attempt to add 10.15 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15.4")) {
     const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
     const UINT8 repl[] = { 0x8D, 0x43, 0xC1, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.16")) {
     // vector sigma: 10.15.5 Beta 2 build 19F62f and 10.15.4 build 19E287
     const UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
     const UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC1, 0x80, 0xFB, 0x42 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
+     */
   }
 
   DBG("Searching _xcpm_pkg_scope_msr ...\n");
@@ -1237,15 +1250,15 @@ BOOLEAN LOADER_ENTRY::HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
       0x3D, 0xF4, 0x70, 0x55, 0x00, 0xBE, 0x07, 0x00,
       0x00, 0x00, 0x31, 0xD2, 0x90, 0x90, 0x90, 0x90, 0x90
     };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.10")) {
     // 10.9.x
     const UINT8 find[] = { 0xBE, 0x07, 0x00, 0x00, 0x00, 0x74, 0x13, 0x31, 0xD2, 0xE8, 0x5F, 0x02, 0x00, 0x00 };
     const UINT8 repl[] = { 0xBE, 0x07, 0x00, 0x00, 0x00, 0x90, 0x90, 0x31, 0xD2, 0x90, 0x90, 0x90, 0x90, 0x90 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else {
     // 10.10+
-    patchLocation = 0; // clean out the value just in case
+/*    patchLocation = 0; // clean out the value just in case
     for (i = 0; i < 0x1000000; i++) {
       if (kern[i+0] == 0xBE && kern[i+1] == 0x07 && kern[i+2] == 0x00 && kern[i+3] == 0x00 &&
           kern[i+4] == 0x00 && kern[i+5] == 0x31 && kern[i+6] == 0xD2 && kern[i+7] == 0xE8) {
@@ -1253,10 +1266,14 @@ BOOLEAN LOADER_ENTRY::HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
         DBG("Found _xcpm_pkg_scope_msr\n");
         break;
       }
-    }
+    } */
+    UINTN procLocation = searchProc("xcpm_init");
+    UINTN symbol1 = searchProc("_xcpm_pkg_scope_msrs");
+    patchLocation = FindRelative32(KernelData, procLocation, 0x100, symbol1);
+
 
     if (patchLocation) {
-      for (i = 0; i < 5; i++) {
+      for (i = 7; i < 12; i++) {
         kern[patchLocation+i] = 0x90;
       }
       DBG("Applied _xcpm_pkg_scope_msr patch\n");
@@ -1274,12 +1291,12 @@ BOOLEAN LOADER_ENTRY::HaswellEXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
 //
 // Enable Broadwell-E/EP PowerManagement on 10.12+ by syscl
 //
-BOOLEAN LOADER_ENTRY::BroadwellEPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
+BOOLEAN LOADER_ENTRY::BroadwellEPM()
 {
   DBG("BroadwellEPM() ===>\n");
-  UINT8       *kern = (UINT8*)kernelData;
+
   UINT32      i;
-  UINT32      patchLocation;
+  UINTN       patchLocation;
   UINT64      os_version = AsciiOSVersionToUint64(OSVersion);
 
   // check OS version suit for patches
@@ -1290,24 +1307,32 @@ BOOLEAN LOADER_ENTRY::BroadwellEPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
   }
 
   KernelAndKextPatches->FakeCPUID = (UINT32)(os_version < AsciiOSVersionToUint64("10.10.3") ? 0x0306C0 : 0x040674);
-  KernelCPUIDPatch(kern);
+  KernelCPUIDPatch();
 
   DBG("Searching _xcpm_pkg_scope_msr ...\n");
+  // proc: _xcpm_init @4687b0
+  // ffffff8000468825 488D3D54527F00                  lea        rdi, qword [ds:_xcpm_pkg_scope_msrs]
+  // ffffff800046882c BE07000000                      mov        esi, 0x7
+  // ffffff8000468831 31D2                            xor        edx, edx
+  // ffffff8000468833 E838FDFFFF                      call       sub_ffffff8000468570
   if (os_version >= AsciiOSVersionToUint64("10.12")) {
     // 10.12+
-    patchLocation = 0; // clean out the value just in case
-    for (i = 0; i < 0x1000000; i++) {
-      if (kern[i+0] == 0xBE && kern[i+1] == 0x07 && kern[i+2] == 0x00 && kern[i+3] == 0x00 &&
-          kern[i+4] == 0x00 && kern[i+5] == 0x31 && kern[i+6] == 0xD2 && kern[i+7] == 0xE8) {
-        patchLocation = i+7;
-        DBG("Found _xcpm_pkg_scope_msr\n");
-        break;
-      }
-    }
+//    patchLocation = 0; // clean out the value just in case
+//    for (i = 0; i < 0x1000000; i++) {
+//      if (kern[i+0] == 0xBE && kern[i+1] == 0x07 && kern[i+2] == 0x00 && kern[i+3] == 0x00 &&
+//          kern[i+4] == 0x00 && kern[i+5] == 0x31 && kern[i+6] == 0xD2 && kern[i+7] == 0xE8) {
+//        patchLocation = i+7;
+//       DBG("Found _xcpm_pkg_scope_msr\n");
+//        break;
+//      }
+    UINTN procLocation = searchProc("xcpm_init");
+    UINTN symbol1 = searchProc("_xcpm_pkg_scope_msrs");
+    patchLocation = FindRelative32(KernelData, procLocation, 0x100, symbol1);
 
+ 
     if (patchLocation) {
-      for (i = 0; i < 5; i++) {
-        kern[patchLocation+i] = 0x90;
+      for (i = 7; i < 12; i++) {
+        KernelData[patchLocation+i] = 0x90;
       }
       DBG("Applied _xcpm_pkg_scope_msr patch\n");
     } else {
@@ -1325,10 +1350,9 @@ BOOLEAN LOADER_ENTRY::BroadwellEPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
 // implemented by syscl
 // credit also Pike R.Alpha, stinga11, Sherlocks, vit9696
 //
-BOOLEAN LOADER_ENTRY::HaswellLowEndXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
+BOOLEAN LOADER_ENTRY::HaswellLowEndXCPM()
 {
   DBG("HaswellLowEndXCPM() ===>\n");
-  UINT8       *kern = (UINT8*)kernelData;
   UINT64      os_version = AsciiOSVersionToUint64(OSVersion);
   CONST CHAR8       *comment;
 
@@ -1340,59 +1364,76 @@ BOOLEAN LOADER_ENTRY::HaswellLowEndXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
   }
 
   KernelAndKextPatches->FakeCPUID = (UINT32)(0x0306A0);    // correct FakeCPUID
-  KernelCPUIDPatch(kern);
+  KernelCPUIDPatch();
 
   // 10.8.5 - 10.11.x no need the following kernel patches on Haswell Celeron/Pentium
-  if (os_version >= AsciiOSVersionToUint64("10.8.5") && os_version < AsciiOSVersionToUint64("10.12") &&
-      (!use_xcpm_idle)) {
+  if (os_version >= AsciiOSVersionToUint64("10.8.5") && os_version < AsciiOSVersionToUint64("10.12")) {
     DBG("HaswellLowEndXCPM() <===\n");
     return TRUE;
   }
 
-  // _xcpm_idle
-  if (use_xcpm_idle) {
+  // _xcpm_idle //this is a part of KernelPM
+/*  if (use_xcpm_idle) {
     DBG("HWPEnable - ON.\n");
     comment = "_xcpm_idle";
-    STATIC UINT8 find[] = { 0xB9, 0xE2, 0x00, 0x00, 0x00, 0x0F, 0x30 };
-    STATIC UINT8 repl[] = { 0xB9, 0xE2, 0x00, 0x00, 0x00, 0x90, 0x90 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0xB9, 0xE2, 0x00, 0x00, 0x00, 0x0F, 0x30 };
+    const UINT8 repl[] = { 0xB9, 0xE2, 0x00, 0x00, 0x00, 0x90, 0x90 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   }
-
+*/
   comment = "_xcpm_bootstrap";
+  UINTN procLocation = searchProc(comment);
+  UINTN featureCall = searchProc("_cpuid_features");
+  UINTN place = FindRelative32(KernelData, procLocation, 0x100, featureCall);
+  for (UINTN i = 10; i < 20; ++i) {
+    if (KernelData[place + i] == 0xC4) {
+      KernelData[place + i] = 0xC6;
+      if (KernelData[(place + i) - 5] == 0x3B) {
+        KernelData[(place + i) - 5] = 0x00;
+      }
+      break;
+    }
+  }
+  /*
   if (os_version <= AsciiOSVersionToUint64("10.12.5")) {
     // 10.12 - 10.12.5
-    STATIC UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
-    STATIC UINT8 repl[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
+    const UINT8 repl[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.13")) {
     // 10.12.6
-    STATIC UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
-    STATIC UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x83, 0xF8, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
+    const UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x83, 0xF8, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.15")) {
     // 10.13/10.14
-    STATIC UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
-    STATIC UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC6, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    //    ; Basic Block Input Regs: rbx -  Killed Regs: rax
+    //    ffffff80004fa0f7 89D8                            mov        eax, ebx
+    //    ffffff80004fa0f9 04C4                            add        al, 0xc4
+    //    ffffff80004fa0fb 3C22                            cmp        al, 0x22
+    //    ffffff80004fa0fd 7722                            jnbe       0xffffff80004fa121
+    const UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
+    const UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC6, 0x3C, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
     // PMheart: attempt to add 10.15 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15.4")) {
-    STATIC UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
-    STATIC UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
+    const UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x3C, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.16")) {
     // vector sigma: 10.15.5 Beta 2 build 19F62f and 10.15.4 build 19E287
-    STATIC UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
-    STATIC UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC6, 0x80, 0xFB, 0x42 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
+    const UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC6, 0x80, 0xFB, 0x42 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   }
-
+*/
   comment = "_cpuid_set_info_rdmsr";
   // PMheart: bytes seem stable as of 10.12
   if (os_version >= AsciiOSVersionToUint64("10.12")) {
     // 10.12+
-    STATIC UINT8 find[] = { 0xB9, 0xA0, 0x01, 0x00, 0x00, 0x0F, 0x32 };
-    STATIC UINT8 repl[] = { 0xB9, 0xA0, 0x01, 0x00, 0x00, 0x31, 0xC0 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0xB9, 0xA0, 0x01, 0x00, 0x00, 0x0F, 0x32 };
+    const UINT8 repl[] = { 0xB9, 0xA0, 0x01, 0x00, 0x00, 0x31, 0xC0 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   }
 
   DBG("HaswellLowEndXCPM() <===\n");
@@ -1402,12 +1443,11 @@ BOOLEAN LOADER_ENTRY::HaswellLowEndXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
 //
 // this patch provides XCPM support for Ivy Bridge. by PMheart
 //
-BOOLEAN LOADER_ENTRY::KernelIvyBridgeXCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
+BOOLEAN LOADER_ENTRY::KernelIvyBridgeXCPM()
 {
-  UINT8       *kern = (UINT8*)kernelData;
   CONST CHAR8       *comment;
   UINT32      i;
-  UINT32      patchLocation;
+  UINTN       patchLocation;
   UINT64      os_version = AsciiOSVersionToUint64(OSVersion);
 
   // check whether Ivy Bridge
@@ -1432,7 +1472,7 @@ BOOLEAN LOADER_ENTRY::KernelIvyBridgeXCPM(VOID *kernelData, BOOLEAN use_xcpm_idl
   DBG("Searching _xcpm_pkg_scope_msr ...\n");
   if (os_version >= AsciiOSVersionToUint64("10.12")) {
     // 10.12+
-    patchLocation = 0; // clean out the value just in case
+/*    patchLocation = 0; // clean out the value just in case
     for (i = 0; i < 0x1000000; i++) {
       if (kern[i+0] == 0xBE && kern[i+1] == 0x07 && kern[i+2] == 0x00 && kern[i+3] == 0x00 &&
           kern[i+4] == 0x00 && kern[i+5] == 0x31 && kern[i+6] == 0xD2 && kern[i+7] == 0xE8) {
@@ -1440,11 +1480,15 @@ BOOLEAN LOADER_ENTRY::KernelIvyBridgeXCPM(VOID *kernelData, BOOLEAN use_xcpm_idl
         DBG("Found _xcpm_pkg_scope_msr\n");
         break;
       }
-    }
+    } */
+    UINTN procLocation = searchProc("xcpm_init");
+    UINTN symbol1 = searchProc("_xcpm_pkg_scope_msrs");
+    patchLocation = FindRelative32(KernelData, procLocation, 0x100, symbol1);
+
 
     if (patchLocation) {
-      for (i = 0; i < 5; i++) {
-        kern[patchLocation+i] = 0x90;
+      for (i = 7; i < 12; i++) {
+        KernelData[patchLocation+i] = 0x90;
       }
       DBG("Applied _xcpm_pkg_scope_msr patch\n");
     } else {
@@ -1455,34 +1499,47 @@ BOOLEAN LOADER_ENTRY::KernelIvyBridgeXCPM(VOID *kernelData, BOOLEAN use_xcpm_idl
   }
 
   comment = "_xcpm_bootstrap";
+  UINTN procLocation = searchProc(comment);
+  UINTN featureCall = searchProc("_cpuid_features");
+  UINTN place = FindRelative32(KernelData, procLocation, 0x100, featureCall);
+  for (UINTN i = 10; i < 20; ++i) {
+    if (KernelData[place + i] == 0xC4) {
+      KernelData[place + i] = 0xC6;
+      if (KernelData[(place + i) - 5] == 0x3B) {
+        KernelData[(place + i) - 5] = 0x00;
+      }
+      break;
+    }
+  }
+/*
   if (os_version <= AsciiOSVersionToUint64("10.12.5")) {
     // 10.12 - 10.12.5
-    STATIC UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
-    STATIC UINT8 repl[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
+    const UINT8 repl[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.13")) {
     // 10.12.6
-    STATIC UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
-    STATIC UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x83, 0xF8, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
+    const UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x83, 0xF8, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
     // PMheart: attempt to add 10.14 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15")) {
     // 10.13/10.14
-    STATIC UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
-    STATIC UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC6, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
+    const UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC6, 0x3C, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
     // PMheart: attempt to add 10.15 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15.4")) {
-    STATIC UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
-    STATIC UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
+    const UINT8 repl[] = { 0x8D, 0x43, 0xC6, 0x3C, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.16")) {
     // vector sigma: 10.15.5 Beta 2 build 19F62f and 10.15.4 build 19E287
-    STATIC UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
-    STATIC UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC6, 0x80, 0xFB, 0x42 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
+    const UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC6, 0x80, 0xFB, 0x42 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   }
-
+*/
   DBG("KernelIvyBridgeXCPM() <===\n");
   return TRUE;
 }
@@ -1491,12 +1548,12 @@ BOOLEAN LOADER_ENTRY::KernelIvyBridgeXCPM(VOID *kernelData, BOOLEAN use_xcpm_idl
 // this patch provides XCPM support for Ivy Bridge-E. by PMheart
 // attempt to enable XCPM for Ivy-E, still need to test further
 //
-BOOLEAN LOADER_ENTRY::KernelIvyE5XCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
+BOOLEAN LOADER_ENTRY::KernelIvyE5XCPM()
 {
-  UINT8       *kern = (UINT8*)kernelData;
+  UINT8       *kern = (UINT8*)KernelData;
   CONST CHAR8       *comment;
   UINT32      i;
-  UINT32      patchLocation;
+  UINTN       patchLocation;
   UINT64      os_version = AsciiOSVersionToUint64(OSVersion);
   
   // check whether Ivy Bridge-E5
@@ -1515,18 +1572,18 @@ BOOLEAN LOADER_ENTRY::KernelIvyE5XCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
   }
   
   // _cpuid_set_info
-  // TO-DO: should we use FakeCPUID instead?
+  // TODO: should we use FakeCPUID instead?
   comment = "_cpuid_set_info";
   if (os_version <= AsciiOSVersionToUint64("10.8.5")) {
     // 10.8.5
-    STATIC UINT8 find[] = { 0x83, 0xF8, 0x3C, 0x74, 0x2D };
-    STATIC UINT8 repl[] = { 0x83, 0xF8, 0x3E, 0x74, 0x2D };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xF8, 0x3C, 0x74, 0x2D };
+    const UINT8 repl[] = { 0x83, 0xF8, 0x3E, 0x74, 0x2D };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version == AsciiOSVersionToUint64("10.9") || os_version == AsciiOSVersionToUint64("10.9.1")) {
     // 10.9.0 - 10.9.1
-    STATIC UINT8 find[] = { 0x83, 0xF8, 0x3C, 0x75, 0x07 };
-    STATIC UINT8 repl[] = { 0x83, 0xF8, 0x3E, 0x75, 0x07 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xF8, 0x3C, 0x75, 0x07 };
+    const UINT8 repl[] = { 0x83, 0xF8, 0x3E, 0x75, 0x07 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } // 10.9.2+: native support reached, no need to patch
   
   // _xcpm_pkg_scope_msrs
@@ -1534,43 +1591,47 @@ BOOLEAN LOADER_ENTRY::KernelIvyE5XCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
   comment = "_xcpm_pkg_scope_msrs";
   if (os_version <= AsciiOSVersionToUint64("10.8.5")) {
     // 10.8.5
-    STATIC UINT8 find[] = {
+    const UINT8 find[] = {
       0x48, 0x8D, 0x3D, 0x02, 0x71, 0x55, 0x00, 0xBE,
       0x07, 0x00, 0x00, 0x00, 0xEB, 0x1F, 0x48, 0x8D,
       0x3D, 0xF4, 0x70, 0x55, 0x00, 0xBE, 0x07, 0x00,
       0x00, 0x00, 0x31, 0xD2, 0xE8, 0x28, 0x02, 0x00, 0x00
     };
-    STATIC UINT8 repl[] = {
+    const UINT8 repl[] = {
       0x48, 0x8D, 0x3D, 0x02, 0x71, 0x55, 0x00, 0xBE,
       0x07, 0x00, 0x00, 0x00, 0x90, 0x90, 0x48, 0x8D,
       0x3D, 0xF4, 0x70, 0x55, 0x00, 0xBE, 0x07, 0x00,
       0x00, 0x00, 0x31, 0xD2, 0x90, 0x90, 0x90, 0x90, 0x90
     };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.10")) {
     // 10.9.x
-    STATIC UINT8 find[] = { 0xBE, 0x07, 0x00, 0x00, 0x00, 0x74, 0x13, 0x31, 0xD2, 0xE8, 0x5F, 0x02, 0x00, 0x00 };
-    STATIC UINT8 repl[] = { 0xBE, 0x07, 0x00, 0x00, 0x00, 0x90, 0x90, 0x31, 0xD2, 0x90, 0x90, 0x90, 0x90, 0x90 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0xBE, 0x07, 0x00, 0x00, 0x00, 0x74, 0x13, 0x31, 0xD2, 0xE8, 0x5F, 0x02, 0x00, 0x00 };
+    const UINT8 repl[] = { 0xBE, 0x07, 0x00, 0x00, 0x00, 0x90, 0x90, 0x31, 0xD2, 0x90, 0x90, 0x90, 0x90, 0x90 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else {
     // 10.10+
-    patchLocation = 0; // clean out the value just in case
-    for (i = 0; i < 0x1000000; i++) {
+//    patchLocation = 0; // clean out the value just in case
+    UINTN procLocation = searchProc("xcpm_init");
+    UINTN symbol1 = searchProc(comment);
+    patchLocation = FindRelative32(kern, procLocation, 0x100, symbol1);
+
+/*    for (i = 0; i < 0x1000000; i++) {
       if (kern[i+0] == 0xBE && kern[i+1] == 0x07 && kern[i+2] == 0x00 && kern[i+3] == 0x00 &&
           kern[i+4] == 0x00 && kern[i+5] == 0x31 && kern[i+6] == 0xD2 && kern[i+7] == 0xE8) {
         patchLocation = i+7;
         DBG("Found _xcpm_pkg_scope_msr\n");
         break;
       }
-    }
+    } */
     
     if (patchLocation) {
-      for (i = 0; i < 5; i++) {
+      for (i = 7; i < 12; i++) {
         kern[patchLocation+i] = 0x90;
       }
       DBG("Applied _xcpm_pkg_scope_msr patch\n");
     } else {
-      DBG("_xcpm_pkg_scope_msr not found, patch aborted\n");
+//      DBG("_xcpm_pkg_scope_msr not found, patch aborted\n");
       DBG("KernelIvyE5XCPM() <===FALSE\n");
       return FALSE;
     }
@@ -1580,66 +1641,82 @@ BOOLEAN LOADER_ENTRY::KernelIvyE5XCPM(VOID *kernelData, BOOLEAN use_xcpm_idle)
   comment = "_xcpm_bootstrap";
   if (os_version <= AsciiOSVersionToUint64("10.8.5")) {
     // 10.8.5
-    STATIC UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x54 };
-    STATIC UINT8 repl[] = { 0x83, 0xFB, 0x3E, 0x75, 0x54 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x54 };
+    const UINT8 repl[] = { 0x83, 0xFB, 0x3E, 0x75, 0x54 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.10")) {
     // 10.9.x
-    STATIC UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x68 };
-    STATIC UINT8 repl[] = { 0x83, 0xFB, 0x3E, 0x75, 0x68 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x68 };
+    const UINT8 repl[] = { 0x83, 0xFB, 0x3E, 0x75, 0x68 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.10.2")) {
     // 10.10 - 10.10.2
-    STATIC UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x63 };
-    STATIC UINT8 repl[] = { 0x83, 0xFB, 0x3E, 0x75, 0x63 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xFB, 0x3C, 0x75, 0x63 };
+    const UINT8 repl[] = { 0x83, 0xFB, 0x3E, 0x75, 0x63 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.10.5")) {
     // 10.10.3 - 10.10.5
-    STATIC UINT8 find[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x0D };
-    STATIC UINT8 repl[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x0D };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x0D };
+    const UINT8 repl[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x0D };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.11")) {
     // 10.11 DB/PB - 10.11.0
-    STATIC UINT8 find[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x0D };
-    STATIC UINT8 repl[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x0D };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xC3, 0xC6, 0x83, 0xFB, 0x0D };
+    const UINT8 repl[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x0D };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version <= AsciiOSVersionToUint64("10.11.6")) {
     // 10.11.1 - 10.11.6
-    STATIC UINT8 find[] = { 0x83, 0xC3, 0xBB, 0x83, 0xFB, 0x09 };
-    STATIC UINT8 repl[] = { 0x83, 0xC3, 0xB9, 0x83, 0xFB, 0x09 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
-  } else if (os_version <= AsciiOSVersionToUint64("10.12.5")) {
+    const UINT8 find[] = { 0x83, 0xC3, 0xBB, 0x83, 0xFB, 0x09 };
+    const UINT8 repl[] = { 0x83, 0xC3, 0xB9, 0x83, 0xFB, 0x09 };
+    applyKernPatch(find, sizeof(find), repl, comment);
+  } else {
+
+    UINTN procLocation = searchProc(comment);
+    UINTN featureCall = searchProc("_cpuid_features");
+    UINTN place = FindRelative32(KernelData, procLocation, 0x100, featureCall);
+    for (UINTN i = 10; i < 20; ++i) {
+      if (KernelData[place + i] == 0xC4) {
+        KernelData[place + i] = 0xC1;
+        if (KernelData[(place + i) - 5] == 0x3B) {
+          KernelData[(place + i) - 5] = 0x00;
+        }
+        break;
+      }
+    }
+
+/*    if (os_version <= AsciiOSVersionToUint64("10.12.5")) {
     // 10.12 - 10.12.5
-    STATIC UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
-    STATIC UINT8 repl[] = { 0x83, 0xC3, 0xC2, 0x83, 0xFB, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x83, 0xC3, 0xC4, 0x83, 0xFB, 0x22 };
+    const UINT8 repl[] = { 0x83, 0xC3, 0xC2, 0x83, 0xFB, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.13")) {
     // 10.12.6
-    STATIC UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
-    STATIC UINT8 repl[] = { 0x8D, 0x43, 0xC2, 0x83, 0xF8, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x83, 0xF8, 0x22 };
+    const UINT8 repl[] = { 0x8D, 0x43, 0xC2, 0x83, 0xF8, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   // PMheart: attempt to add 10.14 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15")) {
     // 10.13/10.14
-    STATIC UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
-    STATIC UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC1, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x89, 0xD8, 0x04, 0xC4, 0x3C, 0x22 };
+    const UINT8 repl[] = { 0x89, 0xD8, 0x04, 0xC1, 0x3C, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   // PMheart: attempt to add 10.15 compatibility
   } else if (os_version < AsciiOSVersionToUint64("10.15.4")) {
-    STATIC UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
-    STATIC UINT8 repl[] = { 0x8D, 0x43, 0xC1, 0x3C, 0x22 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x8D, 0x43, 0xC4, 0x3C, 0x22 };
+    const UINT8 repl[] = { 0x8D, 0x43, 0xC1, 0x3C, 0x22 };
+    applyKernPatch(find, sizeof(find), repl, comment);
   } else if (os_version < AsciiOSVersionToUint64("10.16")) {
     // vector sigma: 10.15.5 Beta 2 build 19F62f and 10.15.4 build 19E287
-    STATIC UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
-    STATIC UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC1, 0x80, 0xFB, 0x42 };
-    applyKernPatch(kern, find, sizeof(find), repl, comment);
+    const UINT8 find[] = { 0x3B, 0x7E, 0x2E, 0x80, 0xC3, 0xC4, 0x80, 0xFB, 0x42 };
+    const UINT8 repl[] = { 0x00, 0x7E, 0x2E, 0x80, 0xC3, 0xC1, 0x80, 0xFB, 0x42 };
+    applyKernPatch(find, sizeof(find), repl, comment);
+ */
   }
   
   DBG("KernelIvyE5XCPM() <===\n");
   return TRUE;
 }
-
+#if 0
 VOID Patcher_SSE3_6(VOID* kernelData)
 {
   UINT8* bytes = (UINT8*)kernelData;
@@ -1780,13 +1857,14 @@ VOID Patcher_SSE3_5(VOID* kernelData)
 
 }
 
-VOID Patcher_SSE3_7(VOID* kernelData)
+VOID Patcher_SSE3_7()
 {
      // not support yet
      return;
 }
+#endif
 
-VOID Get_PreLink()
+VOID LOADER_ENTRY::Get_PreLink()
 {
   UINT32  ncmds, cmdsize;
   UINT32  binaryIndex;
@@ -1824,7 +1902,7 @@ VOID Get_PreLink()
             PrelinkTextSize = (UINT32)segCmd64->vmsize;
             PrelinkTextLoadCmdAddr = (UINT32)(UINTN)segCmd64;
           }
-			DBG("at %p: vmaddr = 0x%llx, vmsize = 0x%llx\n", segCmd64, segCmd64->vmaddr, segCmd64->vmsize);
+          DBG("at %p: vmaddr = 0x%llx, vmsize = 0x%llx\n", segCmd64, segCmd64->vmaddr, segCmd64->vmsize);
           DBG("PrelinkTextLoadCmdAddr = 0x%X, PrelinkTextAddr = 0x%X, PrelinkTextSize = 0x%X\n",
               PrelinkTextLoadCmdAddr, PrelinkTextAddr, PrelinkTextSize);
           //DBG("cmd = 0x%08X\n",segCmd64->cmd);
@@ -1845,8 +1923,8 @@ VOID Get_PreLink()
           DBG("Found PRELINK_INFO, 64bit\n");
           //DBG("cmd = 0x%08X\n",segCmd64->cmd);
           //DBG("cmdsize = 0x%08X\n",segCmd64->cmdsize);
-			DBG("vmaddr = 0x%08llX\n",segCmd64->vmaddr);
-			DBG("vmsize = 0x%08llX\n",segCmd64->vmsize);
+          DBG("vmaddr = 0x%08llX\n",segCmd64->vmaddr);
+          DBG("vmsize = 0x%08llX\n",segCmd64->vmsize);
           //DBG("fileoff = 0x%08X\n",segCmd64->fileoff);
           //DBG("filesize = 0x%08X\n",segCmd64->filesize);
           //DBG("maxprot = 0x%08X\n",segCmd64->maxprot);
@@ -1867,7 +1945,7 @@ VOID Get_PreLink()
                 PrelinkInfoAddr = (UINT32)(sect->addr ? sect->addr + KernelRelocBase : 0);
                 PrelinkInfoSize = (UINT32)sect->size;
               }
-				DBG("__info found at %p: addr = 0x%llx, size = 0x%llx\n", sect, sect->addr, sect->size);
+              DBG("__info found at %p: addr = 0x%llx, size = 0x%llx\n", sect, sect->addr, sect->size);
               DBG("PrelinkInfoLoadCmdAddr = 0x%X, PrelinkInfoAddr = 0x%X, PrelinkInfoSize = 0x%X\n",
                   PrelinkInfoLoadCmdAddr, PrelinkInfoAddr, PrelinkInfoSize);
             }
@@ -1888,7 +1966,7 @@ VOID Get_PreLink()
             PrelinkTextSize = (UINT32)segCmd->vmsize;
             PrelinkTextLoadCmdAddr = (UINT32)(UINTN)segCmd;
           }
-			DBG("at %p: vmaddr = 0x%x, vmsize = 0x%x\n", segCmd, segCmd->vmaddr, segCmd->vmsize);
+          DBG("at %p: vmaddr = 0x%x, vmsize = 0x%x\n", segCmd, segCmd->vmaddr, segCmd->vmsize);
           DBG("PrelinkTextLoadCmdAddr = 0x%X, PrelinkTextAddr = 0x%X, PrelinkTextSize = 0x%X\n",
               PrelinkTextLoadCmdAddr, PrelinkTextAddr, PrelinkTextSize);
           //gBS->Stall(30*1000000);
@@ -1921,7 +1999,7 @@ VOID Get_PreLink()
                 PrelinkInfoAddr = (UINT32)(sect->addr ? sect->addr + KernelRelocBase : 0);
                 PrelinkInfoSize = (UINT32)sect->size;
               }
-				DBG("__info found at %p: addr = 0x%x, size = 0x%x\n", sect, sect->addr, sect->size);
+              DBG("__info found at %p: addr = 0x%x, size = 0x%x\n", sect, sect->addr, sect->size);
               DBG("PrelinkInfoLoadCmdAddr = 0x%X, PrelinkInfoAddr = 0x%X, PrelinkInfoSize = 0x%X\n",
                   PrelinkInfoLoadCmdAddr, PrelinkInfoAddr, PrelinkInfoSize);
               //gBS->Stall(30*1000000);
@@ -1966,13 +2044,13 @@ LOADER_ENTRY::FindBootArgs()
       dtLength = &bootArgs2->deviceTreeLength;
       KernelSlide = bootArgs2->kslide;
 
-		DBG_RT( "Found bootArgs2 at 0x%llX, DevTree at 0x%llX\n", (UINTN)ptr, (UINTN)bootArgs2->deviceTreeP);
+      DBG_RT( "Found bootArgs2 at 0x%llX, DevTree at 0x%llX\n", (UINTN)ptr, (UINTN)bootArgs2->deviceTreeP);
       //DBG("bootArgs2->kaddr = 0x%08X and bootArgs2->ksize =  0x%08X\n", bootArgs2->kaddr, bootArgs2->ksize);
       //DBG("bootArgs2->efiMode = 0x%02X\n", bootArgs2->efiMode);
-		DBG_RT( "bootArgs2->CommandLine = %s\n", bootArgs2->CommandLine);
+      DBG_RT( "bootArgs2->CommandLine = %s\n", bootArgs2->CommandLine);
       DBG_RT( "bootArgs2->flags = 0x%hx\n", bootArgs2->flags);
       DBG_RT( "bootArgs2->kslide = 0x%x\n", bootArgs2->kslide);
-		DBG_RT( "bootArgs2->bootMemStart = 0x%llx\n", bootArgs2->bootMemStart);
+      DBG_RT( "bootArgs2->bootMemStart = 0x%llx\n", bootArgs2->bootMemStart);
       if (KernelAndKextPatches && KernelAndKextPatches->KPDebug)
       gBS->Stall(2000000);
 
@@ -1995,7 +2073,7 @@ LOADER_ENTRY::FindBootArgs()
       dtRoot = (CHAR8*)(UINTN)bootArgs1->deviceTreeP;
       dtLength = &bootArgs1->deviceTreeLength;
 
-		DBG_RT( "Found bootArgs1 at 0x%8s, DevTree at %p\n", ptr, dtRoot);
+      DBG_RT( "Found bootArgs1 at 0x%8s, DevTree at %p\n", ptr, dtRoot);
       //DBG("bootArgs1->kaddr = 0x%08X and bootArgs1->ksize =  0x%08X\n", bootArgs1->kaddr, bootArgs1->ksize);
       //DBG("bootArgs1->efiMode = 0x%02X\n", bootArgs1->efiMode);
 
@@ -2009,7 +2087,7 @@ LOADER_ENTRY::FindBootArgs()
 }
 
 BOOLEAN
-LOADER_ENTRY::KernelUserPatch(IN UINT8 *UKernelData)
+LOADER_ENTRY::KernelUserPatch()
 {
   INTN Num, i = 0, y = 0;
 
@@ -2030,7 +2108,7 @@ LOADER_ENTRY::KernelUserPatch(IN UINT8 *UKernelData)
     }
     bool once = false;
     UINTN procLen = 0;
-    UINTN procAddr = searchProc(UKernelData, KernelAndKextPatches->KernelPatches[i].ProcedureName);
+    UINTN procAddr = searchProc(KernelAndKextPatches->KernelPatches[i].ProcedureName);
     DBG_RT("procedure %s found at 0x%llx\n", KernelAndKextPatches->KernelPatches[i].ProcedureName, procAddr);
     if (SearchLen == 0) {
       SearchLen = KERNEL_MAX_SIZE;
@@ -2039,7 +2117,7 @@ LOADER_ENTRY::KernelUserPatch(IN UINT8 *UKernelData)
     } else {
       procLen = SearchLen;
     }
-    UINT8 * curs = &UKernelData[procAddr];
+    UINT8 * curs = &KernelData[procAddr];
     UINTN j = 0;
     while (j < KERNEL_MAX_SIZE) {
       if (!KernelAndKextPatches->KernelPatches[i].StartPattern || //old behavior
@@ -2191,7 +2269,7 @@ LOADER_ENTRY::KernelAndKextPatcherInit()
 
   // find __PRELINK_TEXT and __PRELINK_INFO
   Get_PreLink();
-  if (EFI_ERROR(getVTable(KernelData))) {
+  if (EFI_ERROR(getVTable())) {
     DBG_RT("error getting vtable: \n");
   }
 
@@ -2203,9 +2281,12 @@ VOID
 LOADER_ENTRY::KernelAndKextsPatcherStart()
 {
   BOOLEAN KextPatchesNeeded, patchedOk;
-  // it was intended for custom entries but not work if no suctom entries used
-  // so set common until better solution invented
+  /*
+   * it was intended for custom entries but not work if no custom entries used
+   * so set common until better solution invented
+   */
   KernelAndKextPatches = (KERNEL_AND_KEXT_PATCHES *)(((UINTN)&gSettings) + OFFSET_OF(SETTINGS_DATA, KernelAndKextPatches));
+  
   // we will call KernelAndKextPatcherInit() only if needed
   if (KernelAndKextPatches == NULL) return; //entry is not null as double check
 
@@ -2223,17 +2304,17 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
     DBG_RT("Enabled: \n");
     KernelAndKextPatcherInit();
     if (KernelData == NULL) goto NoKernelData;
-    if (EFI_ERROR(getVTable(KernelData))) {
+    if (EFI_ERROR(getVTable())) {
       DBG_RT("error getting vtable: \n");
       goto NoKernelData;
     }
-    patchedOk = KernelUserPatch(KernelData);
+    patchedOk = KernelUserPatch();
     DBG_RT(patchedOk ? " OK\n" : " FAILED!\n");
 //    gBS->Stall(5000000);
   } else {
     DBG_RT("Disabled\n");
   }
-
+/*
   DBG_RT( "\nKernelCpu patch: ");
   if (KernelAndKextPatches->KPKernelCpu) {
     //
@@ -2244,36 +2325,36 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
     if (KernelData == NULL) goto NoKernelData;
     if(is64BitKernel) {
       DBG_RT( "64 bit patch ...\n");
-      KernelPatcher_64(KernelData);
+      KernelPatcher_64();
     } else {
       DBG_RT( "32 bit patch ...\n");
-      KernelPatcher_32(KernelData);
+      KernelPatcher_32();
     }
     DBG_RT( " OK\n");
   } else {
     DBG_RT( "Disabled\n");
   }
-
+*/
   //other method for KernelCPU patch is FakeCPUID
   DBG_RT( "\nFakeCPUID patch: ");
   if (KernelAndKextPatches->FakeCPUID) {
     DBG_RT( "Enabled: 0x%06x\n", KernelAndKextPatches->FakeCPUID);
     KernelAndKextPatcherInit();
     if (KernelData == NULL) goto NoKernelData;
-    KernelCPUIDPatch((UINT8*)KernelData);
+    KernelCPUIDPatch();
   } else {
     DBG_RT( "Disabled\n");
   }
 
-  // CPU power management patch for haswell with locked msr
+  // CPU power management patch for CPU with locked msr
   DBG_RT( "\nKernelPm patch: ");
-  if (KernelAndKextPatches->KPKernelPm) {
+  if (KernelAndKextPatches->KPKernelPm || KernelAndKextPatches->KPKernelXCPM) {
     DBG_RT( "Enabled: \n");
     KernelAndKextPatcherInit();
     if (KernelData == NULL) goto NoKernelData;
     patchedOk = FALSE;
     if (is64BitKernel) {
-      patchedOk = KernelPatchPm(KernelData);
+      patchedOk = KernelPatchPm();
     }
     DBG_RT( patchedOk ? " OK\n" : " FAILED!\n");
   } else {
@@ -2286,7 +2367,7 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
     DBG_RT( "Enabled: \n");
     KernelAndKextPatcherInit();
     if (KernelData == NULL) goto NoKernelData;
-    patchedOk = KernelPanicNoKextDump(KernelData);
+    patchedOk = KernelPanicNoKextDump();
     DBG_RT( patchedOk ? " OK\n" : " FAILED!\n");
   } else {
     DBG_RT( "Disabled\n");
@@ -2301,10 +2382,10 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
     if (KernelData == NULL) goto NoKernelData;
     if(is64BitKernel) {
       DBG_RT( "64-bit patch ...\n");
-      patchedOk = KernelLapicPatch_64(KernelData);
+      patchedOk = KernelLapicPatch_64();
     } else {
       DBG_RT( "32-bit patch ...\n");
-      patchedOk = KernelLapicPatch_32(KernelData);
+      patchedOk = KernelLapicPatch_32();
     }
     DBG_RT( patchedOk ? " OK\n" : " FAILED!\n");
   } else {
@@ -2317,7 +2398,7 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
     //
 //    EnableExtCpuXCPM = NULL;
     patchedOk = FALSE;
-    BOOLEAN apply_idle_patch = (gCPUStructure.Model >= CPU_MODEL_SKYLAKE_U) && gSettings.HWP;
+//    BOOLEAN apply_idle_patch = (gCPUStructure.Model >= CPU_MODEL_SKYLAKE_U) && gSettings.HWP;
     KernelAndKextPatcherInit();
     if (KernelData == NULL) goto NoKernelData;
     
@@ -2325,34 +2406,34 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
     // only Intel support this feature till now
     // move below code outside the if condition if AMD supports
     // XCPM later on
-
+ 
     if (gCPUStructure.Vendor == CPU_VENDOR_INTEL) {
       switch (gCPUStructure.Model) {
           case CPU_MODEL_JAKETOWN:
             // SandyBridge-E LGA2011
-            patchedOk = SandyBridgeEPM(KernelData, apply_idle_patch);
+            patchedOk = SandyBridgeEPM();
             gSNBEAICPUFixRequire = TRUE;       // turn on SandyBridge-E AppleIntelCPUPowerManagement Fix
             break;
               
           case CPU_MODEL_IVY_BRIDGE:
             // IvyBridge
-            patchedOk = KernelIvyBridgeXCPM(KernelData, apply_idle_patch);
+            patchedOk = KernelIvyBridgeXCPM();
             break;
               
           case CPU_MODEL_IVY_BRIDGE_E5:
             // IvyBridge-E
-            patchedOk = KernelIvyE5XCPM(KernelData, apply_idle_patch);
+            patchedOk = KernelIvyE5XCPM();
             break;
 
           case CPU_MODEL_HASWELL_E:
             // Haswell-E
-            patchedOk = HaswellEXCPM(KernelData, apply_idle_patch);
+            patchedOk = HaswellEXCPM();
             break;
               
           case CPU_MODEL_BROADWELL_E5:
           case CPU_MODEL_BROADWELL_DE:
             // Broadwell-E/EP
-            patchedOk = BroadwellEPM(KernelData, apply_idle_patch);
+            patchedOk = BroadwellEPM();
             gBDWEIOPCIFixRequire = TRUE;
             break;
 
@@ -2361,7 +2442,7 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
                (AsciiStrStr(gCPUStructure.BrandString, "Celeron") ||
                 AsciiStrStr(gCPUStructure.BrandString, "Pentium"))) {
               // Haswell+ low-end CPU
-              patchedOk = HaswellLowEndXCPM(KernelData, apply_idle_patch);
+              patchedOk = HaswellLowEndXCPM();
             }
             break;
       }
@@ -2442,7 +2523,7 @@ LOADER_ENTRY::KernelAndKextsPatcherStart()
 
     Status = InjectKexts(deviceTreeP, deviceTreeLength);
 
-    if (!EFI_ERROR(Status)) KernelBooterExtensionsPatch(KernelData);
+    if (!EFI_ERROR(Status)) KernelBooterExtensionsPatch();
   }
 
   return;
