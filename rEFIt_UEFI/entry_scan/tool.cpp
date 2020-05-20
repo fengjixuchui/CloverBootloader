@@ -62,7 +62,7 @@
 #endif
 
 #ifndef DEBUG_ALL
-#define DEBUG_SCAN_TOOL 1
+#define DEBUG_SCAN_TOOL 0
 #else
 #define DEBUG_SCAN_TOOL DEBUG_ALL
 #endif
@@ -74,7 +74,7 @@
 #endif
 
 STATIC BOOLEAN AddToolEntry(IN CONST XStringW& LoaderPath, IN CONST CHAR16 *FullTitle, IN CONST CHAR16 *LoaderTitle,
-                            IN REFIT_VOLUME *Volume, const XImage& Image,
+                            IN REFIT_VOLUME *Volume, const XIcon& Image,
                             IN CHAR16 ShortcutLetter, IN CONST XStringArray& Options)
 {
   REFIT_MENU_ENTRY_LOADER_TOOL *Entry;
@@ -239,7 +239,7 @@ VOID AddCustomTool(VOID)
   UINTN             VolumeIndex;
   REFIT_VOLUME      *Volume;
   CUSTOM_TOOL_ENTRY *Custom;
-  XImage          Image;
+  XIcon             Image;
   UINTN              i = 0;
 
 //  DBG("Custom tool start\n");
@@ -270,10 +270,6 @@ VOID AddCustomTool(VOID)
       }
 
       // skip volume if its kind is configured as disabled
- /*     if ((Volume->DiskKind == DISK_KIND_OPTICAL && (GlobalConfig.DisableFlags & VOLTYPE_OPTICAL)) ||
-          (Volume->DiskKind == DISK_KIND_EXTERNAL && (GlobalConfig.DisableFlags & VOLTYPE_EXTERNAL)) ||
-          (Volume->DiskKind == DISK_KIND_INTERNAL && (GlobalConfig.DisableFlags & VOLTYPE_INTERNAL)) ||
-          (Volume->DiskKind == DISK_KIND_FIREWIRE && (GlobalConfig.DisableFlags & VOLTYPE_FIREWIRE)))*/
       if (((1ull<<Volume->DiskKind) & GlobalConfig.DisableFlags) != 0)
       {
         DBG("skipped because media is disabled\n");
@@ -281,10 +277,6 @@ VOID AddCustomTool(VOID)
       }
 
       if (Custom->VolumeType != 0) {
-  /*      if ((Volume->DiskKind == DISK_KIND_OPTICAL && ((Custom->VolumeType & VOLTYPE_OPTICAL) == 0)) ||
-            (Volume->DiskKind == DISK_KIND_EXTERNAL && ((Custom->VolumeType & VOLTYPE_EXTERNAL) == 0)) ||
-            (Volume->DiskKind == DISK_KIND_INTERNAL && ((Custom->VolumeType & VOLTYPE_INTERNAL) == 0)) ||
-            (Volume->DiskKind == DISK_KIND_FIREWIRE && ((Custom->VolumeType & VOLTYPE_FIREWIRE) == 0)))*/
         if (((1ull<<Volume->DiskKind) & Custom->VolumeType) == 0) {
           DBG("skipped because media is ignored\n");
           continue;

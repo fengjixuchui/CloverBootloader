@@ -106,18 +106,12 @@ BOOLEAN checkOSBundleRequired(UINT8 loaderType, TagPtr dict)
     else
         osbundlerequired[0] = '\0';
 
-    if (OSTYPE_IS_OSX_RECOVERY(loaderType)) {
-        if (AsciiStrnCmp(osbundlerequired, "root", 4) &&
-            AsciiStrnCmp(osbundlerequired, "local", 5) &&
-            AsciiStrnCmp(osbundlerequired, "console", 7) &&
-            AsciiStrnCmp(osbundlerequired, "network-root", 12)) {
-            inject = FALSE;
-        }
-    } else if (OSTYPE_IS_OSX_INSTALLER(loaderType)) {
-        if (AsciiStrnCmp(osbundlerequired, "root", 4) &&
-            AsciiStrnCmp(osbundlerequired, "local", 5) &&
-            AsciiStrnCmp(osbundlerequired, "console", 7) &&
-            AsciiStrnCmp(osbundlerequired, "network-root", 12)) {
+    if (OSTYPE_IS_OSX_RECOVERY(loaderType) ||
+        OSTYPE_IS_OSX_INSTALLER(loaderType)) {
+        if (strncmp(osbundlerequired, "root", 4) &&
+            strncmp(osbundlerequired, "local", 5) &&
+            strncmp(osbundlerequired, "console", 7) &&
+            strncmp(osbundlerequired, "network-root", 12)) {
             inject = FALSE;
         }
     }
@@ -128,7 +122,7 @@ BOOLEAN checkOSBundleRequired(UINT8 loaderType, TagPtr dict)
 //extern VOID KernelAndKextPatcherInit(IN LOADER_ENTRY *Entry);
 //extern VOID AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize, INT32 N, LOADER_ENTRY *Entry);
 
-EFI_STATUS EFIAPI LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType, IN OUT VOID *kext_v)
+EFI_STATUS LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType, IN OUT VOID *kext_v)
 {
   EFI_STATUS  Status;
   UINT8*      infoDictBuffer = NULL;
@@ -225,7 +219,7 @@ EFI_STATUS EFIAPI LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CHAR16 *FileNa
   return EFI_SUCCESS;
 }
 
-EFI_STATUS EFIAPI LOADER_ENTRY::AddKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType)
+EFI_STATUS LOADER_ENTRY::AddKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType)
 {
   EFI_STATUS  Status;
   KEXT_ENTRY  *KextEntry;
@@ -787,7 +781,7 @@ EFI_STATUS LOADER_ENTRY::InjectKexts(IN UINT32 deviceTreeP, IN UINT32* deviceTre
       while(!EFI_ERROR(DTIterateProperties(iter, &ptr))) {
         prop = iter->CurrentProperty;
         drvPtr = (UINT8*) prop;
-        if(AsciiStrnCmp(prop->Name, "Driver-", 7)==0 || AsciiStrnCmp(prop->Name, "DriversPackage-", 15)==0) {
+        if(strncmp(prop->Name, "Driver-", 7)==0 || strncmp(prop->Name, "DriversPackage-", 15)==0) {
           break;
         }
       }
@@ -798,10 +792,10 @@ EFI_STATUS LOADER_ENTRY::InjectKexts(IN UINT32 deviceTreeP, IN UINT32* deviceTre
     if(!EFI_ERROR(DTCreatePropertyIterator(platformEntry, iter))) {
       while(!EFI_ERROR(DTIterateProperties(iter, &ptr))) {
         prop = iter->CurrentProperty;
-        if(AsciiStrnCmp(prop->Name, "mm_extra", 8)==0) {
+        if(strncmp(prop->Name, "mm_extra", 8)==0) {
           infoPtr = (UINT8*)prop;
         }
-        if(AsciiStrnCmp(prop->Name, "extra", 5)==0) {
+        if(strncmp(prop->Name, "extra", 5)==0) {
           extraPtr = (UINT8*)prop;
         }
       }
@@ -915,7 +909,7 @@ const UINT8   KBELionReplaceEXT_X64[]  = { 0xE8, 0x0C, 0xFD, 0xFF, 0xFF, 0x90, 0
 
 VOID EFIAPI LOADER_ENTRY::KernelBooterExtensionsPatch()
 {
-  UINTN   Num = 0;
+//  UINTN   Num = 0;
   UINTN   NumSnow_i386_EXT   = 0;
   UINTN   NumSnow_X64_EXT    = 0;
   UINTN   NumLion_i386_EXT   = 0;
@@ -937,17 +931,17 @@ VOID EFIAPI LOADER_ENTRY::KernelBooterExtensionsPatch()
     // more then one pattern found - we do not know what to do with it
     // and we'll skipp it
 //	  DBG_RT("\nERROR patching kernel for injected kexts:\nmultiple patterns found (Snowi386: %llu, SnowX64: %llu, Lioni386: %llu, LionX64: %llu) - skipping patching!\n", NumSnow_i386_EXT, NumSnow_X64_EXT, NumLion_i386_EXT, NumLion_X64_EXT);
-    Stall(10000000);
+//    Stall(10000000);
     return;
   }
 
   // X64
   if (is64BitKernel) {
     if (NumSnow_X64_EXT == 1) {
-      Num = SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBESnowSearchEXT_X64, sizeof(KBESnowSearchEXT_X64), KBESnowReplaceEXT_X64, 1);
+      /*Num=*/ SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBESnowSearchEXT_X64, sizeof(KBESnowSearchEXT_X64), KBESnowReplaceEXT_X64, 1);
 //		DBG_RT("==> kernel Snow Leopard X64: %llu replaces done.\n", Num);
     } else if (NumLion_X64_EXT == 1) {
-      Num = SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBELionSearchEXT_X64, sizeof(KBELionSearchEXT_X64), KBELionReplaceEXT_X64, 1);
+      /*Num=*/ SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBELionSearchEXT_X64, sizeof(KBELionSearchEXT_X64), KBELionReplaceEXT_X64, 1);
 //		DBG_RT("==> kernel Lion X64: %llu replaces done.\n", Num);
     } else {
       // EXT - load extra kexts besides kernelcache.
@@ -1192,10 +1186,10 @@ VOID EFIAPI LOADER_ENTRY::KernelBooterExtensionsPatch()
   } else {
     // i386
     if (NumSnow_i386_EXT == 1) {
-      Num = SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBESnowSearchEXT_i386, sizeof(KBESnowSearchEXT_i386), KBESnowReplaceEXT_i386, 1);
+/*Num=*/ SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBESnowSearchEXT_i386, sizeof(KBESnowSearchEXT_i386), KBESnowReplaceEXT_i386, 1);
 //		DBG_RT("==> kernel Snow Leopard i386: %llu replaces done.\n", Num);
     } else if (NumLion_i386_EXT == 1) {
-      Num = SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBELionSearchEXT_i386, sizeof(KBELionSearchEXT_i386), KBELionReplaceEXT_i386, 1);
+/*Num=*/ SearchAndReplace(KernelData, KERNEL_MAX_SIZE, KBELionSearchEXT_i386, sizeof(KBELionSearchEXT_i386), KBELionReplaceEXT_i386, 1);
 //		DBG_RT("==> kernel Lion i386: %llu replaces done.\n", Num);
     } else {
       DBG_RT("==> ERROR: NOT patched - unknown kernel.\n");

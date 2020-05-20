@@ -36,8 +36,10 @@
 #define __REFIT_MENU_SCREEN_H__
 
 
-#include "../libeg/libeg.h"
+#include "../libeg/libegint.h"
+//#include "../libeg/libeg.h"
 #include "../refit/lib.h"
+
 
 #include "../cpp_foundation/XObjArray.h"
 #include "../cpp_foundation/XString.h"
@@ -50,7 +52,6 @@
 #ifdef _MSC_VER
 #define __attribute__(x)
 #endif
-
 
 //some unreal values
 #define FILM_CENTRE   40000
@@ -74,34 +75,26 @@ public:
 //  XPointer mPointer;
   UINTN             ID;
   XStringW          Title;
-  XImage            TitleImage;
+  XIcon             TitleImage;
   XStringWArray     InfoLines;
 
   XObjArray<REFIT_ABSTRACT_MENU_ENTRY> Entries;
   
   INTN              TimeoutSeconds;
+  bool              Daylight;
   XStringW          TimeoutText;
   XStringW          ThemeName;  //?
   EG_RECT           OldTextBufferRect;
   XImage            OldTextBufferImage;
   BOOLEAN           isBootScreen;
-  //BOOLEAN           Once;
-  //same for xcinema
- // BOOLEAN           AnimeRun;
- // UINT64            LastDraw;
- // INTN              CurrentFrame;
- // INTN              Frames;  //there are FilmC properties
- // UINTN             FrameTime; //ms
- // EG_RECT           FilmPlace;
   FILM              *FilmC;
-  //XImage            FilmPlaceImage;
 
   ACTION          mAction;
   UINTN           mItemID;
   SCROLL_STATE    ScrollState;
   BOOLEAN         ScrollEnabled;
   INTN            TextStyle;
-//  MENU_STYLE_FUNC StyleFunc;
+  BOOLEAN         IsDragging;
 
   //TODO scroll positions should depends on REFIT_SCREEN?
   // Or it just currently calculated to be global variables?
@@ -121,15 +114,26 @@ public:
 
   REFIT_MENU_SCREEN()
   : ID(0), Title(), TitleImage(),
-  TimeoutSeconds(0), TimeoutText(), ThemeName(),
+  TimeoutSeconds(0), Daylight(true), TimeoutText(), ThemeName(),
   OldTextBufferRect(), OldTextBufferImage(), isBootScreen(false),
   /*AnimeRun(0), LastDraw(0), CurrentFrame(0),*/
   FilmC(),
   mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
-  {};
+  {
+    EFI_TIME          Now;
+    gRT->GetTime(&Now, NULL);
+    if (GlobalConfig.Timezone != 0xFF) {
+      INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
+      if (NowHour <  0 ) NowHour += 24;
+      if (NowHour >= 24 ) NowHour -= 24;
+      Daylight = (NowHour > 8) && (NowHour < 20);  //this is the screen member
+    } else {
+      Daylight = true;
+    }
+  };
   REFIT_MENU_SCREEN(UINTN ID, XStringW TTitle, XStringW TTimeoutText)
   : ID(ID), Title(TTitle), TitleImage(),
-  TimeoutSeconds(0), TimeoutText(TTimeoutText), ThemeName(),
+  TimeoutSeconds(0), Daylight(true), TimeoutText(TTimeoutText), ThemeName(),
   OldTextBufferRect(), OldTextBufferImage(), isBootScreen(false),
   /*AnimeRun(0), LastDraw(0), CurrentFrame(0),*/
   FilmC(),
@@ -138,7 +142,7 @@ public:
   //TODO exclude CHAR16
   REFIT_MENU_SCREEN(UINTN ID, CONST CHAR16* TitleC, CONST CHAR16* TimeoutTextC)
   : ID(ID), Title(), TitleImage(),
-  TimeoutSeconds(0), TimeoutText(), ThemeName(), 
+  TimeoutSeconds(0), Daylight(true), TimeoutText(), ThemeName(),
   /*AnimeRun(0), LastDraw(0), CurrentFrame(0),*/
   FilmC(),
   mAction(ActionNone), mItemID(0)//, mPointer(NULL) //, StyleFunc(&REFIT_MENU_SCREEN::TextMenuStyle)
@@ -149,7 +153,7 @@ public:
 
   REFIT_MENU_SCREEN(UINTN ID, XStringW  TTitle, XStringW  TTimeoutText, REFIT_ABSTRACT_MENU_ENTRY* entry1, REFIT_ABSTRACT_MENU_ENTRY* entry2)
   : ID(ID), Title(TTitle), TitleImage(),
-  TimeoutSeconds(0), TimeoutText(TTimeoutText), ThemeName(),
+  TimeoutSeconds(0), Daylight(true), TimeoutText(TTimeoutText), ThemeName(),
   OldTextBufferRect(), OldTextBufferImage(), isBootScreen(false),
   /*AnimeRun(0), LastDraw(0), CurrentFrame(0),*/
   FilmC(),
@@ -167,11 +171,12 @@ public:
   VOID ScrollingBar();
   VOID SetBar(INTN PosX, INTN UpPosY, INTN DownPosY, IN SCROLL_STATE *State);
 
-  //mouse functions
+  //mouse functions and event
   VOID HidePointer();
   EFI_STATUS MouseBirth();
   VOID KillMouse();
   EFI_STATUS CheckMouseEvent();
+  EFI_STATUS WaitForInputEventPoll(UINTN TimeoutDefault);
 
   //menu functions
   VOID AddMenuItem_(REFIT_MENU_ENTRY_ITEM_ABSTRACT* InputBootArgs, INTN Inx, CONST CHAR8 *Title, BOOLEAN Cursor);

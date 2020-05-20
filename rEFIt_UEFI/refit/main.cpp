@@ -698,15 +698,15 @@ VOID LOADER_ENTRY::StartLoader()
         if (InstallerVersion != NULL) { // string was found
           InstallerVersion += 9; // advance to version location
 
-          if (AsciiStrnCmp(InstallerVersion, "10.7", 4) &&
-              AsciiStrnCmp(InstallerVersion, "10.8", 4) &&
-              AsciiStrnCmp(InstallerVersion, "10.9", 4) &&
-              AsciiStrnCmp(InstallerVersion, "10.10", 5) &&
-              AsciiStrnCmp(InstallerVersion, "10.11", 5) &&
-              AsciiStrnCmp(InstallerVersion, "10.12", 5) &&
-              AsciiStrnCmp(InstallerVersion, "10.13", 5) &&
-              AsciiStrnCmp(InstallerVersion, "10.14", 5) &&
-              AsciiStrnCmp(InstallerVersion, "10.15", 5)) {   
+          if (strncmp(InstallerVersion, "10.7", 4) &&
+              strncmp(InstallerVersion, "10.8", 4) &&
+              strncmp(InstallerVersion, "10.9", 4) &&
+              strncmp(InstallerVersion, "10.10", 5) &&
+              strncmp(InstallerVersion, "10.11", 5) &&
+              strncmp(InstallerVersion, "10.12", 5) &&
+              strncmp(InstallerVersion, "10.13", 5) &&
+              strncmp(InstallerVersion, "10.14", 5) &&
+              strncmp(InstallerVersion, "10.15", 5)) {   
             InstallerVersion = NULL; // flag known version was not found
           }
           if (InstallerVersion != NULL) { // known version was found in image
@@ -2373,7 +2373,6 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     BootScreen.DrawTextXY(Message, (UGAWidth >> 1), (UGAHeight >> 1) + 20, X_IS_CENTER);
   }
 
-
   AfterTool = FALSE;
   gGuiIsReady = TRUE;
   gBootChanged = TRUE;
@@ -2421,18 +2420,18 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     for (i = 0; i < AudioNum; i++) {
       if (AudioList[i].Name) {
         // Never change this log, otherwise clients will stop interprete the output.
-		  MsgLog("Found Audio Device %ls (%s) at index %llu\n", AudioList[i].Name, AudioOutputNames[AudioList[i].Device], i);
+	  	  MsgLog("Found Audio Device %ls (%s) at index %llu\n", AudioList[i].Name, AudioOutputNames[AudioList[i].Device], i);
       }
     }
     
     if (!GlobalConfig.FastBoot) {
 //      CHAR16 *TmpArgs;
       if (gThemeNeedInit) {
-        InitTheme(TRUE, &Now);
+        InitTheme(TRUE);
         gThemeNeedInit = FALSE;
       } else if (gThemeChanged) {
         DBG("change theme\n");
-        InitTheme(FALSE, NULL);
+        InitTheme(FALSE);
         //OptionMenu.FreeMenu(); // it is already freed at loop beginning
         AboutMenu.Entries.Empty();
         HelpMenu.Entries.Empty();
@@ -2473,7 +2472,6 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     }
 
     if (!GlobalConfig.FastBoot) {
-
       if (!GlobalConfig.LegacyFirst) {
         AddCustomLegacy();
         if (!GlobalConfig.NoLegacy) {
@@ -2494,12 +2492,15 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
       }
 
       MenuEntryOptions.Image = ThemeX.GetIcon(BUILTIN_ICON_FUNC_OPTIONS);
-
+//      DBG("Options: IconID=%lld name=%s empty=%s\n", MenuEntryOptions.Image.Id, MenuEntryOptions.Image.Name.c_str(),
+//          MenuEntryOptions.Image.isEmpty()?"пусто":"нет");
       if (gSettings.DisableCloverHotkeys)
         MenuEntryOptions.ShortcutLetter = 0x00;
       MainMenu.AddMenuEntry(&MenuEntryOptions, false);
+      
       MenuEntryAbout.Image = ThemeX.GetIcon((INTN)BUILTIN_ICON_FUNC_ABOUT);
-
+//      DBG("About: IconID=%lld name=%s empty=%s\n", MenuEntryAbout.Image.Id, MenuEntryAbout.Image.Name.c_str(),
+//          MenuEntryAbout.Image.isEmpty()?"пусто":"нет");
       if (gSettings.DisableCloverHotkeys)
         MenuEntryAbout.ShortcutLetter = 0x00;
       MainMenu.AddMenuEntry(&MenuEntryAbout, false);

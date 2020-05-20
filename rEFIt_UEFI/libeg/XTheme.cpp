@@ -11,6 +11,7 @@ extern "C" {
 #include "../refit/lib.h"
 
 #include "XTheme.h"
+#include "nanosvg.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_XTHEME 1
@@ -88,21 +89,22 @@ const INTN IconsNamesSize = sizeof(IconsNames) / sizeof(IconsNames[0]);
 //icons class
 //if ImageNight is not set then Image should be used
 #define DEC_BUILTIN_ICON(id, ico) { \
-Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico)); \
+Empty = EFI_ERROR(Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico))); \
 }
 
 #define DEC_BUILTIN_ICON2(id, ico, dark) { \
-Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico)); \
+Empty = EFI_ERROR(Image.FromPNG(ACCESS_EMB_DATA(ico), ACCESS_EMB_SIZE(ico))); \
 ImageNight.FromPNG(ACCESS_EMB_DATA(dark), ACCESS_EMB_SIZE(dark)); \
 }
 
-Icon::Icon(INTN Index, bool TakeEmbedded) : Image(), ImageNight()
+XIcon::XIcon(INTN Index, bool TakeEmbedded) : Id(Index), Name(), Image(), ImageNight(), Native(false),
+  ImageSVG(nullptr), ImageSVGnight(nullptr)
 {
-  Id = Index;
-  Name.setEmpty();
-  Native = false;
-  ImageSVG = nullptr;
-  ImageSVGnight = nullptr;
+//  Id = Index;
+//  Name.setEmpty();
+//  Native = false;
+//  ImageSVG = nullptr;
+//  ImageSVGnight = nullptr;
   if (Index >= BUILTIN_ICON_FUNC_ABOUT && Index < IconsNamesSize) { //full table
     Name.takeValueFrom(IconsNames[Index]);
   }
@@ -111,7 +113,24 @@ Icon::Icon(INTN Index, bool TakeEmbedded) : Image(), ImageNight()
   }
 }
 
-void Icon::GetEmbedded()
+XIcon& XIcon::operator=(const XIcon& src)
+{
+  Id = src.Id;
+  Name = src.Name;
+  if (!src.isEmpty()) {
+    Image = src.Image;
+    if (!src.ImageNight.isEmpty()) {
+      ImageNight = src.ImageNight;
+    }
+    setFilled();
+    //this moment we copy pointers. Later it will be class variables
+    ImageSVG = src.ImageSVG;
+    ImageSVGnight = src.ImageSVGnight;
+  }
+  return *this;
+}
+
+void XIcon::GetEmbedded()
 {
   switch (Id) {
     case BUILTIN_ICON_FUNC_ABOUT:
@@ -204,7 +223,62 @@ void Icon::GetEmbedded()
   //something to do else?
 }
 
-Icon::~Icon() {}
+XIcon::~XIcon() {}
+
+//copy from XImage for our purpose
+EFI_STATUS XIcon::LoadXImage(EFI_FILE *BaseDir, const char* IconName)
+{
+  return LoadXImage(BaseDir, XStringW().takeValueFrom(IconName));
+}
+
+EFI_STATUS XIcon::LoadXImage(EFI_FILE *BaseDir, const wchar_t* LIconName)
+{
+  return LoadXImage(BaseDir, XStringW().takeValueFrom(LIconName));
+}
+//dont call this procedure for SVG theme BaseDir == NULL?
+//it can be used for other files
+EFI_STATUS XIcon::LoadXImage(EFI_FILE *BaseDir, const XStringW& IconName)
+{
+  EFI_STATUS Status = Image.LoadXImage(BaseDir, IconName);
+  ImageNight.LoadXImage(BaseDir, IconName + L"_night"_XSW);
+  if (!EFI_ERROR(Status)) setFilled();
+  return Status;
+}
+
+const XImage& XIcon::GetBest(bool night) const
+{
+  if (ImageSVG) {
+    NSVGimage* sImage = (NSVGimage*)ImageSVGnight;
+    if (!night || !ImageSVGnight) sImage = (NSVGimage*)ImageSVG;
+    float Scale = sImage->scale;
+    NSVGrasterizer* rast = nsvgCreateRasterizer();
+    float Height = sImage->height * Scale;
+    float Width = sImage->width * Scale;
+    int iWidth = (int)(Width + 0.5f);
+    int iHeight = (int)(Height + 0.5f);
+    XImage* NewImage = new XImage(iWidth, iHeight); //TODO doing new ximage we have to delete it after use
+    if (sImage->shapes == NULL) {
+      return *NewImage;
+    }
+    float bounds[4];
+    nsvg__imageBounds(sImage, bounds);
+
+    float tx = 0.f, ty = 0.f;
+    float realWidth = (bounds[2] - bounds[0]) * Scale;
+    float realHeight = (bounds[3] - bounds[1]) * Scale;
+    tx = (Width - realWidth) * 0.5f;
+    ty = (Height - realHeight) * 0.5f;
+    
+    nsvgRasterize(rast, sImage, tx, ty, Scale, Scale, (UINT8*)NewImage->GetPixelPtr(0,0), iWidth, iHeight, iWidth*4);
+    nsvgDeleteRasterizer(rast);
+//    if (night) ImageNight = *NewImage;
+//    else Image = *NewImage;
+//    delete NewImage;
+    return *NewImage;
+  }
+  const XImage& RetImage = (night && !ImageNight.isEmpty())? ImageNight : Image;
+  return RetImage;
+}
 
 //xtheme class
 XTheme::XTheme() {
@@ -257,7 +331,7 @@ void XTheme::Init()
   MainEntriesSize = 128;
   TileXSpace = 8;
   TileYSpace = 24;
-//  IconFormat = ICON_FORMAT_DEF;
+
   Proportional = FALSE;
 //  ShowOptimus = FALSE;
 //  DarkEmbedded = FALSE;  //looks like redundant, we always check Night or Daylight
@@ -266,7 +340,7 @@ void XTheme::Init()
 //  CodepageSize = 0xC0;           // INTN        CodepageSize; //extended latin
   Scale = 1.0f;
   CentreShift = 0.0f;
-//  Daylight = true;
+  Daylight = true;
   LayoutHeight = 376;
   LayoutBannerOffset                    = 64; //default value if not set
   LayoutButtonOffset                    = 0; //default value if not set
@@ -298,10 +372,11 @@ void XTheme::Init()
 //  return GetIcon(XString().takeValueFrom(Name));
 //}
 
-static XImage NullIcon;
-static XImage DummyIcon;
+static XImage NullImage;
+static XIcon DummyIcon;
+static XIcon NullIcon;
 
-const XImage& XTheme::GetIcon(const XString8& Name)
+const XIcon& XTheme::GetIcon(const XString8& Name)
 {
   for (size_t i = 0; i < Icons.size(); i++)
   {
@@ -325,7 +400,7 @@ bool XTheme::CheckNative(INTN Id)
   return false;
 }
 
-const XImage& XTheme::GetIcon(INTN Id)
+const XIcon& XTheme::GetIcon(INTN Id)
 {
   return GetIconAlt(Id, -1);
 }
@@ -336,7 +411,7 @@ const XImage& XTheme::GetIcon(INTN Id)
  * if not found then check embedded with ID=Id
  * if not found then check embedded with ID=Alt
  */
-const XImage& XTheme::GetIconAlt(INTN Id, INTN Alt) //if not found then take embedded
+const XIcon& XTheme::GetIconAlt(INTN Id, INTN Alt) //if not found then take embedded
 {
   INTN IdFound = -1;
   INTN AltFound = -1;
@@ -357,86 +432,86 @@ const XImage& XTheme::GetIconAlt(INTN Id, INTN Alt) //if not found then take emb
       // using Alt icon
       Icons[IdFound].Image = Icons[AltFound].Image;
       Icons[IdFound].ImageNight = Icons[AltFound].ImageNight;
+      Icons[IdFound].setFilled();
     } else {
       // check for embedded with ID=Id
-      Icon *NewIcon = new Icon(Id, true);
+      XIcon *NewIcon = new XIcon(Id, true);
       if (NewIcon->Image.isEmpty()) {
         // check for embedded with ID=Alt
-        NewIcon = new Icon(Alt, true);
+        NewIcon = new XIcon(Alt, true);
       }
       if (!NewIcon->Image.isEmpty()) {
         // using Embedded icon
         Icons[IdFound].Image = NewIcon->Image;
         Icons[IdFound].ImageNight = NewIcon->ImageNight;
+        Icons[IdFound].setFilled(); 
       }
     }
   }
 
   if (IdFound >= 0 && !Icons[IdFound].Image.isEmpty()) {
     // icon not empty, return it
-    if (!Daylight && !Icons[IdFound].ImageNight.isEmpty()) {
-      DBG("got night icon %lld name{%s}\n", Id, IconsNames[IdFound]);
-      return Icons[IdFound].ImageNight;
-    }
+//    if (!Daylight && !Icons[IdFound].ImageNight.isEmpty()) {
+//      DBG("got night icon %lld name{%s}\n", Id, IconsNames[IdFound]);
+//      return Icons[IdFound].ImageNight;
+//    }
     //if daylight or night icon absent
-    DBG("got day icon %lld name{%s}\n", Id, IconsNames[IdFound]);
-    return Icons[IdFound].Image;
+//    DBG("got day icon %lld name{%s}\n", Id, IconsNames[IdFound]);
+//    return Icons[IdFound].Image;
+    return Icons[IdFound]; //check daylight at draw
   }
   return NullIcon; //such Id is not found in the database
 }
 
-const XImage& XTheme::LoadOSIcon(const CHAR16* OSIconName)
+const XIcon& XTheme::LoadOSIcon(const CHAR16* OSIconName)
 {
   return LoadOSIcon(XString8().takeValueFrom(OSIconName));
 }
 
-const XImage& XTheme::LoadOSIcon(const XString8& Full)
+const XIcon& XTheme::LoadOSIcon(const XString8& Full)
 {
   // input value can be L"win", L"ubuntu,linux", L"moja,mac" set by GetOSIconName (OSVersion)
   XString8 First;
   XString8 Second;
   XString8 Third;
-  const XImage *ReturnImage;
+  const XIcon *ReturnIcon;
   UINTN Comma = Full.indexOf(',');
   UINTN Size = Full.length();
   DBG("IconName=%s comma=%lld size=%lld\n", Full.c_str(), Comma, Size);
   if (Comma != MAX_XSIZE) {  //Comma
     First = "os_"_XS8 + Full.subString(0, Comma);
-    ReturnImage = &GetIcon(First);
+    ReturnIcon = &GetIcon(First);
     DBG("  first=%s\n", First.c_str());
-    if (!ReturnImage->isEmpty()) return *ReturnImage;
+    if (!ReturnIcon->isEmpty()) return *ReturnIcon;
     //else search second name
     Second = "os_"_XS8 + Full.subString(Comma + 1, Size - Comma - 1);
     //moreover names can be triple L"chrome,grub,linux"
     UINTN SecondComma = Second.indexOf(',');
     if (Comma == MAX_XSIZE) {
-      ReturnImage = &GetIcon(Second);
-      if (!ReturnImage->isEmpty()) return *ReturnImage;
+      ReturnIcon = &GetIcon(Second);
+      if (!ReturnIcon->isEmpty()) return *ReturnIcon;
     } else {
       First = Second.subString(0, SecondComma);
-      ReturnImage = &GetIcon(First);
-      if (!ReturnImage->isEmpty()) return *ReturnImage;
+      ReturnIcon = &GetIcon(First);
+      if (!ReturnIcon->isEmpty()) return *ReturnIcon;
       Third = "os_"_XS8 + Second.subString(SecondComma + 1, Size - SecondComma - 1);
-      ReturnImage = &GetIcon(Third);
-      if (!ReturnImage->isEmpty()) return *ReturnImage;
+      ReturnIcon = &GetIcon(Third);
+      if (!ReturnIcon->isEmpty()) return *ReturnIcon;
     }
     DBG("  Second=%s\n", Second.c_str());
-    if (!ReturnImage->isEmpty()) return *ReturnImage;
+    if (!ReturnIcon->isEmpty()) return *ReturnIcon;
   } else {
-    ReturnImage = &GetIcon("os_"_XS8 + Full);
+    ReturnIcon = &GetIcon("os_"_XS8 + Full);
     DBG("  Full=%s\n", Full.c_str());
-    if (!ReturnImage->isEmpty()) return *ReturnImage;
+    if (!ReturnIcon->isEmpty()) return *ReturnIcon;
   }
   // else something
-  if (DummyIcon.isEmpty()) //initialize once per session
-    DummyIcon.DummyImage(MainEntriesSize);
+  if (DummyIcon.isEmpty()) { //initialize once per session    
+    DummyIcon.Image.DummyImage(MainEntriesSize);
+    DummyIcon.setFilled();
+  }
   return DummyIcon;
 }
-//
-//void XTheme::AddIcon(Icon& NewIcon)
-//{
-//  Icons.AddCopy(NewIcon);
-//}
 
 
 void XTheme::FillByEmbedded()
@@ -448,7 +523,7 @@ void XTheme::FillByEmbedded()
 
   Icons.Empty();
   for (INTN i = 0; i < BUILTIN_ICON_COUNT; ++i) { //this is embedded icon count
-    Icon* NewIcon = new Icon(i, true);
+    XIcon* NewIcon = new XIcon(i, true);
     Icons.AddReference(NewIcon, true);
   }
 
@@ -484,7 +559,6 @@ void XTheme::ClearScreen() //and restore background and banner
   if (BanHeight < 2) {
     BanHeight = ((UGAHeight - (int)(LayoutHeight * Scale)) >> 1);
   }
-//  egClearScreen(&MenuBackgroundPixel); //not needed
   if (!(HideUIFlags & HIDEUI_FLAG_BANNER)) {
     //Banner image prepared before
     if (!Banner.isEmpty()) {
@@ -528,8 +602,6 @@ void XTheme::ClearScreen() //and restore background and banner
   if (!BigBack.isEmpty()) {
     switch (BackgroundScale) {
     case imScale:
-//    DBG("back copy scaled\n");
-//    Background.setSizeInPixels(UGAWidth, UGAHeight); //anyway set
       BigScale = (float)UGAWidth/BigBack.GetWidth();
       BigScaleY = (float)UGAHeight/BigBack.GetHeight();
       Background.CopyScaled(BigBack, MAX(BigScale, BigScaleY));
@@ -559,13 +631,8 @@ void XTheme::ClearScreen() //and restore background and banner
       }
       const EG_RECT BackRect = EG_RECT(x1, y1, x, y);
       const EG_RECT BigRect = EG_RECT(x2, y2, x, y);
-      //the function can be in XImage class
-//      egRawCopy((EG_PIXEL*)Background.GetPixelPtr(x1, y1),
-//                (EG_PIXEL*)BigBack.GetPixelPtr(x2, y2),
-//                x, y, Background.GetWidth(), BigBack.GetWidth());
 //      DBG("crop to x,y: %lld, %lld\n", x, y);
       Background.CopyRect(BigBack, BackRect, BigRect);
-//      DBG("back copy cropped\n");
       break;
     }
     case imTile:
@@ -608,157 +675,7 @@ void XTheme::ClearScreen() //and restore background and banner
   Background.DrawWithoutCompose(0, 0, UGAWidth, UGAHeight);
 }
 
-#if 0
-void XTheme::InitSelection() //for PNG theme
-{
-  EFI_STATUS Status;
-  if (!AllowGraphicsMode)
-    return;
-  //used to fill TextBuffer if selected
-  SelectionBackgroundPixel.Red      = (SelectionColor >> 24) & 0xFF;
-  SelectionBackgroundPixel.Green    = (SelectionColor >> 16) & 0xFF;
-  SelectionBackgroundPixel.Blue     = (SelectionColor >> 8) & 0xFF;
-  SelectionBackgroundPixel.Reserved = (SelectionColor >> 0) & 0xFF;
-  
-  if (!SelectionImages[0].isEmpty()) { //already presents
-    return;
-  }
 
-  if (TypeSVG) {
-    SelectionImages[2] = GetIcon(BUILTIN_SELECTION_SMALL);
-    SelectionImages[0] = GetIcon(BUILTIN_SELECTION_BIG);
-    if (SelectionImages[0].isEmpty()) {
-      SelectionImages[0] = SelectionImages[2]; //use same selection if OnTop for example
-    }
-  } else {
-    // load small selection image
-    if (SelectionImages[2].isEmpty()){
-      SelectionImages[2].LoadXImage(ThemeDir, SelectionSmallFileName);
-    }
-    if (SelectionImages[2].isEmpty()){
-      //    SelectionImages[2] = BuiltinIcon(BUILTIN_SELECTION_SMALL);
-      //    SelectionImages[2]->HasAlpha = FALSE; // support transparensy for selection icons
-      if (Daylight) {
-        SelectionImages[2].FromPNG(ACCESS_EMB_DATA(emb_selection_small), ACCESS_EMB_SIZE(emb_selection_small));
-      } else {
-        SelectionImages[2].FromPNG(ACCESS_EMB_DATA(emb_dark_selection_small), ACCESS_EMB_SIZE(emb_dark_selection_small));
-      }
-      //    CopyMem(&BlueBackgroundPixel, &StdBackgroundPixel, sizeof(EG_PIXEL)); //why???
-    }
-    //cut or extend the image by Compose
-    /*  SelectionImages[2] = egEnsureImageSize(SelectionImages[2],
-     row1TileSize, row1TileSize, &MenuBackgroundPixel);
-     if (SelectionImages[2] == NULL) {
-     return;
-     } */
-
-    // load big selection image
-    if (SelectionImages[0].isEmpty()) {
-      SelectionImages[0].LoadXImage(ThemeDir, SelectionBigFileName);
-      //   SelectionImages[0].EnsureImageSize(row0TileSize, row0TileSize, &MenuBackgroundPixel);
-    }
-    if (SelectionImages[0].isEmpty()) {
-      // calculate big selection image from small one
-      //    SelectionImages[0] = BuiltinIcon(BUILTIN_SELECTION_BIG);
-      if (Daylight) {
-        SelectionImages[0].FromPNG(ACCESS_EMB_DATA(emb_selection_big), ACCESS_EMB_SIZE(emb_selection_big));
-      } else {
-        SelectionImages[0].FromPNG(ACCESS_EMB_DATA(emb_dark_selection_big), ACCESS_EMB_SIZE(emb_dark_selection_big));
-      }
-      //    SelectionImages[0]->HasAlpha = FALSE; // support transparensy for selection icons
-      //CopyMem(&BlueBackgroundPixel, &StdBackgroundPixel, sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
-      BlueBackgroundPixel = StdBackgroundPixel;
-      if (SelectionImages[0].isEmpty()) {
-        SelectionImages[2].setEmpty();
-        return;
-      }
-      //    if (SelectionOnTop) {
-      //      SelectionImages[0]->HasAlpha = TRUE; // TODO ?
-      //      SelectionImages[2]->HasAlpha = TRUE;
-      //    }
-    }
-  }
-  // BootCampStyle indicator image
-  if (BootCampStyle) {
-    // load indicator selection image
-    if (!TypeSVG && SelectionImages[4].isEmpty()) {
-      SelectionImages[4].LoadXImage(ThemeDir, SelectionIndicatorName);
-    }
-    if (SelectionImages[4].isEmpty()) {
-      SelectionImages[4].FromPNG(ACCESS_EMB_DATA(emb_selection_indicator), ACCESS_EMB_SIZE(emb_selection_indicator));
-    }
-    INTN ScaledIndicatorSize = (INTN)(INDICATOR_SIZE * Scale);
-    SelectionImages[4].EnsureImageSize(ScaledIndicatorSize, ScaledIndicatorSize, MenuBackgroundPixel);
-    if (SelectionImages[4].isEmpty()) {
-//      SelectionImages[4] = egCreateFilledImage(ScaledIndicatorSize, ScaledIndicatorSize,
-//                                               TRUE, &StdBackgroundPixel);
-      SelectionImages[4] = XImage(ScaledIndicatorSize, ScaledIndicatorSize);
-      SelectionImages[4].Fill(StdBackgroundPixel);
-    }
-    SelectionImages[5] = XImage(ScaledIndicatorSize, ScaledIndicatorSize);
-    SelectionImages[5].Fill(MenuBackgroundPixel);
-  }
-  
-  /*
-   Button & radio, or any other next icons with builtin icon as fallback should synced to:
-   - BUILTIN_ICON_* in lib.h
-   - BuiltinIconTable in icns.c
-   - Data in egemb_icons.h / scroll_images.h
-   */
-  
-  // Radio buttons
-  //it was a nonsense egLoadImage is just inluded into egLoadIcon.
-  // will be corrected with XTheme support
-  //the procedure loadIcon should also check embedded icons
-  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_radio_button_selected)
-  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_radio_button)
-  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_checkbox)
-  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_checkbox_checked)
-  //DECLARE_EMB_EXTERN_WITH_SIZE(emb_dark_font_data)
-
-  if (!TypeSVG) { //SVG theme already parsed buttons
-    Status = Buttons[0].LoadXImage(ThemeDir, "radio_button");
-    if (EFI_ERROR(Status)) {
-      Buttons[0].FromPNG(ACCESS_EMB_DATA(emb_radio_button), ACCESS_EMB_SIZE(emb_radio_button));
-    }
-    Status = Buttons[1].LoadXImage(ThemeDir, "radio_button_selected");
-    if (EFI_ERROR(Status)) {
-      Buttons[1].FromPNG(ACCESS_EMB_DATA(emb_radio_button_selected), ACCESS_EMB_SIZE(emb_radio_button_selected));
-    }
-    Status = Buttons[2].LoadXImage(ThemeDir, "checkbox");
-    if (EFI_ERROR(Status)) {
-      Buttons[2].FromPNG(ACCESS_EMB_DATA(emb_checkbox), ACCESS_EMB_SIZE(emb_checkbox));
-    }
-    Status = Buttons[3].LoadXImage(ThemeDir, "checkbox_checked");
-    if (EFI_ERROR(Status)) {
-      Buttons[3].FromPNG(ACCESS_EMB_DATA(emb_checkbox_checked), ACCESS_EMB_SIZE(emb_checkbox_checked));
-    }
-  } else {
-    //SVG theme already parsed all icons
-    Buttons[0] = GetIcon("radio_button"_XS8);
-    Buttons[1] = GetIcon("radio_button_selected"_XS8);
-    Buttons[2] = GetIcon("checkbox"_XS8);
-    Buttons[3] = GetIcon("checkbox_checked"_XS8);
-  }
-
-  // non-selected background images
-
-  EFI_GRAPHICS_OUTPUT_BLT_PIXEL BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
-  if (TypeSVG || !SelectionBigFileName.isEmpty()) {
-    BackgroundPixel = { 0x00, 0x00, 0x00, 0x00 };
-  } else if (DarkEmbedded) {
-    BackgroundPixel = { 0x33, 0x33, 0x33, 0x00 }; //nonsense. Will be a sense if semi-transparent
-  } else { //for example embedded daylight
-    BackgroundPixel = { 0xbf, 0xbf, 0xbf, 0xff };
-  }
-
-  SelectionImages[1] = XImage(row0TileSize, row0TileSize);
-  SelectionImages[1].Fill(BackgroundPixel);
-  SelectionImages[3] = XImage(row1TileSize, row1TileSize);
-  SelectionImages[3].Fill(BackgroundPixel);
-
-}
-#endif
 //use this only for PNG theme
 void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
 {
@@ -766,7 +683,7 @@ void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
   Icons.Empty();
   for (INTN i = 0; i < IconsNamesSize; ++i) { //scan full table
     Status = EFI_NOT_FOUND;
-    Icon* NewIcon = new Icon(i); //initialize without embedded
+    XIcon* NewIcon = new XIcon(i); //initialize without embedded
     switch (i) {
       case BUILTIN_SELECTION_SMALL:
         Status = NewIcon->Image.LoadXImage(ThemeDir, SelectionSmallFileName);
@@ -780,6 +697,7 @@ void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
     }
     NewIcon->Native = !EFI_ERROR(Status);
     if (!EFI_ERROR(Status)) {
+      NewIcon->setFilled();
       NewIcon->ImageNight.LoadXImage(ThemeDir, SWPrintf("%s_night", IconsNames[i]));
     }
     Icons.AddReference(NewIcon, true);
@@ -790,10 +708,10 @@ void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
       } else if (i == BUILTIN_SELECTION_BIG) {
         GetIconAlt(i, BUILTIN_SELECTION_SMALL);
       }
-    }
+    } 
   }
   if (BootCampStyle) {
-    Icon *NewIcon = new Icon(BUILTIN_ICON_SELECTION);
+    XIcon *NewIcon = new XIcon(BUILTIN_ICON_SELECTION);
     // load indicator selection image
     Status = NewIcon->Image.LoadXImage(ThemeDir, SelectionIndicatorName);
     if (EFI_ERROR(Status)) {
@@ -806,18 +724,18 @@ void XTheme::FillByDir() //assume ThemeDir is defined by InitTheme() procedure
   SelectionBackgroundPixel.Green    = (SelectionColor >> 16) & 0xFF;
   SelectionBackgroundPixel.Blue     = (SelectionColor >> 8) & 0xFF;
   SelectionBackgroundPixel.Reserved = (SelectionColor >> 0) & 0xFF;
-
-  SelectionImages[2] = GetIcon(BUILTIN_SELECTION_SMALL);
-  SelectionImages[0] = GetIcon(BUILTIN_SELECTION_BIG);
+//TODO - make them XIcon
+  SelectionImages[2] = GetIcon(BUILTIN_SELECTION_SMALL).GetBest(!Daylight);
+  SelectionImages[0] = GetIcon(BUILTIN_SELECTION_BIG).GetBest(!Daylight);
   if (BootCampStyle) {
-    SelectionImages[4] = GetIcon(BUILTIN_ICON_SELECTION);
+    SelectionImages[4] = GetIcon(BUILTIN_ICON_SELECTION).GetBest(!Daylight);
   }
 
   //and buttons
-  Buttons[0] = GetIcon(BUILTIN_RADIO_BUTTON);
-  Buttons[1] = GetIcon(BUILTIN_RADIO_BUTTON_SELECTED);
-  Buttons[2] = GetIcon(BUILTIN_CHECKBOX);
-  Buttons[3] = GetIcon(BUILTIN_CHECKBOX_CHECKED);
+  Buttons[0] = GetIcon(BUILTIN_RADIO_BUTTON).GetBest(!Daylight);
+  Buttons[1] = GetIcon(BUILTIN_RADIO_BUTTON_SELECTED).GetBest(!Daylight);
+  Buttons[2] = GetIcon(BUILTIN_CHECKBOX).GetBest(!Daylight);
+  Buttons[3] = GetIcon(BUILTIN_CHECKBOX_CHECKED).GetBest(!Daylight);
 
   //load banner and background
   Banner.LoadXImage(ThemeDir, BannerFileName); 
@@ -843,14 +761,14 @@ void XTheme::InitBar()
     UpButtonImage.LoadXImage(ThemeDir, "scrollbar\\up_button");
     DownButtonImage.LoadXImage(ThemeDir, "scrollbar\\down_button");
   } else {
-    ScrollbarBackgroundImage = GetIcon("scrollbar_background"_XS8);
+    ScrollbarBackgroundImage = GetIcon("scrollbar_background"_XS8).GetBest(!Daylight);
     BarStartImage.setEmpty();
     BarEndImage.setEmpty();
-    ScrollbarImage = GetIcon("scrollbar_holder"_XS8); //"_night" is already accounting
-    ScrollStartImage = GetIcon("scrollbar_start"_XS8);
-    ScrollEndImage = GetIcon("scrollbar_end"_XS8);
-    UpButtonImage = GetIcon("scrollbar_up_button"_XS8);
-    DownButtonImage = GetIcon("scrollbar_down_button"_XS8);
+    ScrollbarImage = GetIcon("scrollbar_holder"_XS8).GetBest(!Daylight); //"_night" is already accounting
+    ScrollStartImage = GetIcon("scrollbar_start"_XS8).GetBest(!Daylight);
+    ScrollEndImage = GetIcon("scrollbar_end"_XS8).GetBest(!Daylight);
+    UpButtonImage = GetIcon("scrollbar_up_button"_XS8).GetBest(!Daylight);
+    DownButtonImage = GetIcon("scrollbar_down_button"_XS8).GetBest(!Daylight);
   }
 
   //some help with embedded scroll

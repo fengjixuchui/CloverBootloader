@@ -340,7 +340,7 @@ ParseLoadOptions (
     if (PlistStringsLen < TailSize) {
       if (AsciiStriNCmp(PlistStrings[i], Start, PlistStringsLen)) {
         DBG(" - found plist string = %s, parse XML in LoadOptions\n", PlistStrings[i]);
-        if (ParseXML (Start, Dict, (UINT32)TailSize) != EFI_SUCCESS) {
+        if (ParseXML(Start, Dict, (UINT32)TailSize) != EFI_SUCCESS) {
           *Dict = NULL;
           DBG("  - [!] xml in load options is bad\n");
           return;
@@ -592,16 +592,16 @@ LoadUserSettings (
   ConfigPlistPath = PoolPrint(L"EFI\\CLOVER\\%s.plist", ConfName);
   ConfigOemPath   = PoolPrint(L"%s\\%s.plist", OEMPath, ConfName);
   if (FileExists (SelfRootDir, ConfigOemPath)) {
-    Status = egLoadFile (SelfRootDir, ConfigOemPath, (UINT8**)&gConfigPtr, &Size);
+    Status = egLoadFile(SelfRootDir, ConfigOemPath, (UINT8**)&gConfigPtr, &Size);
   }
   if (EFI_ERROR(Status)) {
     if ((RootDir != NULL) && FileExists (RootDir, ConfigPlistPath)) {
-      Status = egLoadFile (RootDir, ConfigPlistPath, (UINT8**)&gConfigPtr, &Size);
+      Status = egLoadFile(RootDir, ConfigPlistPath, (UINT8**)&gConfigPtr, &Size);
     }
     if (!EFI_ERROR(Status)) {
       DBG("Using %ls.plist at RootDir at path: %ls\n", ConfName, ConfigPlistPath);
     } else {
-      Status = egLoadFile (SelfRootDir, ConfigPlistPath, (UINT8**)&gConfigPtr, &Size);
+      Status = egLoadFile(SelfRootDir, ConfigPlistPath, (UINT8**)&gConfigPtr, &Size);
       if (!EFI_ERROR(Status)) {
         DBG("Using %ls.plist at SelfRootDir at path: %ls\n", ConfName, ConfigPlistPath);
       }
@@ -609,7 +609,7 @@ LoadUserSettings (
   }
 
   if (!EFI_ERROR(Status) && gConfigPtr != NULL) {
-    Status = ParseXML ((const CHAR8*)gConfigPtr, Dict, (UINT32)Size);
+    Status = ParseXML((const CHAR8*)gConfigPtr, Dict, (UINT32)Size);
     if (EFI_ERROR(Status)) {
       //  Dict = NULL;
       DBG("config.plist parse error Status=%s\n", strerror(Status));
@@ -619,7 +619,7 @@ LoadUserSettings (
   return Status;
 }
 
-STATIC BOOLEAN AddCustomEntry (IN CUSTOM_LOADER_ENTRY *Entry)
+STATIC BOOLEAN AddCustomLoaderEntry(IN CUSTOM_LOADER_ENTRY *Entry)
 {
   if (Entry == NULL) {
     return FALSE;
@@ -638,6 +638,7 @@ STATIC BOOLEAN AddCustomEntry (IN CUSTOM_LOADER_ENTRY *Entry)
 
   return TRUE;
 }
+
 STATIC BOOLEAN AddCustomLegacyEntry (IN CUSTOM_LEGACY_ENTRY *Entry)
 {
   if (Entry == NULL) {
@@ -1938,7 +1939,9 @@ FillinCustomEntry (
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      Entry->Image.FromPNG(TmpData, DataLen);
+      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+        Entry->Image.setFilled();
+      }
       FreePool(TmpData);
     }
   }
@@ -1958,7 +1961,9 @@ FillinCustomEntry (
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      Entry->DriveImage.FromPNG(TmpData, DataLen);
+      if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
+        Entry->DriveImage.setFilled();
+      }
       FreePool(TmpData);
     }
   }
@@ -2243,7 +2248,9 @@ FillingCustomLegacy (
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      Entry->Image.FromPNG(TmpData, DataLen);
+      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+        Entry->Image.setFilled();
+      }
       FreePool(TmpData);
     }
   }
@@ -2257,7 +2264,9 @@ FillingCustomLegacy (
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "DriveImageData", &DataLen);
     if (TmpData) {
-      Entry->DriveImage.FromPNG(TmpData, DataLen);
+      if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
+        Entry->DriveImage.setFilled();
+      }
       FreePool(TmpData);
     }
   }
@@ -2358,7 +2367,9 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, TagPtr DictPointer)
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      Entry->Image.FromPNG(TmpData, DataLen);
+      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+        Entry->Image.setFilled();
+      }
       FreePool(TmpData);
     }
   }
@@ -3037,7 +3048,7 @@ GetEarlyUserSettings (
               CUSTOM_LOADER_ENTRY* Entry = new CUSTOM_LOADER_ENTRY;
 
               // Fill it in
-              if (Entry != NULL && (!FillinCustomEntry(Entry, Dict3, FALSE) || !AddCustomEntry(Entry))) {
+              if (Entry != NULL && (!FillinCustomEntry(Entry, Dict3, FALSE) || !AddCustomLoaderEntry(Entry))) {
                 delete Entry;
               }
             }
@@ -3360,14 +3371,14 @@ CHAR16* GetBundleVersion(CHAR16 *FullName)
   UINTN           Size;
 
   InfoPlistPath = PoolPrint(L"%s\\%s", FullName, L"Contents\\Info.plist");
-  Status = egLoadFile (SelfRootDir, InfoPlistPath, (UINT8**)&InfoPlistPtr, &Size);
+  Status = egLoadFile(SelfRootDir, InfoPlistPath, (UINT8**)&InfoPlistPtr, &Size);
   if (EFI_ERROR(Status)) {
     FreePool(InfoPlistPath);
     InfoPlistPath = PoolPrint(L"%s", FullName, L"Info.plist"); //special kexts like IOGraphics
-    Status = egLoadFile (SelfRootDir, InfoPlistPath, (UINT8**)&InfoPlistPtr, &Size);
+    Status = egLoadFile(SelfRootDir, InfoPlistPath, (UINT8**)&InfoPlistPtr, &Size);
   }
   if(!EFI_ERROR(Status)) {
-    Status = ParseXML ((const CHAR8*)InfoPlistPtr, &InfoPlistDict, (UINT32)Size);
+    Status = ParseXML((const CHAR8*)InfoPlistPtr, &InfoPlistDict, (UINT32)Size);
     if(!EFI_ERROR(Status)) {
       Prop = GetProperty(InfoPlistDict, "CFBundleVersion");
       if (Prop != NULL && Prop->string != NULL) {
@@ -3963,7 +3974,7 @@ void* XTheme::LoadTheme (const CHAR16 *TestTheme)
 }
 
 EFI_STATUS
-InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
+InitTheme(BOOLEAN UseThemeDefinedInNVRam)
 {
   EFI_STATUS Status       = EFI_NOT_FOUND;
   UINTN      Size         = 0;
@@ -3974,9 +3985,12 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
   UINTN      Rnd;
   EFI_TIME   Now;
 	
+  gRT->GetTime(&Now, NULL);
+  DbgHeader("InitXTheme");
+  ThemeX.Init();
+  
   //initialize Daylight when we know timezone
   if (GlobalConfig.Timezone != 0xFF) { // 0xFF:default=timezone not set
-    gRT->GetTime(&Now, NULL);
     INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
     if (NowHour <  0 ) NowHour += 24;
     if (NowHour >= 24 ) NowHour -= 24;
@@ -3989,9 +4003,6 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
   } else {
     DBG("use night theme\n");
   }
-
-  DbgHeader("InitXTheme");
-  ThemeX.Init();
 
   for (i = 0; i < 3; i++) {
     //    DBG("validate %d face\n", i);
@@ -4022,7 +4033,7 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
    */
   ThemeX.FontImage.setEmpty();
 
-  Rnd = ((Time != NULL) && (ThemesNum != 0)) ? Time->Second % ThemesNum : 0;
+  Rnd = (ThemesNum != 0) ? Now.Second % ThemesNum : 0;
 
   //  DBG("...done\n");
   ThemeX.GetThemeTagSettings(NULL);
@@ -4030,10 +4041,10 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
   if (ThemesNum > 0  &&
       (!GlobalConfig.Theme || StriCmp(GlobalConfig.Theme, L"embedded") != 0)) {
     // Try special theme first
-    if (Time != NULL) {
-      if ((Time->Month == 12) && ((Time->Day >= 25) && (Time->Day <= 31))) {
+ //   if (Time != NULL) {
+      if ((Now.Month == 12) && ((Now.Day >= 25) && (Now.Day <= 31))) {
         TestTheme = PoolPrint(L"christmas");
-      } else if ((Time->Month == 1) && ((Time->Day >= 1) && (Time->Day <= 3))) {
+      } else if ((Now.Month == 1) && ((Now.Day >= 1) && (Now.Day <= 3))) {
         TestTheme = PoolPrint(L"newyear");
       }
 
@@ -4053,7 +4064,7 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
         }
         TestTheme = NULL;
       }
-    }
+//    }
     // Try theme from nvram
     if (ThemeDict == NULL && UseThemeDefinedInNVRam) {
       ChosenTheme = (__typeof__(ChosenTheme))GetNvramVariable(L"Clover.Theme", &gEfiAppleBootGuid, NULL, &Size);
@@ -4093,13 +4104,8 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam, EFI_TIME *Time)
     // Try to get theme from settings
     if (ThemeDict == NULL) {
       if (!GlobalConfig.Theme) {
-        if (Time != NULL) {
-          DBG("no default theme, get random theme %ls\n", ThemesList[Rnd]);
-          ThemeDict = (TagPtr)ThemeX.LoadTheme(ThemesList[Rnd]);
-        } else {
-          DBG("no default theme, get first theme %ls\n", ThemesList[0]);
-          ThemeDict = (TagPtr)ThemeX.LoadTheme(ThemesList[0]);
-        }
+        DBG("no default theme, get random theme %ls\n", ThemesList[Rnd]);
+        ThemeDict = (TagPtr)ThemeX.LoadTheme(ThemesList[Rnd]);
       } else {
         if (StriCmp(GlobalConfig.Theme, L"random") == 0) {
           ThemeDict = (TagPtr)ThemeX.LoadTheme(ThemesList[Rnd]);
@@ -6307,8 +6313,8 @@ CHAR8 *GetOSVersion(IN LOADER_ENTRY *Entry)
     }
 
     if (SystemPlists[i] != NULL) { // found macOS System
-      Status = egLoadFile (Entry->Volume->RootDir, SystemPlists[i], (UINT8 **)&PlistBuffer, &PlistLen);
-      if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML (PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
+      Status = egLoadFile(Entry->Volume->RootDir, SystemPlists[i], (UINT8 **)&PlistBuffer, &PlistLen);
+      if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
         Prop = GetProperty(Dict, "ProductVersion");
         if (Prop != NULL && Prop->string != NULL && Prop->string[0] != '\0') {
           OSVersion = (__typeof__(OSVersion))AllocateCopyPool(AsciiStrSize (Prop->string), Prop->string);
@@ -6338,8 +6344,8 @@ CHAR8 *GetOSVersion(IN LOADER_ENTRY *Entry)
       InstallerPlist = L"\\System\\Library\\CoreServices\\SystemVersion.plist";
     }
     if (FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-      Status = egLoadFile (Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
-      if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML (PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
+      Status = egLoadFile(Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
+      if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
         Prop = GetProperty(Dict, "ProductVersion");
         if (Prop != NULL && Prop->string != NULL && Prop->string[0] != '\0') {
           OSVersion = (__typeof__(OSVersion))AllocateCopyPool(AsciiStrSize (Prop->string), Prop->string);
@@ -6356,8 +6362,8 @@ CHAR8 *GetOSVersion(IN LOADER_ENTRY *Entry)
     if (OSVersion == NULL) {
       InstallerPlist = L"\\.IABootFiles\\com.apple.Boot.plist"; // 10.9 - 10.13.3
       if (FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-        Status = egLoadFile (Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
-        if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML (PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
+        Status = egLoadFile(Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
+        if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
           Prop = GetProperty(Dict, "Kernel Flags");
           if (Prop != NULL && Prop->string != NULL && Prop->string[0] != '\0') {
             if (AsciiStrStr (Prop->string, "Install%20OS%20hhX%20Mavericks.app")) {
@@ -6407,8 +6413,8 @@ CHAR8 *GetOSVersion(IN LOADER_ENTRY *Entry)
         }
       }
       if (FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-        Status = egLoadFile (Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
-        if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML (PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
+        Status = egLoadFile(Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
+        if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
           Prop = GetProperty(Dict, "ProductVersion");
           if (Prop != NULL && Prop->string != NULL && Prop->string[0] != '\0') {
             OSVersion = (__typeof__(OSVersion))AllocateCopyPool(AsciiStrSize (Prop->string), Prop->string);
@@ -6516,8 +6522,8 @@ CHAR8 *GetOSVersion(IN LOADER_ENTRY *Entry)
       }
 
       if (InstallPlists[i] != NULL) {
-        Status = egLoadFile (Entry->Volume->RootDir, InstallPlists[i], (UINT8 **)&PlistBuffer, &PlistLen);
-        if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML (PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
+        Status = egLoadFile(Entry->Volume->RootDir, InstallPlists[i], (UINT8 **)&PlistBuffer, &PlistLen);
+        if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
           Prop = GetProperty(Dict, "ProductVersion");
           if (Prop != NULL && Prop->string != NULL && Prop->string[0] != '\0') {
             OSVersion = (__typeof__(OSVersion))AllocateCopyPool(AsciiStrSize (Prop->string), Prop->string);
@@ -6539,8 +6545,8 @@ CHAR8 *GetOSVersion(IN LOADER_ENTRY *Entry)
     // Detect exact version for OS X Recovery
 
     if (RecoveryPlists[j] != NULL) {
-      Status = egLoadFile (Entry->Volume->RootDir, RecoveryPlists[j], (UINT8 **)&PlistBuffer, &PlistLen);
-      if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML (PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
+      Status = egLoadFile(Entry->Volume->RootDir, RecoveryPlists[j], (UINT8 **)&PlistBuffer, &PlistLen);
+      if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
         Prop = GetProperty(Dict, "ProductVersion");
         if (Prop != NULL && Prop->string != NULL && Prop->string[0] != '\0') {
           OSVersion = (__typeof__(OSVersion))AllocateCopyPool(AsciiStrSize (Prop->string), Prop->string);
@@ -6667,30 +6673,30 @@ GetRootUUID (IN  REFIT_VOLUME *Volume)
   // Playing Rock, Paper, Scissors to chose which settings to load.
   if (HasRock && HasPaper && HasScissors) {
     // Rock wins when all three are around
-    Status = egLoadFile (Volume->RootDir, SystemPlistR, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistR, (UINT8 **)&PlistBuffer, &PlistLen);
   } else if (HasRock && HasPaper) {
     // Paper beats rock
-    Status = egLoadFile (Volume->RootDir, SystemPlistP, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistP, (UINT8 **)&PlistBuffer, &PlistLen);
   } else if (HasRock && HasScissors) {
     // Rock beats scissors
-    Status = egLoadFile (Volume->RootDir, SystemPlistR, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistR, (UINT8 **)&PlistBuffer, &PlistLen);
   } else if (HasPaper && HasScissors) {
     // Scissors beat paper
-    Status = egLoadFile (Volume->RootDir, SystemPlistS, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistS, (UINT8 **)&PlistBuffer, &PlistLen);
   } else if (HasPaper) {
     // No match
-    Status = egLoadFile (Volume->RootDir, SystemPlistP, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistP, (UINT8 **)&PlistBuffer, &PlistLen);
   } else if (HasScissors) {
     // No match
-    Status = egLoadFile (Volume->RootDir, SystemPlistS, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistS, (UINT8 **)&PlistBuffer, &PlistLen);
   } else {
     // Rock wins by default
-    Status = egLoadFile (Volume->RootDir, SystemPlistR, (UINT8 **)&PlistBuffer, &PlistLen);
+    Status = egLoadFile(Volume->RootDir, SystemPlistR, (UINT8 **)&PlistBuffer, &PlistLen);
   }
 
   if (!EFI_ERROR(Status)) {
     Dict = NULL;
-    if (ParseXML (PlistBuffer, &Dict, 0) != EFI_SUCCESS) {
+    if (ParseXML(PlistBuffer, &Dict, 0) != EFI_SUCCESS) {
       FreePool(PlistBuffer);
       return EFI_NOT_FOUND;
     }

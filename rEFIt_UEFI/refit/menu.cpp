@@ -1209,10 +1209,11 @@ VOID AboutRefit(VOID)
 {
   if (AboutMenu.Entries.size() == 0) {
     if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
-      AboutMenu.TitleImage = ThemeX.GetIcon((INTN)BUILTIN_ICON_FUNC_ABOUT);
-    } else {
-      AboutMenu.TitleImage.setEmpty();
+      AboutMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_ABOUT);
     }
+//    else {
+//      AboutMenu.TitleImage.setEmpty(); //done in the constructor
+//    }
 //    AboutMenu.AddMenuInfo_f(("Clover Version 5.0"));
     AboutMenu.AddMenuInfo_f("%s", gRevisionStr);
     AboutMenu.AddMenuInfo_f(" Build: %s", gFirmwareBuildDate);
@@ -1263,9 +1264,10 @@ VOID HelpRefit(VOID)
   if (HelpMenu.Entries.size() == 0) {
     if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
       HelpMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_HELP);
-    } else {
-      HelpMenu.TitleImage.setEmpty();
     }
+    //else {
+    //  HelpMenu.TitleImage.setEmpty();
+    //}
     switch (gLanguage)
     {
       case russian:
@@ -1657,7 +1659,7 @@ VOID HelpRefit(VOID)
 
 REFIT_ABSTRACT_MENU_ENTRY* NewEntry_(REFIT_ABSTRACT_MENU_ENTRY *Entry, REFIT_MENU_SCREEN **SubScreen, ACTION AtClick, UINTN ID, CONST CHAR8 *CTitle)
 {
-    if ( CTitle ) Entry->Title.takeValueFrom(CTitle);
+    if (CTitle) Entry->Title.takeValueFrom(CTitle);
     else Entry->Title.setEmpty();
 
   Entry->Image =  OptionMenu.TitleImage;
@@ -1678,7 +1680,6 @@ REFIT_MENU_ITEM_OPTIONS* newREFIT_MENU_ITEM_OPTIONS(REFIT_MENU_SCREEN **SubScree
 {
 	REFIT_MENU_ITEM_OPTIONS* Entry = new REFIT_MENU_ITEM_OPTIONS();
 	return NewEntry_(Entry, SubScreen, AtClick, ID, Title)->getREFIT_MENU_ITEM_OPTIONS();
-//  (*Entry)->Tag = TAG_OPTIONS;
 }
 
 VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
@@ -1694,24 +1695,18 @@ VOID ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
     if (gSettings.CsrActiveConfig != 0 && gSettings.BooterConfig == 0) {
       gSettings.BooterConfig = 0x28;
     }
-
   } else if (ChosenEntry->SubScreen->ID == SCREEN_BLC) {
 	  ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04hx]->", gSettings.BooterConfig);
   }
-  /*else if (ChosenEntry->SubScreen->ID == SCREEN_DSM) {
-	  ChosenEntry->Title.SWPrintf("Drop OEM _DSM [0x%04hx]->", dropDSM);
-  } */
 }
 
 REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
 {
-  UINTN  i, N, Ven = 97;
   REFIT_MENU_ITEM_OPTIONS   *Entry;
   REFIT_MENU_SCREEN  *SubScreen;
 
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_GRAPHICS, "Graphics Injector->");
 	SubScreen->AddMenuInfoLine_f("Number of VideoCard%s=%llu",((NGFX!=1)?"s":""), NGFX);
-
   SubScreen->AddMenuItemInput(52, "InjectEDID", FALSE);
   SubScreen->AddMenuItemInput(53, "Fake Vendor EDID:", TRUE);
   SubScreen->AddMenuItemInput(54, "Fake Product EDID:", TRUE);
@@ -1719,10 +1714,10 @@ REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
   SubScreen->AddMenuItemInput(112, "Intel Max Backlight:", TRUE); //gSettings.IntelMaxValue
 
 
-  for (i = 0; i < NGFX; i++) {
+  for (UINTN i = 0; i < NGFX; i++) {
     SubScreen->AddMenuInfo_f("----------------------");
 	  SubScreen->AddMenuInfo_f("Card DeviceID=%04hx", gGraphics[i].DeviceID);
-    N = 20 + i * 6;
+    UINTN N = 20 + i * 6;
     SubScreen->AddMenuItemInput(N, "Model:", TRUE);
 
     if (gGraphics[i].Vendor == Nvidia) {
@@ -1735,11 +1730,12 @@ REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
       SubScreen->AddMenuItemInput(N+1, "InjectX3", FALSE);
     }
 
+    UINTN  Ven = 97; //it can be used for non Ati, Nvidia, Intel in QEMU for example
     if (gGraphics[i].Vendor == Nvidia) {
       Ven = 95;
     } else if (gGraphics[i].Vendor == Ati) {
       Ven = 94;
-    } else /*if (gGraphics[i].Vendor == Intel)*/ {
+    } else if (gGraphics[i].Vendor == Intel) {
       Ven = 96;
     }
 
@@ -1953,7 +1949,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuKextBlockInjection(CONST CHAR16* UniSysVer)
   return Entry;
 }
 
-LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
+LOADER_ENTRY* LOADER_ENTRY::SubMenuKextInjectMgmt()
 {
 	LOADER_ENTRY       *SubEntry;
 	REFIT_MENU_SCREEN  *SubScreen;
@@ -1961,11 +1957,11 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 //	UINTN               i;
 	CHAR8               ShortOSVersion[8];
 //	CHAR16             *UniSysVer = NULL;
-	CHAR8              *ChosenOS = Entry->OSVersion;
+	CHAR8              *ChosenOS = OSVersion;
 
 	SubEntry = new LOADER_ENTRY();
 	NewEntry_(SubEntry, &SubScreen, ActionEnter, SCREEN_SYSTEM, "Block injected kexts->");
-	SubEntry->Flags = Entry->Flags;
+	SubEntry->Flags = Flags;
 	if (ChosenOS) {
 //    DBG("chosen os %s\n", ChosenOS);
 		//shorten os version 10.11.6 -> 10.11
@@ -1980,7 +1976,6 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 			}
 		}
 
-
 		SubScreen->AddMenuInfoLine_f("Block injected kexts for target version of macOS: %s",
 		                ShortOSVersion);
 
@@ -1989,11 +1984,11 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 			SubScreen->AddMenuEntry(SubMenuKextBlockInjection(L"10"), true);
 
 			CHAR16 DirName[256];
-			if (OSTYPE_IS_OSX_INSTALLER(Entry->LoaderType)) {
+			if (OSTYPE_IS_OSX_INSTALLER(LoaderType)) {
 				snwprintf(DirName, sizeof(DirName), "10_install");
 			}
 			else {
-				if (OSTYPE_IS_OSX_RECOVERY(Entry->LoaderType)) {
+				if (OSTYPE_IS_OSX_RECOVERY(LoaderType)) {
 					snwprintf(DirName, sizeof(DirName), "10_recovery");
 				}
 				else {
@@ -2009,11 +2004,11 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 			snwprintf(DirName, sizeof(DirName), "%s", ShortOSVersion);
 			SubScreen->AddMenuEntry(SubMenuKextBlockInjection(DirName), true);
 
-			if (OSTYPE_IS_OSX_INSTALLER(Entry->LoaderType)) {
+			if (OSTYPE_IS_OSX_INSTALLER(LoaderType)) {
 				snwprintf(DirName, sizeof(DirName), "%s_install", ShortOSVersion);
 			}
 			else {
-				if (OSTYPE_IS_OSX_RECOVERY(Entry->LoaderType)) {
+				if (OSTYPE_IS_OSX_RECOVERY(LoaderType)) {
 					snwprintf(DirName, sizeof(DirName), "%s_recovery", ShortOSVersion);
 				}
 				else {
@@ -2029,27 +2024,27 @@ LOADER_ENTRY *SubMenuKextInjectMgmt(LOADER_ENTRY *Entry)
 		{
 			{
 				CHAR16 OSVersionKextsDirName[256];
-				if ( AsciiStrCmp(ShortOSVersion, Entry->OSVersion) == 0 ) {
-					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s.0", Entry->OSVersion);
+				if ( AsciiStrCmp(ShortOSVersion, OSVersion) == 0 ) {
+					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s.0", OSVersion);
 				}else{
-					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s", Entry->OSVersion);
+					snwprintf(OSVersionKextsDirName, sizeof(OSVersionKextsDirName), "%s", OSVersion);
 				}
 				SubScreen->AddMenuEntry(SubMenuKextBlockInjection(OSVersionKextsDirName), true);
 			}
 
 			CHAR16 DirName[256];
-			if (OSTYPE_IS_OSX_INSTALLER(Entry->LoaderType)) {
+			if (OSTYPE_IS_OSX_INSTALLER(LoaderType)) {
 				snwprintf(DirName, sizeof(DirName), "%s_install",
-				        Entry->OSVersion);
+				        OSVersion);
 			}
 			else {
-				if (OSTYPE_IS_OSX_RECOVERY(Entry->LoaderType)) {
+				if (OSTYPE_IS_OSX_RECOVERY(LoaderType)) {
 					snwprintf(DirName, sizeof(DirName), "%s_recovery",
-					        Entry->OSVersion);
+					        OSVersion);
 				}
 				else {
 					snwprintf(DirName, sizeof(DirName), "%s_normal",
-					        Entry->OSVersion);
+					        OSVersion);
 				}
 			}
 			SubScreen->AddMenuEntry(SubMenuKextBlockInjection(DirName), true);
@@ -2741,9 +2736,10 @@ VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
   if (OptionMenu.Entries.size() == 0) {
     if (!(ThemeX.HideUIFlags & HIDEUI_FLAG_MENU_TITLE_IMAGE)) {
       OptionMenu.TitleImage = ThemeX.GetIcon(BUILTIN_ICON_FUNC_OPTIONS);
-    } else {
-      OptionMenu.TitleImage.setEmpty();
     }
+    //else {
+    //  OptionMenu.TitleImage.setEmpty();
+    //}
     gThemeOptionsChanged = TRUE;
     OptionMenu.ID = SCREEN_OPTIONS;
     OptionMenu.GetAnime(); //FALSE;
@@ -2772,15 +2768,13 @@ VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
 
   while (!MenuExit) {
     MenuExit = OptionMenu.RunGenericMenu(Style, &EntryIndex, ChosenEntry);
-    //    MenuExit = RunMenu(&OptionMenu, ChosenEntry);
-    if (  MenuExit == MENU_EXIT_ESCAPE || (*ChosenEntry)->getREFIT_MENU_ITEM_RETURN()  )
+    if (MenuExit == MENU_EXIT_ESCAPE || (*ChosenEntry)->getREFIT_MENU_ITEM_RETURN())
       break;
     if (MenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
       //enter input dialog or subscreen
       if ((*ChosenEntry)->SubScreen != NULL) {
         SubMenuExit = 0;
         while (!SubMenuExit) {
-
           SubMenuExit = (*ChosenEntry)->SubScreen->RunGenericMenu(Style, &SubEntryIndex, &TmpChosenEntry);
           if (SubMenuExit == MENU_EXIT_ESCAPE || TmpChosenEntry->getREFIT_MENU_ITEM_RETURN()  ){
             ApplyInputs();
@@ -2791,7 +2785,6 @@ VOID  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
             if (TmpChosenEntry->SubScreen != NULL) {
               NextMenuExit = 0;
               while (!NextMenuExit) {
-
                 NextMenuExit = TmpChosenEntry->SubScreen->RunGenericMenu(Style, &NextEntryIndex, &NextChosenEntry);
                 if (NextMenuExit == MENU_EXIT_ESCAPE || NextChosenEntry->getREFIT_MENU_ITEM_RETURN()  ){
                   ApplyInputs();
