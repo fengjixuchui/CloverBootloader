@@ -340,27 +340,36 @@ VOID REFIT_MENU_SCREEN::UpdateScroll(IN UINTN Movement)
       break;
 
     case SCROLL_PAGE_DOWN:
+//    DBG("cur=%lld, maxInd=%lld, maxVis=%lld, First=%lld, maxFirst=%lld, lastVis=%lld, maxscr=%lld\n",
+//        ScrollState.CurrentSelection, ScrollState.MaxIndex, ScrollState.MaxVisible, ScrollState.FirstVisible,
+//        ScrollState.MaxFirstVisible, ScrollState.CurrentSelection, ScrollState.LastVisible);
+
       if (ScrollState.CurrentSelection < ScrollState.MaxIndex) {
         if (ScrollState.CurrentSelection == 0) {   // currently at first entry, special treatment
           if (ScrollState.IsScrolling)
-            ScrollState.CurrentSelection += ScrollState.MaxVisible - 1;  // move to second-to-last line without scrolling
+            ScrollState.CurrentSelection = ScrollState.MaxVisible - 1;  // move to second-to-last line without scrolling
           else
             ScrollState.CurrentSelection = ScrollState.MaxIndex;         // move to last entry
         } else {
-          if (ScrollState.FirstVisible < ScrollState.MaxFirstVisible)
-            ScrollState.PaintAll = TRUE;
+//          if (ScrollState.FirstVisible < ScrollState.MaxFirstVisible)
+//            ScrollState.PaintAll = TRUE;
           ScrollState.CurrentSelection += ScrollState.MaxVisible;          // move one page and scroll synchronously
           ScrollState.FirstVisible += ScrollState.MaxVisible;
         }
-        CONSTRAIN_MAX(ScrollState.CurrentSelection, ScrollState.MaxIndex);
+        CONSTRAIN_MAX(ScrollState.CurrentSelection, ScrollState.MaxIndex); // if (v>m) v=m;
         CONSTRAIN_MAX(ScrollState.FirstVisible, ScrollState.MaxFirstVisible);
         if ((ScrollState.CurrentSelection > ScrollState.LastVisible) &&
             (ScrollState.CurrentSelection <= ScrollState.MaxScroll)){
-          ScrollState.PaintAll = TRUE;
+ //         ScrollState.PaintAll = TRUE;
           ScrollState.FirstVisible+= ScrollState.MaxVisible;
           CONSTRAIN_MAX(ScrollState.FirstVisible, ScrollState.MaxFirstVisible);
         }
+        ScrollState.PaintAll = TRUE;
       }
+//    DBG("after cur=%lld, maxInd=%lld, maxVis=%lld, First=%lld, maxFirst=%lld, lastVis=%lld, maxscr=%lld\n",
+//        ScrollState.CurrentSelection, ScrollState.MaxIndex, ScrollState.MaxVisible, ScrollState.FirstVisible,
+//        ScrollState.MaxFirstVisible, ScrollState.CurrentSelection, ScrollState.LastVisible);
+
       break;
 
     case SCROLL_FIRST:
@@ -709,12 +718,12 @@ EFI_STATUS REFIT_MENU_SCREEN::WaitForInputEventPoll(UINTN TimeoutDefault)
     }
     UpdateFilm();
     if (gSettings.PlayAsync) {
-      CheckSyncSound();
+      CheckSyncSound(false);
     }
     TimeoutRemain--;
     if (mPointer.isAlive()) {
       mPointer.UpdatePointer(!Daylight);
-      Status = CheckMouseEvent(); //out: gItemID, gAction
+      Status = CheckMouseEvent(); //out: mItemID, mAction
       if (Status != EFI_TIMEOUT) { //this check should return timeout if no mouse events occured
         break;
       }
@@ -935,12 +944,12 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
       case SCAN_PAGE_UP:
         UpdateScroll(SCROLL_PAGE_UP);
     //    SetNextScreenMode(1);
-        ((*this).*(StyleFunc))(MENU_FUNCTION_INIT, NULL);
+    //    ((*this).*(StyleFunc))(MENU_FUNCTION_INIT, NULL);
         break;
       case SCAN_PAGE_DOWN:
         UpdateScroll(SCROLL_PAGE_DOWN);
      //   SetNextScreenMode(-1);
-        ((*this).*(StyleFunc))(MENU_FUNCTION_INIT, NULL);
+     //   ((*this).*(StyleFunc))(MENU_FUNCTION_INIT, NULL);
         break;
       case SCAN_ESC:
         MenuExit = MENU_EXIT_ESCAPE;
@@ -2613,7 +2622,9 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
 
       SubMenuExit = 0;
       while (!SubMenuExit) {
+        //
         //running details menu
+        //
         SubMenuExit = MainChosenEntry->SubScreen->RunGenericMenu(Style, &SubMenuIndex, &TempChosenEntry);
 
         if (SubMenuExit == MENU_EXIT_ESCAPE || TempChosenEntry->getREFIT_MENU_ITEM_RETURN() ) {
@@ -2625,12 +2636,17 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
         if (MainChosenEntry->getREFIT_MENU_ENTRY_CLOVER()) {
           MainChosenEntry->getREFIT_MENU_ENTRY_CLOVER()->LoadOptions = (((REFIT_MENU_ENTRY_CLOVER*)TempChosenEntry)->LoadOptions);
         }
-//        DBG(" exit menu with LoadOptions: %ls\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
+        
+        if (SubMenuExit == MENU_EXIT_DETAILS) {
+          SubMenuExit = 0;
+          continue;
+        }
+ //       DBG(" exit menu with LoadOptions: %ls\n", ((LOADER_ENTRY*)MainChosenEntry)->LoadOptions);
 
         if (SubMenuExit == MENU_EXIT_ENTER && MainChosenEntry->getLOADER_ENTRY() && TempChosenEntry->getLOADER_ENTRY()) {
           // Only for non-legacy entries, as LEGACY_ENTRY doesn't have Flags/Options
           MainChosenEntry->getLOADER_ENTRY()->Flags = TempChosenEntry->getLOADER_ENTRY()->Flags;
-//           DBG(" get MainChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)MainChosenEntry)->Flags);
+          DBG(" get MainChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)MainChosenEntry)->Flags);
           if (OSFLAG_ISUNSET(TempChosenEntry->getLOADER_ENTRY()->Flags, OSFLAG_NODEFAULTARGS)) {
             DecodeOptions(TempChosenEntry->getLOADER_ENTRY());
 //            DBG("get OptionsBits = 0x%X\n", gSettings.OptionsBits);
@@ -2650,32 +2666,38 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
         }
 
         //---- Details submenu (kexts disabling etc)
-        if (SubMenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
+        if (SubMenuExit == MENU_EXIT_ENTER /*|| MenuExit == MENU_EXIT_DETAILS*/) {
           if (TempChosenEntry->SubScreen != NULL) {
             UINTN NextMenuExit = 0;
             INTN NextEntryIndex = -1;
             while (!NextMenuExit) {
+              //
+              // running submenu
+              //
               NextMenuExit = TempChosenEntry->SubScreen->RunGenericMenu(Style, &NextEntryIndex, &NextChosenEntry);
               if (NextMenuExit == MENU_EXIT_ESCAPE || NextChosenEntry->getREFIT_MENU_ITEM_RETURN() ) {
                 SubMenuExit = 0;
                 NextMenuExit = MENU_EXIT_ENTER;
                 break;
               }
- //             DBG(" get NextChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)NextChosenEntry)->Flags);
+              DBG(" get NextChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)NextChosenEntry)->Flags);
               //---- Details submenu (kexts disabling etc) second level
-              if (NextMenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
+              if (NextMenuExit == MENU_EXIT_ENTER /*|| MenuExit == MENU_EXIT_DETAILS*/) {
                 if (NextChosenEntry->SubScreen != NULL) {
                   UINTN DeepMenuExit = 0;
                   INTN DeepEntryIndex = -1;
                   REFIT_ABSTRACT_MENU_ENTRY    *DeepChosenEntry  = NULL;
                   while (!DeepMenuExit) {
+                    //
+                    // run deep submenu
+                    //
                     DeepMenuExit = NextChosenEntry->SubScreen->RunGenericMenu(Style, &DeepEntryIndex, &DeepChosenEntry);
                     if (DeepMenuExit == MENU_EXIT_ESCAPE || DeepChosenEntry->getREFIT_MENU_ITEM_RETURN() ) {
                       DeepMenuExit = MENU_EXIT_ENTER;
                       NextMenuExit = 0;
                       break;
                     }
- //                   DBG(" get DeepChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)DeepChosenEntry)->Flags);
+                    DBG(" get DeepChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)DeepChosenEntry)->Flags);
                   } //while(!DeepMenuExit)
                 }
               }
