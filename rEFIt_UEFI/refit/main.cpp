@@ -108,6 +108,8 @@ EFI_HANDLE ConsoleInHandle;
 EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL* SimpleTextEx;
 EFI_KEY_DATA KeyData;
 
+EFI_HANDLE AudioDriverHandle;
+
 CONST CHAR8* AudioOutputNames[] = {
   "LineOut",
   "Speaker",
@@ -706,7 +708,8 @@ VOID LOADER_ENTRY::StartLoader()
               strncmp(InstallerVersion, "10.12", 5) &&
               strncmp(InstallerVersion, "10.13", 5) &&
               strncmp(InstallerVersion, "10.14", 5) &&
-              strncmp(InstallerVersion, "10.15", 5)) {   
+              strncmp(InstallerVersion, "10.15", 5) &&
+              strncmp(InstallerVersion, "10.16", 5)) {   
             InstallerVersion = NULL; // flag known version was not found
           }
           if (InstallerVersion != NULL) { // known version was found in image
@@ -831,8 +834,13 @@ VOID LOADER_ENTRY::StartLoader()
     }
 
     if (AudioIo) {
-//      AudioIo->StopPlayback(AudioIo);
-      CheckSyncSound(true);
+      AudioIo->StopPlayback(AudioIo);
+//      CheckSyncSound(true);
+      EFI_DRIVER_BINDING_PROTOCOL  *DriverBinding =  NULL;
+      Status = gBS->HandleProtocol(AudioDriverHandle, &gEfiDriverBindingProtocolGuid, (VOID **)&DriverBinding);
+      if (DriverBinding) {
+        DriverBinding->Stop(DriverBinding, AudioDriverHandle, 0, NULL);
+      }
     }
 
 //    DBG("Set FakeCPUID: 0x%X\n", gSettings.FakeCPUID);
@@ -848,9 +856,9 @@ VOID LOADER_ENTRY::StartLoader()
     // which is wrong
     // apianti - only block console output if using graphics
     //           but don't block custom boot logo
-    if (  LoadOptions.containsIC("-v")  ) {
+    if (LoadOptions.containsIC("-v")) {
           Flags = OSFLAG_UNSET(Flags, OSFLAG_USEGRAPHICS);
-	}
+    }
   }
   else if (OSTYPE_IS_WINDOWS(LoaderType)) {
 
@@ -1152,6 +1160,9 @@ static VOID ScanDriverDir(IN CONST CHAR16 *Path, OUT EFI_HANDLE **DriversToConne
                            NullXStringArray, DirEntry->FileName, XStringW().takeValueFrom(DirEntry->FileName), NULL, &DriverHandle);
     if (EFI_ERROR(Status)) {
       continue;
+    }
+    if (StrStr(FileName, L"AudioDxe") != NULL) {
+      AudioDriverHandle = DriverHandle;
     }
     if (StrStr(FileName, L"EmuVariable") != NULL) {
       gDriversFlags.EmuVariableLoaded = TRUE;
