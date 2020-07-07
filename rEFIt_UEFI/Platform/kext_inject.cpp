@@ -3,7 +3,7 @@
 #include "DataHubCpu.h"
 
 #ifndef DEBUG_ALL
-#define KEXT_INJECT_DEBUG 0
+#define KEXT_INJECT_DEBUG 2
 #else
 #define KEXT_INJECT_DEBUG DEBUG_ALL
 #endif
@@ -301,7 +301,7 @@ VOID LOADER_ENTRY::AddKexts(CONST CHAR16 *SrcDir, CONST CHAR16 *Path, cpu_type_t
   MsgLog("Preparing kexts injection for arch=%ls from %ls\n", (archCpuType==CPU_TYPE_X86_64)?L"x86_64":(archCpuType==CPU_TYPE_I386)?L"i386":L"", SrcDir);
   CurrentKext = InjectKextList;
   while (CurrentKext) {
-    DBG("  current kext name=%ls path=%ls, match against=%ls\n", CurrentKext->FileName, CurrentKext->KextDirNameUnderOEMPath, Path);
+//    DBG("  current kext name=%ls path=%ls, match against=%ls\n", CurrentKext->FileName, CurrentKext->KextDirNameUnderOEMPath, Path);
     if (StrCmp(CurrentKext->KextDirNameUnderOEMPath, Path) == 0) {
       FileName = PoolPrint(L"%s\\%s", SrcDir, CurrentKext->FileName);
       //   snwprintf(FileName, 512, "%s\\%s", SrcDir, CurrentKext->FileName);
@@ -1087,7 +1087,8 @@ VOID EFIAPI LOADER_ENTRY::KernelBooterExtensionsPatch()
 //ffffff80009a227b
       UINTN taskLocation = searchProc("IOTaskHasEntitlement");
       procLocation = searchProc("loadExecutable");
-      patchLocation2 = FindMemMask(&KernelData[procLocation], 0x1000, find3, sizeof(find3), mask3, sizeof(mask3));
+      patchLocation2 = FindMemMask(&KernelData[procLocation], 0x500, find3, sizeof(find3), mask3, sizeof(mask3));
+      DBG("IOTaskHasEntitlement at 0x%llx, loadExecutable at 0x%llx\n", taskLocation, procLocation);
       if (patchLocation2 != KERNEL_MAX_SIZE) {
         DBG_RT("=> patch SIP applied\n");
         patchLocation2 += procLocation;
@@ -1098,7 +1099,7 @@ VOID EFIAPI LOADER_ENTRY::KernelBooterExtensionsPatch()
           KernelData[patchLocation2 + 4] = 0x12;
         }
       } else {
-        patchLocation2 = FindRelative32(KernelData, procLocation, 0x1000, taskLocation);
+        patchLocation2 = FindRelative32(KernelData, procLocation, 0x500, taskLocation);
         if (patchLocation2 != 0) {
           DBG_RT("=> patch2 SIP applied\n");
           KernelData[patchLocation2] = 0xEB;
@@ -1151,7 +1152,7 @@ VOID EFIAPI LOADER_ENTRY::KernelBooterExtensionsPatch()
       const UINT8 find5[] = {0x00, 0x0F, 0x85, 00, 00, 0x00, 0x00, 0x48 };
       const UINT8 mask5[] = {0xFF, 0xFF, 0xFF, 00, 00, 0xFF, 0xFF, 0xFF };
       patchLocation3 = FindMemMask(&KernelData[procLocation], 0x1000, find5, sizeof(find5), mask5, sizeof(mask5));
-      
+      DBG("removeKextBootstrap at 0x%llx\n", patchLocation3);
 
  /*
       for (UINT32 i = 0; i < 0x1000000; i++) {
