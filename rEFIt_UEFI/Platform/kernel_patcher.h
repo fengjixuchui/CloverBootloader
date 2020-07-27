@@ -39,6 +39,8 @@ const char   kTextSegment[] =                       "__TEXT";
 const char   kDataSegment[] =                       "__DATA";
 const char   kDataConstSegment[] =                  "__DATA_CONST";
 const char   kKldSegment[] =                        "__KLD";
+const char   kHibSegment[] =                        "__HIB";
+const char   kTextExecSegment[] =                   "__TEXT_EXEC";
 const char   kConstSection[] =                      "__const";
 const char   kBssSection[] =                        "__bss";
 const char   kCommonSection[] =                     "__common";
@@ -46,6 +48,7 @@ const char   kDataSection[] =                       "__data";
 
 #define ID_SEG_STEXT                           0x010e
 #define ID_SEG_TEXT                            0x010f
+#define ID_SEG_TEXT2                           0x0124
 
 #define ID_SEG_TEXT_CONST                      0x030e
 #define ID_SEG_DATA_DATA                       0x080e
@@ -55,8 +58,10 @@ const char   kDataSection[] =                       "__data";
 #define ID_SEG_DATA_COMMON                     0x090f
 #define ID_SEG_DATA                            0x0f0f
 #define ID_SEG_DATA_CONST                      0x110f
+#define ID_SEG_HIB                             0x170f
 #define ID_SEG_KLD                             0x180f
 #define ID_SEG_KLD2                            0x1a0f
+#define ID_SEG_KLD3                            0x210f
 
 
 const char  ctor_used[] =                           ".constructors_used";
@@ -110,10 +115,12 @@ typedef struct SEGMENT {
   UINT32 initprot;    //0x34 01
   UINT32 NumSects;    //0x38 00
   UINT32 Flags;       //0x3C 00
-  UINT32 Cmd[2];      //0x40 02, 18
+  UINT32 Cmd;         //0x40 02  //LC_SYMTAB link-edit stab symbol table info
+  UINT32 Cmdsize;     //0x44 18
   UINT32 AddrVtable;  //0x48
   UINT32 SizeVtable;  //0x4C
   UINT32 AddrNames;   //0x50
+  UINT32 SizeNamesTable;
 } SEGMENT;
 
 
@@ -179,7 +186,7 @@ BOOLEAN CompareMemMask(const UINT8 *Source, const UINT8 *Search, UINTN SearchSiz
 VOID  CopyMemMask(UINT8 *Dest, const UINT8 *Replace, const UINT8 *Mask, UINTN SearchSize);
 UINTN FindMemMask(const UINT8 *Source, UINTN SourceSize, const UINT8 *Search, UINTN SearchSize, const UINT8 *MaskSearch, UINTN MaskSize);
 UINTN FindRelative32(const UINT8 *Source, UINTN Start, UINTN SourceSize, UINTN taskLocation);
-UINTN FindSection(const UINT8 *Source, UINTN len, const UINT8* seg, const UINT8* sec);
+//UINTN FindSection(const UINT8 *Source, UINTN len, const UINT8* seg, const UINT8* sec);
 //
 // Searches Source for Search pattern of size SearchSize
 // and replaces it with Replace up to MaxReplaces times.

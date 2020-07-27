@@ -453,6 +453,12 @@
 				<true/>
 				<key>Procedure</key>
 				<string>_lapic_interrupt</string>
+				<key>RangeFind</key>
+				<integer>200</integer>
+				<key>StartPattern</key>
+				<data>ACnHeAAx241H+oM=</data>
+				<key>MaskStart</key>
+				<data>/////wA=</data>
 				<key>Find</key>
 				<data>6AAA//+DAAAAAAAA</data>
 				<key>MaskFind</key>
@@ -461,8 +467,6 @@
 				<data>6AAA//8xwJCQkJCQ</data>
 				<key>MaskReplace</key>
 				<data>/wAA////////////</data>
-				<key>RangeFind</key>
-				<integer>200</integer>
 			</dict>
 		</array>
 		<key>#ForceKextsToLoad</key>
@@ -554,17 +558,21 @@
 			</dict>
 			<dict>
 				<key>Comment</key>
-				<string>Patch 8 apples</string>
+				<string>Violet strips</string>
 				<key>Disabled</key>
-				<true/>
-				<key>Find</key>
-				<data>AQAAdSI=</data>
-				<key>MatchOS</key>
-				<string>10.13</string>
+				<false/>
 				<key>Name</key>
-				<string>IOGraphicsFamily</string>
+				<string>com.apple.kext.AMDSupport</string>
+				<key>Procedure</key>
+				<string>TestVRAM</string>
+				<key>Find</key>
+				<data>VUiJ</data>
 				<key>Replace</key>
-				<data>AQAA6yI=</data>
+				<data>sAHD</data>
+				<key>FindMask</key>
+				<data>AAAA</data>
+				<key>RangeFind</key>
+				<integer>10</integer>
 			</dict>
 		</array>
 		<key>KernelXCPM</key>
@@ -1076,6 +1084,47 @@
 		<true/>
 		<key>InjectKexts</key>
 		<string>Detect</string>
+	</dict>
+	<key>Quirks</key>
+	<dict>
+		<key>AvoidRuntimeDefrag</key>
+		<true/>
+		<key>DevirtualiseMmio</key>
+		<false/>
+		<key>DisableSingleUser</key>
+		<false/>
+		<key>DisableVariableWrite</key>
+		<false/>
+		<key>DiscardHibernateMap</key>
+		<false/>
+		<key>EnableSafeModeSlide</key>
+		<true/>
+		<key>EnableWriteUnprotector</key>
+		<true/>
+		<key>ForceExitBootServices</key>
+		<false/>
+		<key>MmioWhitelist</key>
+		<array/>
+		<key>ProtectMemoryRegions</key>
+		<false/>
+		<key>ProtectSecureBoot</key>
+		<false/>
+		<key>ProtectUefiServices</key>
+		<false/>
+		<key>ProvideConsoleGopEnable</key>
+		<true/>
+		<key>ProvideCustomSlide</key>
+		<false/>
+		<key>ProvideMaxSlide</key>
+		<integer>0</integer>
+		<key>RebuildAppleMemoryMap</key>
+		<false/>
+		<key>SetupVirtualMap</key>
+		<true/>
+		<key>SignalAppleOS</key>
+		<false/>
+		<key>SyncRuntimePermissions</key>
+		<true/>
 	</dict>
 </dict>
 </plist>

@@ -38,7 +38,7 @@
 
 #include "../../libeg/libeg.h"
 #include "../../refit/lib.h"
-#include "../../Platform/LoaderUefi.h"
+//#include "../../Platform/LoaderUefi.h"
 #include "../../Platform/boot.h"
 
 #include "../../cpp_foundation/XObjArray.h"
@@ -370,6 +370,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
         BOOLEAN           isKernelcache;
         BOOLEAN           is64BitKernel;
         UINT32            KernelSlide;
+        UINT32            KernelOffset;
         // notes:
         // - 64bit segCmd64->vmaddr is 0xffffff80xxxxxxxx and we are taking
         //   only lower 32bit part into PrelinkTextAddr
@@ -380,7 +381,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
         
         // notes:
         // - 64bit sect->addr is 0xffffff80xxxxxxxx and we are taking
-        //   only lower 32bit part into PrelinkInfoAddr
+        //   only lower 32bit part into PrelinkInfoAddr ... Why???
         // - PrelinkInfoAddr is sect->addr + KernelRelocBase
         UINT32            PrelinkInfoLoadCmdAddr;
         UINT32            PrelinkInfoAddr;
@@ -398,7 +399,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
               CustomBoot(0), KernelAndKextPatches(0), Settings(0), KernelData(0),
               AddrVtable(0), SizeVtable(0), NamesTable(0), shift(0),
               PatcherInited(false), gSNBEAICPUFixRequire(false), gBDWEIOPCIFixRequire(false), isKernelcache(false), is64BitKernel(false),
-              KernelSlide(0), PrelinkTextLoadCmdAddr(0), PrelinkTextAddr(0), PrelinkTextSize(0),
+              KernelSlide(0), KernelOffset(0), PrelinkTextLoadCmdAddr(0), PrelinkTextAddr(0), PrelinkTextSize(0),
               PrelinkInfoLoadCmdAddr(0), PrelinkInfoAddr(0), PrelinkInfoSize(0),
               KernelRelocBase(0), bootArgs1(0), bootArgs2(0), dtRoot(0), dtLength(0)
 						{};
@@ -407,8 +408,11 @@ class REFIT_ABSTRACT_MENU_ENTRY
         void          FindBootArgs();
         EFI_STATUS    getVTable();
         void          Get_PreLink();
+        UINT32        Get_Symtab(UINT8*  binary);
+        UINT32        GetTextExec();
         UINTN         searchProc(const char *procedure);
         UINTN         searchProcInDriver(UINT8 * driver, UINT32 driverLen, const char *procedure);
+        UINT32        searchSectionByNum(UINT8 * Binary, UINT32 Num);
         void          KernelAndKextsPatcherStart();
         void          KernelAndKextPatcherInit();
         BOOLEAN       KernelUserPatch();
@@ -432,8 +436,8 @@ class REFIT_ABSTRACT_MENU_ENTRY
         EFI_STATUS    SetFSInjection();
         EFI_STATUS    InjectKexts(IN UINT32 deviceTreeP, IN UINT32 *deviceTreeLength);
         EFI_STATUS    LoadKexts();
-        int           is_mkext_v1(UINT8* drvPtr);
-        void          patch_mkext_v1(UINT8 *drvPtr);
+ //       int           is_mkext_v1(UINT8* drvPtr);
+ //       void          patch_mkext_v1(UINT8 *drvPtr); //not used
  
         EFI_STATUS LoadKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType, IN OUT void *kext);
         EFI_STATUS AddKext(IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType);
@@ -450,7 +454,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
         void      ATIConnectorsPatchRegisterKexts(void *FSInject_v, void *ForceLoadKexts_v);
         void      AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
         void      AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
-        void      CheckForFakeSMC(CHAR8 *InfoPlist);
+ //       void      CheckForFakeSMC(CHAR8 *InfoPlist);
         void      DellSMBIOSPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
         void      SNBE_AICPUPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);
         void      BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UINT32 InfoPlistSize);

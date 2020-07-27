@@ -3,10 +3,19 @@
  *
  */
 
-#include "Platform.h"
-#include "LoaderUefi.h"
-//#include "device_tree.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#include <Library/BaseLib.h>
+#include <Library/BaseMemoryLib.h>
+#include <Library/DebugLib.h>
+#ifdef __cplusplus
+}
+#endif
+
+#include <UefiLoader.h>
+#include "Platform.h"
 #include "kernel_patcher.h"
 
 #define OLD_METHOD 0
@@ -18,11 +27,14 @@
 #define KEXT_DEBUG DEBUG_ALL
 #endif
 
-#if KEXT_DEBUG
-#define DBG(...)	printf(__VA_ARGS__);
+#if KEXT_DEBUG == 2
+#define DBG(...)    printf(__VA_ARGS__);
+#elif KEXT_DEBUG == 1
+#define DBG(...)    DebugLog(KEXT_DEBUG, __VA_ARGS__)
 #else
 #define DBG(...)
 #endif
+
 
 // runtime debug
 #define DBG_RT(...)    if ((KernelAndKextPatches != NULL) && KernelAndKextPatches->KPDebug) { printf(__VA_ARGS__); }
@@ -130,7 +142,7 @@ UINTN FindRelative32(const UINT8 *Source, UINTN Start, UINTN SourceSize, UINTN t
   }
   return 0;
 }
-
+/*
 UINTN FindSection(const UINT8 *Source, UINTN len, const UINT8* seg, const UINT8* sec)
 {
   BOOLEAN eq;
@@ -156,7 +168,7 @@ UINTN FindSection(const UINT8 *Source, UINTN len, const UINT8* seg, const UINT8*
   }
   return 0;
 }
-
+*/
 UINTN FindMemMask(const UINT8 *Source, UINTN SourceSize, const UINT8 *Search, UINTN SearchSize, const UINT8 *MaskSearch, UINTN MaskSize)
 {
   if (!Source || !Search || !SearchSize) {
@@ -589,7 +601,7 @@ VOID LOADER_ENTRY::AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPl
   if (NumLion_X64 + NumLion_i386 + NumML + NumMavMoj3 + NumMoj4 > 1) {
     // more then one pattern found - we do not know what to do with it
     // and we'll skip it
-	  printf("AppleRTCPatch: ERROR: multiple patterns found (LionX64: %llu, Lioni386: %llu, ML: %llu, MavMoj3: %llu, Moj4: %llu) - skipping patching!\n",
+	  DBG_RT("AppleRTCPatch: ERROR: multiple patterns found (LionX64: %llu, Lioni386: %llu, ML: %llu, MavMoj3: %llu, Moj4: %llu) - skipping patching!\n",
           NumLion_X64, NumLion_i386, NumML, NumMavMoj3, NumMoj4);
     Stall(5000000);
     return;
@@ -617,8 +629,23 @@ VOID LOADER_ENTRY::AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPl
   //RodionS
 
   UINTN procLocation = searchProcInDriver(Driver, DriverSize, "updateChecksum");
+  DBG("updateChecksum at 0x%llx\n", procLocation);
   if (procLocation != 0) {
-    Driver[procLocation] = 0xC3;
+    if ((((struct mach_header_64*)KernelData)->filetype) == MH_KERNEL_COLLECTION) {
+      DBG("procedure in kernel space\n");
+      for (int j = 0; j < 20; ++j) {
+        DBG("%02X", KernelData[procLocation + j]);
+      }
+      DBG("\n");
+      KernelData[procLocation] = 0xC3;
+    } else {
+      DBG("procedure in Driver space\n");
+      for (int j = 0; j < 20; ++j) {
+        DBG("%02X", Driver[procLocation + j]);
+      }
+      DBG("\n");
+      Driver[procLocation] = 0xC3;
+    }
     DBG_RT("AppleRTC: patched\n");
   } else {
     DBG_RT("AppleRTC: not patched\n");
@@ -637,6 +664,7 @@ VOID LOADER_ENTRY::AppleRTCPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPl
 // disable kext injection InjectKexts()
 //
 // not used since 4242
+#if 0
 VOID LOADER_ENTRY::CheckForFakeSMC(CHAR8 *InfoPlist)
 {
   if (OSFLAG_ISSET(Flags, OSFLAG_CHECKFAKESMC) &&
@@ -651,7 +679,7 @@ VOID LOADER_ENTRY::CheckForFakeSMC(CHAR8 *InfoPlist)
     }
   }
 }
-
+#endif
 
 
 ////////////////////////////////////
@@ -1022,30 +1050,44 @@ VOID LOADER_ENTRY::BDWE_IOPCIPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *Info
 VOID LOADER_ENTRY::EightApplePatch(UINT8 *Driver, UINT32 DriverSize)
 {
 //  UINTN procLen = 0;
+  DBG("8 apple patch\n");
   UINTN procAddr = searchProcInDriver(Driver, DriverSize, "initFB");
   UINTN verbose  = searchProcInDriver(Driver, DriverSize, "gIOFBVerboseBoot");
-  UINTN patchLoc = FindRelative32(Driver, procAddr, 0x300, verbose-1);
-  if (patchLoc != 0 && Driver[patchLoc + 1] == 0x75) {
-    Driver[patchLoc + 1] = 0xEB;
-//    DBG_RT("8 apples patch success\n");
+  if (procAddr != 0) {
+    UINTN patchLoc;
+  
+    if ((((struct mach_header_64*)KernelData)->filetype) == MH_KERNEL_COLLECTION) {
+      DBG("procedure in kernel space\n");
+      patchLoc = FindRelative32(KernelData, procAddr, 0x300, verbose-1);
+      for (int j = 0; j < 20; ++j) {
+        DBG("%02X", KernelData[procAddr + j]);
+      }
+      DBG("\n");
+      if (patchLoc != 0 && KernelData[patchLoc + 1] == 0x75) {
+        KernelData[patchLoc + 1] = 0xEB;
+        DBG("8 apples patch success\n");
+      } else {
+        DBG("8 apples patch not found, loc=0x%llx\n", patchLoc);
+      }
+    } else {
+      DBG("procedure in Driver space\n");
+      patchLoc = FindRelative32(Driver, procAddr, 0x300, verbose-1);
+      for (int j = 0; j < 20; ++j) {
+        DBG("%02X", Driver[patchLoc + j]);
+      }
+      DBG("\n");
+      if (patchLoc != 0 && Driver[patchLoc + 1] == 0x75) {
+        Driver[patchLoc + 1] = 0xEB;
+        DBG("8 apples patch success\n");
+      } else {
+        DBG("8 apples patch not found, loc=0x%llx\n", patchLoc);
+      }
+    }
+    DBG_RT("AppleRTC: patched\n");
   } else {
-    DBG_RT("8 apples patch not found, loc=0x%llx\n", patchLoc);
-//    if (patchLoc != 0) {
-//      for (int i=0; i<10; ++i) {
-//        DBG_RT("%02x", Driver[patchLoc+i]);
-//      }
-//      DBG_RT("\n");
-//    } else if (procAddr != 0) {
-//      for (int i=0; i<10; ++i) {
-//        DBG_RT("%02x", Driver[procAddr+i]);
-//      }
-//      DBG_RT("\n");
-//    }
-//    DBG_RT("  procAddr=0x%llx\n", procAddr);
-//    DBG_RT("  verbose=0x%llx\n", verbose);
-
-//    Stall(20000000);
+    DBG_RT("AppleRTC: not patched\n");
   }
+
   Stall(5000000);
 }
 
@@ -1072,6 +1114,8 @@ VOID LOADER_ENTRY::AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPli
   UINTN   SearchLen = KernelAndKextPatches->KextPatches[N].SearchLen;
   
   DBG_RT("\nAnyKextPatch %d: driverAddr = %llx, driverSize = %x\nAnyKext = %s\n",
+         N, (UINTN)Driver, DriverSize, KernelAndKextPatches->KextPatches[N].Label);
+  DBG("\nAnyKextPatch %d: driverAddr = %llx, driverSize = %x\nLabel = %s\n",
          N, (UINTN)Driver, DriverSize, KernelAndKextPatches->KextPatches[N].Label);
 
   if (!KernelAndKextPatches->KextPatches[N].MenuItem.BValue) {
@@ -1307,6 +1351,19 @@ UINT64 GetPlistHexValue(CONST CHAR8 *Plist, CONST CHAR8 *Key, CONST CHAR8 *Whole
     return 0;
   }
   
+  // search for <integer>
+  IntTag = AsciiStrStr(Value, "<integer>"); //this is decimal value
+  if (IntTag != NULL) {
+    IntTag += 9; //next after ">"
+    if ((IntTag[1] == 'x') || (IntTag[1] == 'X')) {
+      return AsciiStrHexToUintn(IntTag);
+    }
+    if (IntTag[0] == '-') {
+      return (UINTN)(-(INTN)AsciiStrDecimalToUintn(IntTag + 1));
+    }
+    return AsciiStrDecimalToUintn((IntTag[0] == '+') ? (IntTag + 1) : IntTag);
+  }
+  
   // search for <integer
   IntTag = AsciiStrStr(Value, "<integer");
   if (IntTag == NULL) {
@@ -1317,7 +1374,7 @@ UINT64 GetPlistHexValue(CONST CHAR8 *Plist, CONST CHAR8 *Key, CONST CHAR8 *Whole
   // find <integer end
   Value = AsciiStrStr(IntTag, ">");
   if (Value == NULL) {
-    DBG("\nNo <integer end\n");
+//    DBG("\nNo <integer end\n");
     return 0;
   }
   
@@ -1326,7 +1383,6 @@ UINT64 GetPlistHexValue(CONST CHAR8 *Plist, CONST CHAR8 *Key, CONST CHAR8 *Whole
     // normal case: value is here
     NumValue = AsciiStrHexToUint64(Value + 1);
     return NumValue;
-    
   }
   
   // it might be a reference: IDREF="173"/>
@@ -1408,17 +1464,22 @@ UINT64 GetPlistHexValue(CONST CHAR8 *Plist, CONST CHAR8 *Key, CONST CHAR8 *Whole
 //   <array>
 //     <!-- start of kext Info.plist -->
 //     <dict>
-//       <key>CFBundleName</key>
+//       <key>CFBundleName</key> //No! we have CFBundleIdentifier
 //       <string>MAC Framework Pseudoextension</string>
 //       <key>_PrelinkExecutableLoadAddr</key>
-//       <integer size="64">0xffffff7f8072f000</integer>
+//       <integer size="64">0xffffff7f8072f000</integer> || <integer>-549736448000</integer>
 //       <!-- Kext size -->
 //       <key>_PrelinkExecutableSize</key>
-//       <integer size="64">0x3d0</integer>
+//       <integer size="64">0x3d0</integer>  || <integer>49152</integer>
 //       <!-- Kext address -->
 //       <key>_PrelinkExecutableSourceAddr</key>
 //       <integer size="64">0xffffff80009a3000</integer>
 //       ...
+//      <key>OSBundleUUID</key>
+//      <data>
+//        rVVMo9l6M9K/lZm/X2BzEA==
+//      </data>
+
 //     </dict>
 //     <!-- start of next kext Info.plist -->
 //     <dict>
@@ -1434,7 +1495,7 @@ VOID LOADER_ENTRY::PatchPrelinkedKexts()
   INTN      DictLevel = 0;
   CHAR8     SavedValue;
   //INTN      DbgCount = 0;
-  UINT32    KextAddr;
+  UINT64    KextAddr = 0;
   UINT32    KextSize;
   
   
@@ -1454,10 +1515,17 @@ VOID LOADER_ENTRY::PatchPrelinkedKexts()
   //Slice
   // I see no reason to disable kext injection if FakeSMC found in cache
   //since rev4240 we have manual kext inject disable
-  CheckForFakeSMC(WholePlist);
+ // CheckForFakeSMC(WholePlist);
   
+  DBG("dump begin of WholePlist: ");
+  for (int j=0; j<20; ++j) {
+    DBG("%c", WholePlist[j]);
+  }
+  DBG("\n");
+
   DictPtr = WholePlist;
-  while ((DictPtr = AsciiStrStr(DictPtr, "dict>")) != NULL) {
+  //new dict is the new kext
+  while ((DictPtr = strstr(DictPtr, "dict>")) != NULL) {
     if (DictPtr[-1] == '<') {
       // opening dict
       DictLevel++;
@@ -1477,16 +1545,16 @@ VOID LOADER_ENTRY::PatchPrelinkedKexts()
         *InfoPlistEnd = '\0';
         
         // get kext address from _PrelinkExecutableSourceAddr
-        // truncate to 32 bit to get physical addr
+        // truncate to 32 bit to get physical addr? Yes!
         KextAddr = (UINT32)GetPlistHexValue(InfoPlistStart, kPrelinkExecutableSourceKey, WholePlist);
         // KextAddr is always relative to 0x200000
         // and if KernelSlide is != 0 then KextAddr must be adjusted
         KextAddr += KernelSlide;
         // and adjust for AptioFixDrv's KernelRelocBase
-        KextAddr += (UINT32)KernelRelocBase;
+        KextAddr += KernelRelocBase;
         
         KextSize = (UINT32)GetPlistHexValue(InfoPlistStart, kPrelinkExecutableSizeKey, WholePlist);
-        
+//        DBG("found kext addr=0x%llX size=0x%X\n", KextAddr, KextSize);
         /*if (DbgCount < 3
          || DbgCount == 100 || DbgCount == 101 || DbgCount == 102
          ) {
@@ -1582,14 +1650,14 @@ VOID LOADER_ENTRY::PatchLoadedKexts()
 //
 VOID LOADER_ENTRY::KextPatcherStart()
 {
-  if (isKernelcache) {
+//  if (isKernelcache) {
     DBG_RT("Patching kernelcache ...\n");
       Stall(2000000);
     PatchPrelinkedKexts();
-  } else {
+//  } else {
     DBG_RT("Patching loaded kexts ...\n");
       Stall(2000000);
     PatchLoadedKexts();
-  }
+//  }
 }
 

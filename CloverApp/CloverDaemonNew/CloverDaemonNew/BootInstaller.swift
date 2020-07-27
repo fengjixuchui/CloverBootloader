@@ -411,6 +411,7 @@ final class Installer: NSObject {
     
     let UEFIdest = targetVol.addPath("EFI/CLOVER/drivers/UEFI")
     let BIOSdest = targetVol.addPath("EFI/CLOVER/drivers/BIOS")
+  
     if let UEFI = CloverappDict["UEFI"] as? [String] {
       for dpath in UEFI {
         if !copyReplace(src: dpath,
