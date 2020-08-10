@@ -22,7 +22,7 @@ extern "C" {
 
 
 #ifndef DEBUG_ALL
-#define KEXT_DEBUG 0
+#define KEXT_DEBUG 1
 #else
 #define KEXT_DEBUG DEBUG_ALL
 #endif
@@ -391,11 +391,11 @@ VOID LOADER_ENTRY::ATIConnectorsPatchRegisterKexts(void *FSInject_v, void *Force
   FSI_STRING_LIST *ForceLoadKexts = (FSI_STRING_LIST *)ForceLoadKexts_v;
   // for future?
   FSInject->AddStringToList(ForceLoadKexts,
-                            PoolPrint(L"\\AMD%aController.kext\\Contents\\Info.plist", KernelAndKextPatches->KPATIConnectorsController)
+                            SWPrintf("\\AMD%sController.kext\\Contents\\Info.plist", KernelAndKextPatches->KPATIConnectorsController).wc_str()
                             );
   // Lion, ML, SnowLeo 10.6.7 2011 MBP
   FSInject->AddStringToList(ForceLoadKexts,
-                            PoolPrint(L"\\ATI%aController.kext\\Contents\\Info.plist", KernelAndKextPatches->KPATIConnectorsController)
+                            SWPrintf("\\ATI%sController.kext\\Contents\\Info.plist", KernelAndKextPatches->KPATIConnectorsController).wc_str()
                             );
   // SnowLeo
   FSInject->AddStringToList(ForceLoadKexts, L"\\ATIFramebuffer.kext\\Contents\\Info.plist");
@@ -485,7 +485,7 @@ VOID LOADER_ENTRY::AppleIntelCPUPMPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 
     SEGMENT *textSeg = (SEGMENT *)&Driver[textName];
     Start = textSeg->fileoff;
     Size = textSeg->filesize;
-	DBG("found __text [%llu,%llu]\n",Start, Size);
+    DBG("found __text [%llX,%llX]\n",Start, Size);
     if (Start > DriverSize) Start = 0;
     if (Size > DriverSize) {
       Size = DriverSize;
@@ -1222,8 +1222,7 @@ VOID LOADER_ENTRY::KextPatcherRegisterKexts(void *FSInject_v, void *ForceLoadKex
   
   for (INTN i = 0; i < KernelAndKextPatches->NrKexts; i++) {
     FSInject->AddStringToList((FSI_STRING_LIST*)ForceLoadKexts,
-                              PoolPrint(L"\\%a.kext\\Contents\\Info.plist",
-                                        KernelAndKextPatches->KextPatches[i].Name) );
+                              SWPrintf("\\%s.kext\\Contents\\Info.plist", KernelAndKextPatches->KextPatches[i].Name).wc_str() );
   }
 }
 
