@@ -211,12 +211,14 @@ public:
   DEV_PROPERTY& operator=(const DEV_PROPERTY&) = delete;
 };
 
+#pragma GCC diagnostic error "-Wpadded"
+
 class SETTINGS_DATA {
 public:
   // SMBIOS TYPE0
   CHAR8                   VendorName[64];
   CHAR8                   RomVersion[64];
-  CHAR8                   EfiVersion[64];
+  XString8                EfiVersion;
   CHAR8                   ReleaseDate[64];
   // SMBIOS TYPE1
   CHAR8                   ManufactureName[64];
@@ -239,7 +241,7 @@ public:
   CHAR8                   BoardVersion[64];
   CHAR8                   OEMBoard[64];
   UINT8                   BoardType;
-  UINT8                   Pad1;
+  UINT8                   pad1;
   // SMBIOS TYPE3
   BOOLEAN                 Mobile;
   UINT8                   ChassisType;
@@ -255,7 +257,7 @@ public:
   // SMBIOS TYPE17
   UINT16                  SmbiosVersion;
   INT8                    Attribute;
-  INT8                    Pad17[1];
+  INT8                    pad17[1];
   CHAR8                   MemoryManufacturer[64];
   CHAR8                   MemorySerialNumber[64];
   CHAR8                   MemoryPartNumber[64];
@@ -269,6 +271,8 @@ public:
   BOOLEAN                 InjectMemoryTables;
   INT8                    XMPDetection;
   BOOLEAN                 UseARTFreq;
+  INT8                    pad18[3];
+
   // SMBIOS TYPE133
   UINT64                  PlatformFeature;
 	
@@ -278,8 +282,10 @@ public:
   // OS parameters
   CHAR8                   Language[16];
   CHAR8                   BootArgs[256];
+  INT8                    pad19[1];
   CHAR16                  CustomUuid[40];
 
+  INT8                    pad20[6];
   CHAR16                  *DefaultVolume;
   CHAR16                  *DefaultLoader;
 //Boot
@@ -287,7 +293,7 @@ public:
   BOOLEAN                 SkipHibernateTimeout;
 //Monitor
   BOOLEAN                 IntelMaxBacklight;
-//  UINT8                   Pad21[1];
+  UINT8                   pad21[1];
   UINT16                  VendorEDID;
   UINT16                  ProductEDID;
   UINT16                  BacklightLevel;
@@ -303,7 +309,7 @@ public:
   // GUI parameters
   BOOLEAN                 Debug;
 //  BOOLEAN                 Proportional; //never used
-  UINT8                   Pad22[1];
+  UINT8                   pad22[2];
   UINT32                  DefaultBackgroundColor;
 
   //ACPI
@@ -329,6 +335,7 @@ public:
   BOOLEAN                 EnableISS;
   BOOLEAN                 SlpSmiEnable;
   BOOLEAN                 FixHeaders;
+  UINT8                   pad23[1];
   UINT16                  C3Latency;
   BOOLEAN                 smartUPS;
   BOOLEAN                 PatchNMI;
@@ -371,21 +378,25 @@ public:
   BOOLEAN                 DeInit;
   BOOLEAN                 LoadVBios;
   BOOLEAN                 PatchVBios;
+  UINT8                   pad24[5];
   VBIOS_PATCH_BYTES       *PatchVBiosBytes;
   UINTN                   PatchVBiosBytesCount;
   BOOLEAN                 InjectEDID;
   BOOLEAN                 LpcTune;
   UINT16                  DropOEM_DSM; //vacant
+  UINT8                   pad25[4];
   UINT8                   *CustomEDID;
   UINT16                  CustomEDIDsize;
   UINT16                  EdidFixHorizontalSyncPulseWidth;
   UINT8                   EdidFixVideoInputSignal;
 
+  UINT8                   pad26[1];
   CHAR16                  FBName[16];
   UINT16                  VideoPorts;
   BOOLEAN                 NvidiaGeneric;
   BOOLEAN                 NvidiaNoEFI;
   BOOLEAN                 NvidiaSingle;
+  UINT8                   pad27[5];
   UINT64                  VRAM;
   UINT8                   Dcfg[8];
   UINT8                   NVCAP[20];
@@ -450,17 +461,20 @@ public:
 
   //Pointer
   BOOLEAN                 PointerEnabled;
+  UINT8                   pad28[7];
   INTN                    PointerSpeed;
   UINT64                  DoubleClickTime;
   BOOLEAN                 PointerMirror;
 
 //  UINT8                   pad7[6];
   UINT8                   CustomBoot;
+  UINT8                   pad29[6];
   XImage                  *CustomLogo;
 
   UINT32                  RefCLK;
 
   // SysVariables
+  UINT8                   pad30[4];
   CHAR8                   *RtMLB;
   UINT8                   *RtROM;
   UINTN                   RtROMLen;
@@ -473,7 +487,8 @@ public:
 
   // Multi-config
   CHAR16                  ConfigName[30];
-  CHAR16                  *MainConfigName;
+  UINT8                   pad31[4];
+//  XString8                MainConfigName;
 
   //Drivers
   INTN                    BlackListCount;
@@ -490,6 +505,7 @@ public:
   BOOLEAN                 ForceHPET;
   BOOLEAN                 ResetHDA;
   BOOLEAN                 PlayAsync;
+  UINT8                   pad32[2];
   UINT32                  DisableFunctions;
 
   //Patch DSDT arbitrary
@@ -508,6 +524,7 @@ public:
 
 
   // Table dropping
+  UINT8                   pad34[3];
   ACPI_DROP_TABLE         *ACPIDropTables;
 
   // Custom entries
@@ -516,7 +533,7 @@ public:
   BOOLEAN                 ShowHiddenEntries;
   UINT8                   KernelScan;
   BOOLEAN                 LinuxScan;
-//  UINT8                   pad84[3];
+  UINT8                   pad35[3];
   CUSTOM_LOADER_ENTRY     *CustomEntries;
   CUSTOM_LEGACY_ENTRY     *CustomLegacy;
   CUSTOM_TOOL_ENTRY       *CustomTool;
@@ -539,6 +556,7 @@ public:
 
   // ACPI/PATCHED/AML
   UINT32                  DisabledAMLCount;
+  UINT8                   pad36[4];
   CHAR16                  **DisabledAML;
   CHAR8                   **PatchDsdtLabel;
   CHAR8                   **PatchDsdtTgt;
@@ -555,20 +573,22 @@ public:
   UINT32 EFILoginHiDPI;
   UINT8  flagstate[32];
 
+  UINT8                   pad37[4];
   DEV_PROPERTY            *ArbProperties;
   
   UINT32 QuirksMask;
+  UINT8                   pad38[4];
   UINTN MaxSlide;
 
 
   SETTINGS_DATA() : VendorName{0}, RomVersion{0}, EfiVersion{0}, ReleaseDate{0}, ManufactureName{0}, ProductName{0}, VersionNr{0}, SerialNr{0}, SmUUID({0,0,0,{0}}),
                     SmUUIDConfig(0), pad0{0}, FamilyName{0}, OEMProduct{0}, OEMVendor{0}, BoardManufactureName{0}, BoardSerialNumber{0}, BoardNumber{0}, LocationInChassis{0},
-                    BoardVersion{0}, OEMBoard{0}, BoardType(0), Pad1(0), Mobile(0), ChassisType(0), ChassisManufacturer{0}, ChassisAssetTag{0}, CpuFreqMHz(0),
-                    BusSpeed(0), Turbo(0), EnabledCores(0), UserChange(0), QEMU(0), SmbiosVersion(0), Attribute(0), Pad17{0}, MemoryManufacturer{0},
+                    BoardVersion{0}, OEMBoard{0}, BoardType(0), pad1(0), Mobile(0), ChassisType(0), ChassisManufacturer{0}, ChassisAssetTag{0}, CpuFreqMHz(0),
+                    BusSpeed(0), Turbo(0), EnabledCores(0), UserChange(0), QEMU(0), SmbiosVersion(0), Attribute(0), pad17{0}, MemoryManufacturer{0},
                     MemorySerialNumber{0}, MemoryPartNumber{0}, MemorySpeed{0}, CpuType(0), QPI(0), SetTable132(0), TrustSMBIOS(0), InjectMemoryTables(0), XMPDetection(0),
                     UseARTFreq(0), PlatformFeature(0), NoRomInfo(0), Language{0}, BootArgs{0}, CustomUuid{0}, DefaultVolume(0), DefaultLoader(0), LastBootedVolume(0),
                     SkipHibernateTimeout(0), IntelMaxBacklight(0), VendorEDID(0), ProductEDID(0), BacklightLevel(0), BacklightLevelConfig(0), IntelBacklight(0), MemoryFix(0), WithKexts(0),
-                    WithKextsIfNoFakeSMC(0), FakeSMCFound(0), NoCaches(0), Debug(0), Pad22{0}, DefaultBackgroundColor(0), ResetAddr(0), ResetVal(0), NoASPM(0),
+                    WithKextsIfNoFakeSMC(0), FakeSMCFound(0), NoCaches(0), Debug(0), pad22{0}, DefaultBackgroundColor(0), ResetAddr(0), ResetVal(0), NoASPM(0),
                     DropSSDT(0), NoOemTableId(0), NoDynamicExtract(0), AutoMerge(0), GeneratePStates(0), GenerateCStates(0), GenerateAPSN(0), GenerateAPLF(0), GeneratePluginType(0),
                     PLimitDict(0), UnderVoltStep(0), DoubleFirstState(0), SuspendOverride(0), EnableC2(0), EnableC4(0), EnableC6(0), EnableISS(0), SlpSmiEnable(0),
                     FixHeaders(0), C3Latency(0), smartUPS(0), PatchNMI(0), EnableC7(0), SavingMode(0), DsdtName{0}, FixDsdt(0), MinMultiplier(0),
@@ -582,7 +602,7 @@ public:
                     LegacyBoot{0}, LegacyBiosDefaultEntry(0), HWP(0), TDP(0), HWPValue(0), HVHideStrings(0), HVCount(0), KernelAndKextPatches(), KextPatchesAllowed(0),
                     KernelPatchesAllowed(0), AirportBridgeDeviceName{0}, KbdPrevLang(0), PointerEnabled(0), PointerSpeed(0), DoubleClickTime(0), PointerMirror(0), CustomBoot(0), CustomLogo(0),
                     RefCLK(0), RtMLB(0), RtROM(0), RtROMLen(0), CsrActiveConfig(0), BooterConfig(0), BooterCfgStr{0}, DisableCloverHotkeys(0), NeverDoRecovery(0),
-                    ConfigName{0}, MainConfigName(0), BlackListCount(0), BlackList(0), RPlt{0}, RBr{0}, EPCI{0}, REV{0}, Rtc8Allowed(0),
+                    ConfigName{0}, /*MainConfigName(0),*/ BlackListCount(0), BlackList(0), RPlt{0}, RBr{0}, EPCI{0}, REV{0}, Rtc8Allowed(0),
                     ForceHPET(0), ResetHDA(0), PlayAsync(0), DisableFunctions(0), PatchDsdtNum(0), PatchDsdtFind(0), LenToFind(0), PatchDsdtReplace(0), LenToReplace(0), DebugDSDT(0), SlpWak(0), UseIntelHDMI(0),
                     AFGLowPowerState(0), PNLF_UID(0), ACPIDropTables(0), DisableEntryScan(0), DisableToolScan(0), ShowHiddenEntries(0), KernelScan(0), LinuxScan(0), CustomEntries(0),
                     CustomLegacy(0), CustomTool(0), NrAddProperties(0), AddProperties(0), BlockKexts{0}, SortedACPICount(0), SortedACPI(0), DisabledAMLCount(0), DisabledAML(0),
@@ -591,9 +611,14 @@ public:
                   {};
   SETTINGS_DATA(const SETTINGS_DATA& other) = delete; // Can be defined if needed
   const SETTINGS_DATA& operator = ( const SETTINGS_DATA & ) = delete; // Can be defined if needed
+
+  XBuffer<UINT8> serialize() const;
+
   ~SETTINGS_DATA() {}
 
 };
+
+#pragma GCC diagnostic ignored "-Wpadded"
 
 typedef enum {
   english = 0,  //en
@@ -839,8 +864,8 @@ VOID
 SetBootCurrent(REFIT_MENU_ITEM_BOOTNUM *LoadedEntry);
 
 
-CHAR8
-*GetOSVersion (
+XString8
+GetOSVersion (
   IN  LOADER_ENTRY *Entry
   );
 
@@ -865,7 +890,7 @@ GetDevices(VOID);
 
 CONST XStringW
 GetOSIconName (
-  IN  CONST CHAR8 *OSVersion
+  const XString8& OSVersion
   );
 
 EFI_STATUS
@@ -917,35 +942,12 @@ SaveSettings (VOID);
 
 
 /** Returns a boolean and then enable disable the patch if MachOSEntry have a match for the booted OS. */
-BOOLEAN IsPatchEnabled(CHAR8 *MatchOSEntry, CHAR8 *CurrOS);
+BOOLEAN IsPatchEnabled(const XString8& MatchOSEntry, const XString8& CurrOS);
 
 /** return true if a given os contains '.' as separator,
  and then match components of the current booted OS. Also allow 10.10.x format meaning all revisions
  of the 10.10 OS */
-BOOLEAN IsOSValid(CHAR8 *MatchOS, CHAR8 *CurrOS);
-
-// Micky1979: Next five functions (+ needed struct) are to split a string like "10.10.5,10.7,10.11.6,10.8.x"
-// in their components separated by comma (in this case)
-struct MatchOSes {
-    INTN   count;
-    CHAR8* array[100];
-};
-
-
-/** return MatchOSes struct (count+array) with the components of str that contains the given char sep as separator. */
-struct
-MatchOSes *GetStrArraySeparatedByChar(CHAR8 *str, CHAR8 sep);
-
-/** trim spaces in MatchOSes struct array */
-VOID
-TrimMatchOSArray(struct MatchOSes *s);
-
-/** free MatchOSes struct and its array. */
-VOID deallocMatchOSes(struct MatchOSes *s);
-
-/** count occurrences of a given char in a char* string. */
-INTN
-countOccurrences(CHAR8 *s, CHAR8 c);
+BOOLEAN IsOSValid(const XString8& MatchOS, const XString8& CurrOS);
 
 
 //get default boot
@@ -965,9 +967,9 @@ ParseSMBIOSSettings (
   TagPtr dictPointer
   );
 
-BOOLEAN
-CopyKernelAndKextPatches (IN OUT  KERNEL_AND_KEXT_PATCHES *Dst,
-                          IN      CONST KERNEL_AND_KEXT_PATCHES *Src);
+//BOOLEAN
+//CopyKernelAndKextPatches (IN OUT  KERNEL_AND_KEXT_PATCHES *Dst,
+//                          IN      CONST KERNEL_AND_KEXT_PATCHES *Src);
 
 
 #endif

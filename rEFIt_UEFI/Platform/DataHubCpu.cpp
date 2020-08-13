@@ -395,7 +395,7 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
 
   // Sherlocks: to fix "OSInstall.mpkg appears to be missing or damaged" in 10.13+, we should remove this variables.
   if (Entry->LoaderType == OSTYPE_OSX_INSTALLER) {
-    if (os_version > AsciiOSVersionToUint64("10.12")) {
+    if (os_version > AsciiOSVersionToUint64("10.12"_XS8)) {
       DeleteNvramVariable(L"install-product-url",  &gEfiAppleBootGuid);
       DeleteNvramVariable(L"previous-system-uuid", &gEfiAppleBootGuid);
     }
@@ -520,7 +520,8 @@ SetupDataForOSX(BOOLEAN Hibernate)
     LogDataHub(&gEfiMiscSubClassGuid, L"BEMB", &gSettings.Mobile, 1);
 
     // all current settings
-    LogDataHub(&gEfiMiscSubClassGuid, L"Settings", &gSettings, sizeof(gSettings));
+    XBuffer<UINT8> xb = gSettings.serialize();
+    LogDataHub(&gEfiMiscSubClassGuid, L"Settings", xb.data(), (UINT32)xb.size());
   }
   if (!gAppleSmc) {
     return;
