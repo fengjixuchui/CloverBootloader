@@ -22,6 +22,10 @@ extern "C" {
 #include <Guid/EventGroup.h>
 #include <Guid/SmBios.h>
 #include <Guid/Mps.h>
+#include <Guid/FileInfo.h>
+#include <Guid/GlobalVariable.h>
+
+#include <Pi/PiDxeCis.h>
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
@@ -46,6 +50,10 @@ extern "C" {
 #include <Library/VideoBiosPatchLib.h>
 #include <Library/MemLogLib.h>
 #include <Library/WaveLib.h>
+#include <Library/IoLib.h>
+#include <Library/DxeServicesTableLib.h>
+#include <Library/HobLib.h>
+#include <Library/SerialPortLib.h>
 
 #include <Framework/FrameworkInternalFormRepresentation.h>
 
@@ -57,6 +65,8 @@ extern "C" {
 #include <IndustryStandard/AppleFeatures.h>
 #include <IndustryStandard/Bmp.h>
 #include <IndustryStandard/HdaCodec.h>
+#include <IndustryStandard/Pci22.h>
+#include <IndustryStandard/Pci23.h>
 
 #include <Protocol/PciIo.h>
 #include <Protocol/AudioIo.h>
@@ -73,6 +83,11 @@ extern "C" {
 #include <Protocol/VariableWrite.h>
 #include <Protocol/Variable.h>
 #include <Protocol/UgaDraw.h>
+#include <Protocol/LoadedImage.h>
+#include <Protocol/UnicodeCollation.h>
+#include <Protocol/ScsiIo.h>
+#include <Protocol/LegacyBios.h>
+#include <Protocol/EdidActive.h>
 
 #include <Protocol/FSInjectProtocol.h>
 #include <Protocol/MsgLog.h>

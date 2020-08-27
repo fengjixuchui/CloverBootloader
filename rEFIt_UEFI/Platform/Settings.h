@@ -5,7 +5,8 @@
 #define HEIGHT_2K 1100
 
 #include "../gui/menu_items/menu_items.h"
-#include "../Platform/plist.h"
+#include "../Platform/plist/plist.h"
+//class TagStruct;
 
 //// SysVariables
 //typedef struct SYSVARIABLES SYSVARIABLES;
@@ -94,8 +95,9 @@ public:
   ~ACPI_DROP_TABLE() {}
 };
 
-typedef struct CUSTOM_LOADER_ENTRY CUSTOM_LOADER_ENTRY;
-struct CUSTOM_LOADER_ENTRY {
+class CUSTOM_LOADER_ENTRY
+{
+public:
   CUSTOM_LOADER_ENTRY     *Next;
   CUSTOM_LOADER_ENTRY     *SubEntries;
   XIcon                  Image;
@@ -112,6 +114,7 @@ struct CUSTOM_LOADER_ENTRY {
   CHAR16                  Hotkey;
   BOOLEAN                 CommonSettings;
   UINT8                   Flags;
+  bool                    Hidden;
   UINT8                   Type;
   UINT8                   VolumeType;
   UINT8                   KernelScan;
@@ -121,7 +124,7 @@ struct CUSTOM_LOADER_ENTRY {
   KERNEL_AND_KEXT_PATCHES KernelAndKextPatches;
 
   CUSTOM_LOADER_ENTRY() : Next(0), SubEntries(0), Image(), DriveImage(), ImagePath(), DriveImagePath(), Volume(), Path(), LoadOptions(),
-                          FullTitle(), Title(), Settings(), Hotkey(0), CommonSettings(0), Flags(0), Type(0), VolumeType(0),
+                          FullTitle(), Title(), Settings(), Hotkey(0), CommonSettings(0), Flags(0), Hidden(0), Type(0), VolumeType(0),
                           KernelScan(0), CustomBoot(0), CustomLogo(), BootBgColor({0,0,0,0}), KernelAndKextPatches()
 						{ }
 
@@ -144,10 +147,11 @@ public:
   XStringW             Title;
   CHAR16               Hotkey;
   UINT8                Flags;
+  bool                 Hidden;
   UINT8                Type;
   UINT8                VolumeType;
 
-  CUSTOM_LEGACY_ENTRY() : Next(0), Image(), DriveImage(), ImagePath(), DriveImagePath(), Volume(), FullTitle(), Title(), Hotkey(0), Flags(0), Type(0), VolumeType(0) { }
+  CUSTOM_LEGACY_ENTRY() : Next(0), Image(), DriveImage(), ImagePath(), DriveImagePath(), Volume(), FullTitle(), Title(), Hotkey(0), Flags(0), Hidden(0), Type(0), VolumeType(0) { }
 
   // Not sure if default are valid. Delete them. If needed, proper ones can be created
   CUSTOM_LEGACY_ENTRY(const CUSTOM_LEGACY_ENTRY&) = delete;
@@ -167,28 +171,15 @@ public:
   XStringW           Title;
   CHAR16             Hotkey;
   UINT8              Flags;
+  bool               Hidden;
   UINT8              VolumeType;
 
-  CUSTOM_TOOL_ENTRY() : Next(0), Image(), ImagePath(), Volume(), Path(), LoadOptions(), FullTitle(), Title(), Hotkey(0), Flags(0), VolumeType(0) { }
+  CUSTOM_TOOL_ENTRY() : Next(0), Image(), ImagePath(), Volume(), Path(), LoadOptions(), FullTitle(), Title(), Hotkey(0), Flags(0), Hidden(0), VolumeType(0) { }
 
   // Not sure if default are valid. Delete them. If needed, proper ones can be created
   CUSTOM_TOOL_ENTRY(const CUSTOM_TOOL_ENTRY&) = delete;
   CUSTOM_TOOL_ENTRY& operator=(const CUSTOM_TOOL_ENTRY&) = delete;
 };
-
-typedef enum {
-  kTagTypeNone,
-  kTagTypeDict,
-  kTagTypeKey,
-  kTagTypeString,
-  kTagTypeInteger,
-  kTagTypeData,
-  kTagTypeDate,
-  kTagTypeFalse,
-  kTagTypeTrue,
-  kTagTypeArray,
-  kTagTypeFloat
-} TAG_TYPE;
 
 class DEV_PROPERTY
 {
@@ -211,42 +202,42 @@ public:
   DEV_PROPERTY& operator=(const DEV_PROPERTY&) = delete;
 };
 
-#pragma GCC diagnostic error "-Wpadded"
+//#pragma GCC diagnostic error "-Wpadded"
 
 class SETTINGS_DATA {
 public:
   // SMBIOS TYPE0
-  CHAR8                   VendorName[64];
-  CHAR8                   RomVersion[64];
+  XString8                VendorName;
+  XString8                RomVersion;
   XString8                EfiVersion;
-  CHAR8                   ReleaseDate[64];
+  XString8                ReleaseDate;
   // SMBIOS TYPE1
-  CHAR8                   ManufactureName[64];
-  CHAR8                   ProductName[64];
-  CHAR8                   VersionNr[64];
-  CHAR8                   SerialNr[64];
+  XString8                   ManufactureName;
+  XString8                ProductName;
+  XString8                   VersionNr;
+  XString8                   SerialNr;
   EFI_GUID                SmUUID;
   BOOLEAN                 SmUUIDConfig;
   CHAR8                   pad0[7];
-//CHAR8                    Uuid[64];
-//CHAR8                    SKUNumber[64];
-  CHAR8                   FamilyName[64];
-  CHAR8                   OEMProduct[64];
-  CHAR8                   OEMVendor[64];
+//CHAR8                    Uuid;
+//CHAR8                    SKUNumber;
+  XString8                   FamilyName;
+  XString8                   OEMProduct;
+  XString8                   OEMVendor;
   // SMBIOS TYPE2
-  CHAR8                   BoardManufactureName[64];
-  CHAR8                   BoardSerialNumber[64];
-  CHAR8                   BoardNumber[64]; //Board-ID
-  CHAR8                   LocationInChassis[64];
-  CHAR8                   BoardVersion[64];
-  CHAR8                   OEMBoard[64];
+  XString8                   BoardManufactureName;
+  XString8                   BoardSerialNumber;
+  XString8                   BoardNumber; //Board-ID
+  XString8                   LocationInChassis;
+  XString8                   BoardVersion;
+  XString8                   OEMBoard;
   UINT8                   BoardType;
   UINT8                   pad1;
   // SMBIOS TYPE3
   BOOLEAN                 Mobile;
   UINT8                   ChassisType;
-  CHAR8                   ChassisManufacturer[64];
-  CHAR8                   ChassisAssetTag[64];
+  XString8                   ChassisManufacturer;
+  XString8                   ChassisAssetTag;
   // SMBIOS TYPE4
   UINT32                  CpuFreqMHz;
   UINT32                  BusSpeed; //in kHz
@@ -258,10 +249,10 @@ public:
   UINT16                  SmbiosVersion;
   INT8                    Attribute;
   INT8                    pad17[1];
-  CHAR8                   MemoryManufacturer[64];
-  CHAR8                   MemorySerialNumber[64];
-  CHAR8                   MemoryPartNumber[64];
-  CHAR8                   MemorySpeed[64];
+  XString8                   MemoryManufacturer;
+  XString8                   MemorySerialNumber;
+  XString8                   MemoryPartNumber;
+  XString8                   MemorySpeed;
   // SMBIOS TYPE131
   UINT16                  CpuType;
   // SMBIOS TYPE132
@@ -280,14 +271,15 @@ public:
   BOOLEAN                 NoRomInfo;
 
   // OS parameters
-  CHAR8                   Language[16];
-  CHAR8                   BootArgs[256];
-  INT8                    pad19[1];
-  CHAR16                  CustomUuid[40];
+  INT8                    pad181[7];
+  XString8                Language;
+  XString8                BootArgs;
+  INT8                    pad19[2];
+  XStringW                CustomUuid;
 
   INT8                    pad20[6];
-  CHAR16                  *DefaultVolume;
-  CHAR16                  *DefaultLoader;
+  XStringW                DefaultVolume;
+  XStringW                DefaultLoader;
 //Boot
   BOOLEAN                 LastBootedVolume;
   BOOLEAN                 SkipHibernateTimeout;
@@ -342,7 +334,7 @@ public:
   BOOLEAN                 EnableC7;
   UINT8                   SavingMode;
 
-  CHAR16                  DsdtName[28];
+  XStringW                DsdtName;
   UINT32                  FixDsdt;
   UINT8                   MinMultiplier;
   UINT8                   MaxMultiplier;
@@ -391,7 +383,7 @@ public:
   UINT8                   EdidFixVideoInputSignal;
 
   UINT8                   pad26[1];
-  CHAR16                  FBName[16];
+  XStringW                FBName;
   UINT16                  VideoPorts;
   BOOLEAN                 NvidiaGeneric;
   BOOLEAN                 NvidiaNoEFI;
@@ -436,7 +428,7 @@ public:
  // UINT8                   pad61[2];
 
   // LegacyBoot
-  CHAR16                  LegacyBoot[32];
+  XStringW                LegacyBoot;
   UINT16                  LegacyBiosDefaultEntry;
 
   //SkyLake
@@ -445,16 +437,14 @@ public:
   UINT32                  HWPValue;
 
   //Volumes hiding
-  CHAR16                  **HVHideStrings;
-
-  INTN                    HVCount;
+  XString8Array           HVHideStrings;
 
   // KernelAndKextPatches
   KERNEL_AND_KEXT_PATCHES KernelAndKextPatches;  //zzzz
   BOOLEAN                 KextPatchesAllowed;
   BOOLEAN                 KernelPatchesAllowed; //From GUI: Only for user patches, not internal Clover
 
-  CHAR8                   AirportBridgeDeviceName[5];
+  XString8                AirportBridgeDeviceName;
 
   // Pre-language
   BOOLEAN                 KbdPrevLang;
@@ -475,13 +465,13 @@ public:
 
   // SysVariables
   UINT8                   pad30[4];
-  CHAR8                   *RtMLB;
+  XString8                RtMLB;
   UINT8                   *RtROM;
   UINTN                   RtROMLen;
 
   UINT32                  CsrActiveConfig;
   UINT16                  BooterConfig;
-  CHAR8                   BooterCfgStr[64];
+  XString8                BooterCfgStr;
   BOOLEAN                 DisableCloverHotkeys;
   BOOLEAN                 NeverDoRecovery;
 
@@ -530,7 +520,6 @@ public:
   // Custom entries
   BOOLEAN                 DisableEntryScan;
   BOOLEAN                 DisableToolScan;
-  BOOLEAN                 ShowHiddenEntries;
   UINT8                   KernelScan;
   BOOLEAN                 LinuxScan;
   UINT8                   pad35[3];
@@ -581,30 +570,30 @@ public:
   UINTN MaxSlide;
 
 
-  SETTINGS_DATA() : VendorName{0}, RomVersion{0}, EfiVersion{0}, ReleaseDate{0}, ManufactureName{0}, ProductName{0}, VersionNr{0}, SerialNr{0}, SmUUID({0,0,0,{0}}),
-                    SmUUIDConfig(0), pad0{0}, FamilyName{0}, OEMProduct{0}, OEMVendor{0}, BoardManufactureName{0}, BoardSerialNumber{0}, BoardNumber{0}, LocationInChassis{0},
-                    BoardVersion{0}, OEMBoard{0}, BoardType(0), pad1(0), Mobile(0), ChassisType(0), ChassisManufacturer{0}, ChassisAssetTag{0}, CpuFreqMHz(0),
-                    BusSpeed(0), Turbo(0), EnabledCores(0), UserChange(0), QEMU(0), SmbiosVersion(0), Attribute(0), pad17{0}, MemoryManufacturer{0},
-                    MemorySerialNumber{0}, MemoryPartNumber{0}, MemorySpeed{0}, CpuType(0), QPI(0), SetTable132(0), TrustSMBIOS(0), InjectMemoryTables(0), XMPDetection(0),
-                    UseARTFreq(0), PlatformFeature(0), NoRomInfo(0), Language{0}, BootArgs{0}, CustomUuid{0}, DefaultVolume(0), DefaultLoader(0), LastBootedVolume(0),
+  SETTINGS_DATA() : VendorName(), RomVersion(), EfiVersion(), ReleaseDate(), ManufactureName(), ProductName(), VersionNr(), SerialNr(), SmUUID({0,0,0,{0}}),
+                    SmUUIDConfig(0), pad0{0}, FamilyName(), OEMProduct(), OEMVendor(), BoardManufactureName(), BoardSerialNumber(), BoardNumber(), LocationInChassis(),
+                    BoardVersion(), OEMBoard(), BoardType(0), pad1(0), Mobile(0), ChassisType(0), ChassisManufacturer(), ChassisAssetTag(), CpuFreqMHz(0),
+                    BusSpeed(0), Turbo(0), EnabledCores(0), UserChange(0), QEMU(0), SmbiosVersion(0), Attribute(0), pad17{0}, MemoryManufacturer(),
+                    MemorySerialNumber(), MemoryPartNumber(), MemorySpeed(), CpuType(0), QPI(0), SetTable132(0), TrustSMBIOS(0), InjectMemoryTables(0), XMPDetection(0),
+                    UseARTFreq(0), PlatformFeature(0), NoRomInfo(0), Language(), BootArgs(), CustomUuid(), DefaultVolume(), DefaultLoader(), LastBootedVolume(0),
                     SkipHibernateTimeout(0), IntelMaxBacklight(0), VendorEDID(0), ProductEDID(0), BacklightLevel(0), BacklightLevelConfig(0), IntelBacklight(0), MemoryFix(0), WithKexts(0),
                     WithKextsIfNoFakeSMC(0), FakeSMCFound(0), NoCaches(0), Debug(0), pad22{0}, DefaultBackgroundColor(0), ResetAddr(0), ResetVal(0), NoASPM(0),
                     DropSSDT(0), NoOemTableId(0), NoDynamicExtract(0), AutoMerge(0), GeneratePStates(0), GenerateCStates(0), GenerateAPSN(0), GenerateAPLF(0), GeneratePluginType(0),
                     PLimitDict(0), UnderVoltStep(0), DoubleFirstState(0), SuspendOverride(0), EnableC2(0), EnableC4(0), EnableC6(0), EnableISS(0), SlpSmiEnable(0),
-                    FixHeaders(0), C3Latency(0), smartUPS(0), PatchNMI(0), EnableC7(0), SavingMode(0), DsdtName{0}, FixDsdt(0), MinMultiplier(0),
+                    FixHeaders(0), C3Latency(0), smartUPS(0), PatchNMI(0), EnableC7(0), SavingMode(0), DsdtName(), FixDsdt(0), MinMultiplier(0),
                     MaxMultiplier(0), PluginType(0), FixMCFG(0), DeviceRenameCount(0), DeviceRename(0), StringInjector(0), InjectSystemID(0), NoDefaultProperties(0), ReuseFFFF(0),
                     FakeATI(0), FakeNVidia(0), FakeIntel(0), FakeLAN(0), FakeWIFI(0), FakeSATA(0), FakeXHCI(0), FakeIMEI(0), GraphicsInjector(0),
                     InjectIntel(0), InjectATI(0), InjectNVidia(0), DeInit(0), LoadVBios(0), PatchVBios(0), PatchVBiosBytes(0), PatchVBiosBytesCount(0), InjectEDID(0),
-                    LpcTune(0), DropOEM_DSM(0), CustomEDID(0), CustomEDIDsize(0), EdidFixHorizontalSyncPulseWidth(0), EdidFixVideoInputSignal(0), FBName{0}, VideoPorts(0), NvidiaGeneric(0),
+                    LpcTune(0), DropOEM_DSM(0), CustomEDID(0), CustomEDIDsize(0), EdidFixHorizontalSyncPulseWidth(0), EdidFixVideoInputSignal(0), FBName(), VideoPorts(0), NvidiaGeneric(0),
                     NvidiaNoEFI(0), NvidiaSingle(0), VRAM(0), Dcfg{0}, NVCAP{0}, BootDisplay(0), NvidiaWeb(0), pad41{0}, DualLink(0),
                     IgPlatform(0), SecureBootWhiteListCount(0), SecureBootBlackListCount(0), SecureBootWhiteList(0), SecureBootBlackList(0), SecureBoot(0), SecureBootSetupMode(0), SecureBootPolicy(0), HDAInjection(0),
                     HDALayoutId(0), USBInjection(0), USBFixOwnership(0), InjectClockID(0), HighCurrent(0), NameEH00(0), NameXH00(0), LANInjection(0), HDMIInjection(0),
-                    LegacyBoot{0}, LegacyBiosDefaultEntry(0), HWP(0), TDP(0), HWPValue(0), HVHideStrings(0), HVCount(0), KernelAndKextPatches(), KextPatchesAllowed(0),
-                    KernelPatchesAllowed(0), AirportBridgeDeviceName{0}, KbdPrevLang(0), PointerEnabled(0), PointerSpeed(0), DoubleClickTime(0), PointerMirror(0), CustomBoot(0), CustomLogo(0),
-                    RefCLK(0), RtMLB(0), RtROM(0), RtROMLen(0), CsrActiveConfig(0), BooterConfig(0), BooterCfgStr{0}, DisableCloverHotkeys(0), NeverDoRecovery(0),
+                    LegacyBoot(), LegacyBiosDefaultEntry(0), HWP(0), TDP(0), HWPValue(0), HVHideStrings(), KernelAndKextPatches(), KextPatchesAllowed(0),
+                    KernelPatchesAllowed(0), AirportBridgeDeviceName(), KbdPrevLang(0), PointerEnabled(0), PointerSpeed(0), DoubleClickTime(0), PointerMirror(0), CustomBoot(0), CustomLogo(0),
+                    RefCLK(0), RtMLB(), RtROM(0), RtROMLen(0), CsrActiveConfig(0), BooterConfig(0), BooterCfgStr(), DisableCloverHotkeys(0), NeverDoRecovery(0),
                     ConfigName{0}, /*MainConfigName(0),*/ BlackListCount(0), BlackList(0), RPlt{0}, RBr{0}, EPCI{0}, REV{0}, Rtc8Allowed(0),
                     ForceHPET(0), ResetHDA(0), PlayAsync(0), DisableFunctions(0), PatchDsdtNum(0), PatchDsdtFind(0), LenToFind(0), PatchDsdtReplace(0), LenToReplace(0), DebugDSDT(0), SlpWak(0), UseIntelHDMI(0),
-                    AFGLowPowerState(0), PNLF_UID(0), ACPIDropTables(0), DisableEntryScan(0), DisableToolScan(0), ShowHiddenEntries(0), KernelScan(0), LinuxScan(0), CustomEntries(0),
+                    AFGLowPowerState(0), PNLF_UID(0), ACPIDropTables(0), DisableEntryScan(0), DisableToolScan(0), KernelScan(0), LinuxScan(0), CustomEntries(0),
                     CustomLegacy(0), CustomTool(0), NrAddProperties(0), AddProperties(0), BlockKexts{0}, SortedACPICount(0), SortedACPI(0), DisabledAMLCount(0), DisabledAML(0),
                     PatchDsdtLabel(0), PatchDsdtTgt(0), PatchDsdtMenuItem(0), IntelMaxValue(0), OptionsBits(0), FlagsBits(0), UIScale(0), EFILoginHiDPI(0), flagstate{0},
                     ArbProperties(0), QuirksMask(0), MaxSlide(0)
@@ -618,7 +607,7 @@ public:
 
 };
 
-#pragma GCC diagnostic ignored "-Wpadded"
+//#pragma GCC diagnostic ignored "-Wpadded"
 
 typedef enum {
   english = 0,  //en
@@ -749,7 +738,7 @@ extern UINT16                          gBacklightLevel;
 //extern BOOLEAN                         defDSM;
 //extern UINT16                          dropDSM;
 
-extern TagPtr                          gConfigDict[];
+extern TagDict*                          gConfigDict[];
 
 // ACPI/PATCHED/AML
 extern ACPI_PATCHED_AML                *ACPIPatchedAML;
@@ -901,14 +890,11 @@ GetRootUUID (
 EFI_STATUS
 GetEarlyUserSettings (
   IN  EFI_FILE *RootDir,
-      TagPtr   CfgDict
+      const TagDict*   CfgDict
   );
 
 EFI_STATUS
-GetUserSettings (
-  IN  EFI_FILE *RootDir,
-      TagPtr CfgDict
-  );
+GetUserSettings (const TagDict* CfgDict);
 
 EFI_STATUS
 InitTheme (
@@ -933,7 +919,7 @@ InjectKextsFromDir (
 VOID
 ParseLoadOptions (
   OUT  XStringW* ConfName,
-  OUT  TagPtr *Dict
+  OUT  TagDict** Dict
   );
 
 EFI_STATUS
@@ -959,17 +945,19 @@ EFI_STATUS
 LoadUserSettings (
     IN  EFI_FILE *RootDir,
     const XStringW& ConfName,
-    TagPtr   *dict
+    TagDict** dict
   );
 
 VOID
 ParseSMBIOSSettings (
-  TagPtr dictPointer
+  const TagDict* dictPointer
   );
 
 //BOOLEAN
 //CopyKernelAndKextPatches (IN OUT  KERNEL_AND_KEXT_PATCHES *Dst,
 //                          IN      CONST KERNEL_AND_KEXT_PATCHES *Src);
 
+
+void testConfigPlist();
 
 #endif

@@ -1,6 +1,5 @@
 ///*++
 //
-//Copyright (c) 2005 - 2007, Intel Corporation
 //All rights reserved. This program and the accompanying materials
 //are licensed and made available under the terms and conditions of the BSD License
 //which accompanies this distribution. The full text of the license may be found at
@@ -21,7 +20,7 @@
 //
 //--*/
 //
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 
 //
 //VOID LowCase (IN OUT CHAR8 *Str)
@@ -34,7 +33,7 @@
 //  }
 //}
 
-UINT8 hexstrtouint8 (CHAR8* buf)
+UINT8 hexstrtouint8 (const CHAR8* buf)
 {
 	INT8 i = 0;
 	if (IS_DIGIT(buf[0]))
@@ -60,7 +59,7 @@ BOOLEAN IsHexDigit (CHAR8 c) {
 
 //out value is a number of byte.  out = len
 
-UINT32 hex2bin(IN CHAR8 *hex, OUT UINT8 *bin, UINT32 len) //assume len = number of UINT8 values
+UINT32 hex2bin(IN const CHAR8 *hex, OUT UINT8 *bin, UINT32 len) //assume len = number of UINT8 values
 {
 	CHAR8	*p;
 	UINT32	i, outlen = 0;

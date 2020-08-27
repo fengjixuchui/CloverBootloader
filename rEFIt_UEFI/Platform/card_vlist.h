@@ -8,6 +8,8 @@
 #ifndef PLATFORM_CARD_VLIST_H_
 #define PLATFORM_CARD_VLIST_H_
 
+#include "../Platform/plist/plist.h"
+
 
 typedef struct {
   UINT32            Signature;
@@ -26,7 +28,7 @@ typedef struct {
 
 VOID
 FillCardList (
-  TagPtr CfgDict
+  const TagDict* CfgDict
   );
 
 CARDLIST

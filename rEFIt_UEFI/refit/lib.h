@@ -56,14 +56,14 @@
 */
 
 // Experimental <--
-
+#include "../include/Efi.h"
 #include "../libeg/libeg.h"
+
 #ifdef __cplusplus
 #include "../cpp_foundation/XObjArray.h"
 #include "../cpp_foundation/XString.h"
 #include "../libeg/XTheme.h"
 extern XTheme ThemeX; //global variable defined in lib.cpp
-
 #endif
 
 #define REFIT_DEBUG (2)
@@ -73,8 +73,6 @@ extern XTheme ThemeX; //global variable defined in lib.cpp
 extern "C" {
 #endif
 
-
-#include <Protocol/SimpleFileSystem.h>
 
 #ifdef __cplusplus
 }
@@ -140,7 +138,7 @@ OSTYPE_COMPARE_IMP(OSTYPE_IS_LINUX, type1, type2) || OSTYPE_COMPARE_IMP(OSTYPE_I
 #define OSFLAG_NOCACHES       (1 << 3)
 #define OSFLAG_NODEFAULTARGS  (1 << 4)
 #define OSFLAG_NODEFAULTMENU  (1 << 5)
-#define OSFLAG_HIDDEN         (1 << 6)
+//#define OSFLAG_HIDDEN         (1 << 6)
 #define OSFLAG_DISABLED       (1 << 7)
 #define OSFLAG_HIBERNATED     (1 << 8)
 #define OSFLAG_NOSIP          (1 << 9)
@@ -496,9 +494,6 @@ extern XObjArray<REFIT_VOLUME> Volumes;
 
 extern BOOLEAN DumpVariable(CHAR16* Name, EFI_GUID* Guid, INTN DevicePathAt);
 //VOID FilterKextPatches(IN LOADER_ENTRY *Entry);
-
-
-#define KERNEL_MAX_SIZE 80000000
 
 
 

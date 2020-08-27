@@ -34,10 +34,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "screen.h"
 #include "../Platform/guid.h"
 #include "../Platform/APFS.h"
+#include "../refit/lib.h"
+#include "../Platform/Settings.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_LIB 1
@@ -860,7 +862,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
     RemainingDevicePath = DiskDevicePath;
     Status = gBS->LocateDevicePath(&gEfiDevicePathProtocolGuid, &RemainingDevicePath, &WholeDiskHandle);
     if (EFI_ERROR(Status)) {
-      DBG("Can't find WholeDevicePath: %s\n", strerror(Status));
+      DBG("Can't find WholeDevicePath: %s\n", efiStrError(Status));
     } else {
       Volume->WholeDiskDeviceHandle = WholeDiskHandle;
       Volume->WholeDiskDevicePath = DuplicateDevicePath(RemainingDevicePath);
@@ -874,7 +876,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
         
       } else {
         Volume->WholeDiskBlockIO = NULL;
-      //  DBG("no WholeDiskBlockIO: %s\n", strerror(Status));
+      //  DBG("no WholeDiskBlockIO: %s\n", efiStrError(Status));
         
         //CheckError(Status, L"from HandleProtocol");
       }
@@ -961,12 +963,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
       FreePool(RootInfo);
     }
   }
-  if (
-      Volume->VolName.isEmpty()
-      || Volume->VolName[0] == 0
-      || (Volume->VolName[0] == L'\\' && Volume->VolName[1] == 0)
-      || (Volume->VolName[0] == L'/' && Volume->VolName[1] == 0)
-      )
+  if ( Volume->VolName.isEmpty() || Volume->VolName.equal("\\") || Volume->VolName.equal(L"/") )
   {
     VOID *Instance;
     if (!EFI_ERROR(gBS->HandleProtocol(Volume->DeviceHandle, &gEfiPartTypeSystemPartGuid, &Instance))) {
@@ -999,8 +996,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
 			  //DBG("Skip dot entries: %ls\n", DirEntry->FileName);
         continue;
 		  }
-		  EFI_GUID guid;
-		  if ( StrToGuidLE(DirEntry->FileName, &guid) == EFI_SUCCESS ) {
+		  if ( IsValidGuidAsciiString(LStringW(DirEntry->FileName)) ) {
 			  Volume->ApfsTargetUUIDArray.Add(DirEntry->FileName);
 		  }
 		}
@@ -1088,7 +1084,6 @@ VOID ScanVolumes(VOID)
   //  EFI_DEVICE_PATH_PROTOCOL  *VolumeDevicePath;
   //  EFI_GUID                *Guid; //for debug only
   //  EFI_INPUT_KEY Key;
-  INT32                   HVi;
   
   //    DBG("Scanning volumes...\n");
   DbgHeader("ScanVolumes");
@@ -1115,15 +1110,12 @@ VOID ScanVolumes(VOID)
     Status = ScanVolume(Volume);
     if (!EFI_ERROR(Status)) {
       Volumes.AddReference(Volume, false);
-//      AddListElement((VOID ***) &Volumes, &VolumesCount, Volume);
-      if (!gSettings.ShowHiddenEntries) {
-        for (HVi = 0; HVi < gSettings.HVCount; HVi++) {
-          if (StriStr(Volume->DevicePathString.wc_str(), gSettings.HVHideStrings[HVi]) ||
-              (Volume->VolName.notEmpty() && StriStr(Volume->VolName.wc_str(), gSettings.HVHideStrings[HVi]))) {
-            Volume->Hidden = TRUE;
-            DBG("        hiding this volume\n");
-            break;
-          }
+      for (size_t HVi = 0; HVi < gSettings.HVHideStrings.size(); HVi++) {
+        if ( Volume->DevicePathString.containsIC(gSettings.HVHideStrings[HVi]) ||
+             Volume->VolName.containsIC(gSettings.HVHideStrings[HVi])
+           ) {
+          Volume->Hidden = TRUE;
+          DBG("        hiding this volume\n");
         }
       }
       
@@ -1366,7 +1358,7 @@ BOOLEAN DeleteFile(IN EFI_FILE *Root, IN CONST CHAR16 *RelativePath)
   //DBG("DeleteFile: %ls\n", RelativePath);
   // open file for read/write to see if it exists, need write for delete
   Status = Root->Open(Root, &File, RelativePath, EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE, 0);
-  //DBG(" Open: %s\n", strerror(Status));
+  //DBG(" Open: %s\n", efiStrError(Status));
   if (Status == EFI_SUCCESS) {
     // exists - check if it is a file
     FileInfo = EfiLibFileInfo(File);
@@ -1388,7 +1380,7 @@ BOOLEAN DeleteFile(IN EFI_FILE *Root, IN CONST CHAR16 *RelativePath)
     // it's a file - delete it
     //DBG(" File is file\n");
     Status = File->Delete(File);
-    //DBG(" Delete: %s\n", strerror(Status));
+    //DBG(" Delete: %s\n", efiStrError(Status));
     
     return Status == EFI_SUCCESS;
   }
@@ -1412,7 +1404,7 @@ EFI_STATUS DirNextEntry(IN EFI_FILE *Directory, IN OUT EFI_FILE_INFO **DirEntry,
     
     // read next directory entry
     LastBufferSize = BufferSize = 256;
-    Buffer = (__typeof__(Buffer))BllocateZeroPool(BufferSize);
+    Buffer = (__typeof__(Buffer))AllocateZeroPool(BufferSize);
     for (IterCount = 0; ; IterCount++) {
       Status = Directory->Read(Directory, &BufferSize, Buffer);
       if (Status != EFI_BUFFER_TOO_SMALL || IterCount >= 4)
@@ -1707,7 +1699,7 @@ BOOLEAN DumpVariable(CHAR16* Name, EFI_GUID* Guid, INTN DevicePathAt)
   
   Status = gRT->GetVariable (Name, Guid, NULL, &dataSize, data);
   if (Status == EFI_BUFFER_TOO_SMALL) {
-    data = (__typeof__(data))BllocateZeroPool(dataSize);
+    data = (__typeof__(data))AllocateZeroPool(dataSize);
     Status = gRT->GetVariable (Name, Guid, NULL, &dataSize, data);
     if (EFI_ERROR(Status)) {
 		DBG("Can't get %ls, size=%llu\n", Name, dataSize);

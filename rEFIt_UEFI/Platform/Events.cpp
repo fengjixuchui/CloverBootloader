@@ -10,11 +10,13 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 */
 
+#include <Platform.h>
 #include "../entry_scan/entry_scan.h"
 //#include "device_tree.h"
 #include "kernel_patcher.h"
 #include "usbfix.h"
 #include "../Platform/cpu.h"
+#include "../Platform/Settings.h"
 
 #ifndef DEBUG_ALL
 #define PATCH_DEBUG 0

@@ -17,12 +17,13 @@
 /*******************************************************************************
  *   Header Files                                                               *
  *******************************************************************************/
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include <Protocol/OSInfo.h>
 #include <Protocol/AppleGraphConfig.h>
 #include <Protocol/KeyboardInfo.h>
 #include <Protocol/OcQuirksProtocol.h>
 #include "Injectors.h"
+#include "../Platform/Settings.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_PRO 1
@@ -58,7 +59,7 @@ CHAR8* gDeviceProperties = NULL;
 
 UINT32 cPropSize = 0;
 UINT8* cProperties = NULL;
-CHAR8* cDeviceProperties = NULL;
+XString8 cDeviceProperties;
 CHAR8* BootOSName = NULL;
 
 UINT16 KeyboardVendor = 0x05ac; //Apple inc.

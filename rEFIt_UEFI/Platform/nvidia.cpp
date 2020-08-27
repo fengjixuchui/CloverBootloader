@@ -47,7 +47,7 @@
  *  SOFTWARE.
  */
 
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "nvidia.h"
 #include "device_inject.h"
 #include "smbios.h"
@@ -55,6 +55,7 @@
 #include "FixBiosDsdt.h"
 #include "../include/Pci.h"
 #include "../include/Devices.h"
+#include "../Platform/Settings.h"
 
 #ifndef DEBUG_NVIDIA
 #ifndef DEBUG_ALL
@@ -2292,7 +2293,7 @@ BOOLEAN setup_nvidia_devprop(pci_dt_t *nvda_dev)
   }
 
   if (EFI_ERROR(Status)) {
-    rom = (__typeof__(rom))BllocateZeroPool(NVIDIA_ROM_SIZE+1);
+    rom = (__typeof__(rom))AllocateZeroPool(NVIDIA_ROM_SIZE+1);
     // PRAMIN first
     read_nVidia_PRAMIN(nvda_dev, rom, nvCardType);
 
@@ -2319,7 +2320,7 @@ BOOLEAN setup_nvidia_devprop(pci_dt_t *nvda_dev)
           if (buffer[i] == 0x55 && buffer[i+1] == 0xaa) {
 			  DBG(" header found at: %llu\n", i);
             bufferLen -= i;
-            rom = (__typeof__(rom))BllocateZeroPool(bufferLen);
+            rom = (__typeof__(rom))AllocateZeroPool(bufferLen);
             for (j = 0; j < bufferLen; j++) {
               rom[j] = buffer[i+j];
             }

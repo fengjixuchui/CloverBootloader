@@ -35,8 +35,8 @@
  */
 
 #include "screen.h"
-#include "../Platform/Platform.h"
-#include "../libeg/libegint.h" // included Platform.h
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
+#include "../libeg/libegint.h"
 #include "../libeg/XTheme.h"
 #include "../Platform/BasicIO.h"
 #include "menu.h"
@@ -281,7 +281,7 @@ StatusToString (
 				EFI_STATUS      Status
 				)
 {
-	snwprintf(Buffer, 64, "EFI Error %s", strerror(Status));
+	snwprintf(Buffer, 64, "EFI Error %s", efiStrError(Status));
 }*/
 
 
@@ -294,7 +294,7 @@ BOOLEAN CheckFatalError(IN EFI_STATUS Status, IN CONST CHAR16 *where)
     
 //    StatusToString(ErrorName, Status);
     gST->ConOut->SetAttribute (gST->ConOut, ATTR_ERROR);
-    printf("Fatal Error: %s %ls\n", strerror(Status), where);
+    printf("Fatal Error: %s %ls\n", efiStrError(Status), where);
     gST->ConOut->SetAttribute (gST->ConOut, ATTR_BASIC);
     haveError = TRUE;
     
@@ -312,7 +312,7 @@ BOOLEAN CheckError(IN EFI_STATUS Status, IN CONST CHAR16 *where)
     
 //    StatusToString(ErrorName, Status);
     gST->ConOut->SetAttribute (gST->ConOut, ATTR_ERROR);
-    printf("Error: %s %ls\n", strerror(Status), where);
+    printf("Error: %s %ls\n", efiStrError(Status), where);
     gST->ConOut->SetAttribute (gST->ConOut, ATTR_BASIC);
     haveError = TRUE;
     

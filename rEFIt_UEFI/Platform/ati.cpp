@@ -5,13 +5,14 @@
  *
  */
 
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "ati.h"
 #include "ati_reg.h"
 #include "smbios.h"
 #include "FixBiosDsdt.h"
 #include "../include/Pci.h"
 #include "../include/Devices.h"
+#include "../Platform/Settings.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_ATI 1
@@ -1320,7 +1321,7 @@ BOOLEAN get_nameparent_val(value_t *val, INTN index, BOOLEAN Sier)
 //static CHAR8 pciName[15];
 BOOLEAN get_name_pci_val(value_t *val, INTN index, BOOLEAN Sier)
 {
-  CHAR8* pciName = (__typeof__(pciName))BllocateZeroPool(15);
+  CHAR8* pciName = (__typeof__(pciName))AllocateZeroPool(15);
 
   if (!card->info->model_name || !gSettings.FakeATI) {
     return FALSE;
@@ -1335,7 +1336,7 @@ BOOLEAN get_name_pci_val(value_t *val, INTN index, BOOLEAN Sier)
 
 BOOLEAN get_model_val(value_t *val, INTN index, BOOLEAN Sier)
 {
-  CHAR8 *ModelName = (__typeof__(ModelName))BllocateZeroPool(35);
+  CHAR8 *ModelName = (__typeof__(ModelName))AllocateZeroPool(35);
   if (!card->info->model_name) {
     return FALSE;
   }
@@ -1507,7 +1508,7 @@ BOOLEAN get_refclk_val(value_t *val, INTN index, BOOLEAN Sier)
 
 BOOLEAN get_platforminfo_val(value_t *val, INTN index, BOOLEAN Sier)
 {
-  val->data = (__typeof__(val->data))BllocateZeroPool(0x80);
+  val->data = (__typeof__(val->data))AllocateZeroPool(0x80);
   if (!val->data)
     return FALSE;
 
@@ -1550,7 +1551,7 @@ VOID devprop_add_list(AtiDevProp devprop_list[], const XString8& OSVersion)
 {
   INTN i, pnum;
   BOOLEAN Sier;
-  value_t *val = (__typeof__(val))BllocateZeroPool(sizeof(value_t));
+  value_t *val = (__typeof__(val))AllocateZeroPool(sizeof(value_t));
 
   Sier = (AsciiOSVersionToUint64(OSVersion) >= AsciiOSVersionToUint64("10.12"_XS8));
 
@@ -1655,7 +1656,7 @@ BOOLEAN load_vbios_file(UINT16 vendor_id, UINT16 device_id)
   }
 	DBG("Loaded ROM len=%llu\n", bufferLen);
   card->rom_size = (UINT32)bufferLen;
-  card->rom = (__typeof__(card->rom))BllocateZeroPool(bufferLen);
+  card->rom = (__typeof__(card->rom))AllocateZeroPool(bufferLen);
   if (!card->rom) {
     return FALSE;
   }
@@ -1736,7 +1737,7 @@ BOOLEAN read_vbios(BOOLEAN from_pci)
     return FALSE;
   }
 
-  card->rom = (__typeof__(card->rom))BllocateZeroPool(card->rom_size);
+  card->rom = (__typeof__(card->rom))AllocateZeroPool(card->rom_size);
   if (!card->rom) {
     return FALSE;
   }
@@ -1905,7 +1906,7 @@ BOOLEAN devprop_add_pci_config_space(VOID)
 {
   int offset;
 
-  UINT8 *config_space = (__typeof__(config_space))BllocateZeroPool(0x100);
+  UINT8 *config_space = (__typeof__(config_space))AllocateZeroPool(0x100);
   if (!config_space)
     return FALSE;
 
@@ -1924,7 +1925,6 @@ static BOOLEAN init_card(pci_dt_t *pci_dev)
   BOOLEAN add_vbios = gSettings.LoadVBios;
   CHAR8  *name;
   CHAR8  *name_parent;
-  CHAR8   *CfgName;
   //    CHAR8   *model;
   INTN    NameLen = 0;
   UINTN  i, j;
@@ -1932,7 +1932,7 @@ static BOOLEAN init_card(pci_dt_t *pci_dev)
   UINTN   ExpansionRom = 0;
   UINTN Reg1, Reg3, Reg5;
 
-  card = (__typeof__(card))BllocateZeroPool(sizeof(card_t));
+  card = (__typeof__(card))AllocateZeroPool(sizeof(card_t));
   if (!card) {
     return FALSE;
   }
@@ -2025,12 +2025,10 @@ static BOOLEAN init_card(pci_dt_t *pci_dev)
 
   card->flags |= FLAGNOTFAKE;
 
-  NameLen = StrLen(gSettings.FBName);
+  NameLen = gSettings.FBName.length();
   if (NameLen > 2) {  //fool proof: cfg_name is 3 character or more.
-    CfgName = (__typeof__(CfgName))BllocateZeroPool(NameLen);
-    UnicodeStrToAsciiStrS((CHAR16*)&gSettings.FBName[0], CfgName, 16);
-    DBG("Users config name %s\n", CfgName);
-    card->cfg_name = CfgName;
+    card->cfg_name = S8Printf("%ls", gSettings.FBName.wc_str()).forgetDataWithoutFreeing();
+    DBG("Users config name %s\n", card->cfg_name);
   } else {
     // use cfg_name on radeon_cards, to retrive the default name from card_configs,
     card->cfg_name = card_configs[card->info->cfg_name].name;
@@ -2065,13 +2063,13 @@ static BOOLEAN init_card(pci_dt_t *pci_dev)
     DBG("Nr of ports set to min: %d\n", card->ports);
   }
   //
-  name = (__typeof__(name))BllocateZeroPool(24);
+  name = (__typeof__(name))AllocateZeroPool(24);
   snprintf(name, 24, "ATY,%s", card->cfg_name);
   aty_name.type = kStr;
   aty_name.size = (UINT32)AsciiStrLen(name);
   aty_name.data = (UINT8 *)name;
 
-  name_parent = (__typeof__(name_parent))BllocateZeroPool(24);
+  name_parent = (__typeof__(name_parent))AllocateZeroPool(24);
   snprintf(name_parent, 24, "ATY,%sParent", card->cfg_name);
   aty_nameparent.type = kStr;
   aty_nameparent.size = (UINT32)AsciiStrLen(name_parent);

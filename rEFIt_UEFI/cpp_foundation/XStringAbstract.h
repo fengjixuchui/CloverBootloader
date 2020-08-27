@@ -50,9 +50,6 @@
 
 
 
-
-
-
 #define asciiToLower(ch) (((ch >= L'A') && (ch <= L'Z')) ? ((ch - L'A') + L'a') : ch)
 #define asciiToUpper(ch) (((ch >= L'a') && (ch <= L'z')) ? ((ch - L'a') + L'A') : ch)
 
@@ -81,9 +78,14 @@ int XStringAbstract__startWith(const S* src, const O* other, bool ignoreCase)
 	return src_char32 != 0;
 }
 
+/*
+ * Returns 1 if src > other
+ */
 template<typename S, typename O>
 int XStringAbstract__compare(const S* src, const O* other, bool ignoreCase)
 {
+  if ( src == NULL || *src == 0 ) return other == NULL || *other == 0 ? 0 : -1;
+  if ( other == NULL || *other == 0 ) return 1;
 //	size_t len_s = length_of_utf_string(src);
 //	size_t len_other = length_of_utf_string(other);
 	size_t nb = 0;
@@ -232,10 +234,6 @@ public:
 
 	// no assignement, no destructor
 
-	template<typename IntegralType, enable_if(is_integral(IntegralType))>
-	T* data(IntegralType pos) const { return _data(pos); }
-
-
 	size_t length() const { return length_of_utf_string(m_data); }
 //	size_t sizeZZ() const { return size_of_utf_string(m_data); }
 	size_t sizeInNativeChars() const { return size_of_utf_string(m_data); }
@@ -244,7 +242,7 @@ public:
 
 
 	const T* s() const { return m_data; }
-	const T* data() const { return m_data; } // todo delete
+	const T* data() const { return m_data; }
 
 	/* Empty ? */
 	bool isEmpty() const { return m_data == nullptr  ||  *m_data == 0; }
@@ -496,6 +494,10 @@ public:
 //	int Compare(const char32_t* S) const { return ::Compare<T, char32_t>(m_data, S); };
 //	int Compare(const wchar_t* S) const { return ::Compare<T, wchar_t>(m_data, S); };
 //
+
+  template<typename O>
+  int strncmp(const O* S, size_t n) const { return XStringAbstract__ncompare(m_data, S, n, false); }
+
 	template<typename O, class OtherXStringClass>
 	bool equal(const __String<O, OtherXStringClass>& S) const { return XStringAbstract__compare(m_data, S.s(), false) == 0; }
 	template<typename O>
@@ -573,6 +575,61 @@ protected:
 //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 
+
+///* __String + char32_t */
+//template<typename CharType1, class XStringClass1>
+//XStringClass1 operator + (const __String<CharType1, XStringClass1>& p1, char32_t p2) { XStringClass1 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
+//
+///* __String + __String */
+//template<typename CharType1, class XStringClass1, typename CharType2, class XStringClass2>
+//XStringClass1 operator + (const __String<CharType1, XStringClass1>& p1, const __String<CharType2, XStringClass2>& p2) { XStringClass1 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
+//
+///* char* + __String */
+//template<typename CharType1, typename CharType2, class XStringClass2>
+//XStringClass2 operator + (const CharType1* p1, const __String<CharType2, XStringClass2>& p2) { XStringClass2 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
+//
+///* __String + char* */
+//template<typename T1, class XStringClass1, typename CharType2>
+//XStringClass1 operator + (const __String<T1, XStringClass1>& p1, const CharType2* p2) { XStringClass1 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
+
+
+template <typename Base> _xtools__true_type is_base_of_test_func( Base* );
+template <typename Base> _xtools__false_type is_base_of_test_func( void* );
+template <typename B, typename D>
+auto test_pre_is_base_of(int) -> decltype(is_base_of_test_func<B>(static_cast<D*>(nullptr)));
+
+
+template< class, class = _xtools__void_t<>, class = _xtools__void_t<> >
+struct __string_type { typedef void type; };
+template< typename T >
+struct __string_type<T, _xtools__void_t<typename T::xs_t>, _xtools__void_t<typename T::char_t>> { typedef __String<typename T::char_t, typename T::xs_t> type; };
+
+#define is___String_t(x) decltype(test_pre_is_base_of<typename __string_type<x>::type , x>(0))
+#define is___String(x) is___String_t(x)::value
+
+
+template< class, class = _xtools__void_t<>, class = _xtools__void_t<> >
+struct __lstring_type { typedef void type; };
+template< typename T >
+struct __lstring_type<T, _xtools__void_t<typename T::xs_t>, _xtools__void_t<typename T::char_t>> { typedef LString<typename T::char_t, typename T::xs_t> type; };
+
+#define is___LString_t(x) decltype(test_pre_is_base_of<    typename __lstring_type<x>::type , x>(0))
+#define is___LString(x) is___LString_t(x)::value
+
+/* __string_class_or<T1, T2>::type is T1 is T1 is a subclass of __String. If T1 is not a subclass of __String, returns T2 if it's a subclass of __String */
+template <typename T1, typename T2, typename Tdummy=void>
+struct __string_class_or;
+template <typename T1, typename T2>
+struct __string_class_or<T1, T2, enable_if_t(!is___String(T1) && !is___String(T2))> { /*typedef double type;*/ };
+template <typename T1, typename T2>
+struct __string_class_or<T1, T2, enable_if_t(is___String(T1))> { typedef typename T1::xs_t type; };
+template <typename T1, typename T2>
+struct __string_class_or<T1, T2, enable_if_t(!is___String(T1) && is___String(T2))> { typedef typename T2::xs_t type; };
+
+
+//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
 #define m_data __String<T, ThisXStringClass>::m_data
 
 template<class T, class ThisXStringClass>
@@ -592,8 +649,12 @@ class XStringAbstract : public __String<T, ThisXStringClass>
 	 */
 	void Alloc(size_t nNewSize)
 	{
-			if ( m_allocatedSize == 0 ) m_data = (T*)malloc( nNewSize*sizeof(T) );
-			else m_data = (T*)Xrealloc(m_data, nNewSize*sizeof(T), m_allocatedSize*sizeof(T));
+			if ( m_allocatedSize == 0 ) {
+        m_data = (T*)malloc( nNewSize*sizeof(T) );
+      }
+			else {
+        m_data = (T*)Xrealloc(m_data, nNewSize*sizeof(T), m_allocatedSize*sizeof(T));
+      }
 			if ( !m_data ) {
 				panic("XStringAbstract::Alloc(%zu) : Xrealloc(%" PRIuPTR ", %lu, %zd) returned NULL. System halted\n", nNewSize, uintptr_t(m_data), nNewSize*sizeof(T), m_allocatedSize*sizeof(T));
 			}
@@ -604,7 +665,7 @@ class XStringAbstract : public __String<T, ThisXStringClass>
   /*
    * Make sure this string has allocated size of at least nNewSize+1.
    */
-	T *CheckSize(size_t nNewSize, size_t nGrowBy = XStringGrowByDefault) // nNewSize is in number of chars, NOT bytes
+	bool CheckSize(size_t nNewSize, size_t nGrowBy = XStringGrowByDefault) // nNewSize is in number of chars, NOT bytes
 	{
 		//DBG_XSTRING("CheckSize: m_size=%d, nNewSize=%d\n", m_size, nNewSize);
 		if ( m_allocatedSize < nNewSize+1 )
@@ -617,11 +678,13 @@ class XStringAbstract : public __String<T, ThisXStringClass>
 				m_data = NULL;
 				Alloc(nNewSize+1);
 				utf_string_from_utf_string(m_data, m_allocatedSize, m_dataSav);
+        return true;
 			}else{
 				Alloc(nNewSize+1);
+        return true;
 			}
-		}
-		return m_data;
+    }
+		return false;
 	}
 //	void setSize(size_t newSize) // nNewSize is in number of chars, NOT bytes
 //	{
@@ -671,10 +734,11 @@ public:
 	/* Copy Assign */ // Only other XString, no litteral at the moment.
 	XStringAbstract& operator=(const XStringAbstract &S)  { takeValueFrom(S); return *this; }
 	/* Assign */
+	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Weffc++"
 	template<typename O, class OtherXStringClass>
 	ThisXStringClass& operator =(const __String<O, OtherXStringClass>& S)	{ strcpy(S.s()); return *((ThisXStringClass*)this); }
-  #pragma GCC diagnostic warning "-Weffc++"
+  #pragma GCC diagnostic pop
 // TEMPORARILY DISABLED
 //	template<class O>
 //	ThisXStringClass& operator =(const O* S)	{ strcpy(S); return *this; }
@@ -697,6 +761,10 @@ public:
 		else m_data[0] = 0;
 	}
 
+  T* data() const { return m_data; }
+
+  template<typename IntegralType, enable_if(is_integral(IntegralType))>
+  T* data(IntegralType pos) const { return __String<T, ThisXStringClass>::_data(pos); }
 	
 	template<typename IntegralType, enable_if(is_integral(IntegralType))>
 	T* dataSized(IntegralType size)
@@ -894,15 +962,90 @@ public:
     return *((ThisXStringClass*)this);
   }
   
+  ThisXStringClass& replaceAll(char32_t charToSearch, char32_t charToReplaceBy)
+  {
+    size_t currentSize = __String<T, ThisXStringClass>::sizeInNativeChars(); // size is number of T, not in bytes
+    size_t charToSearchSize = utf_size_of_utf_string_len(m_data, &charToSearch, 1); // size is number of T, not in bytes
+    size_t charToReplaceBySize = utf_size_of_utf_string_len(m_data, &charToReplaceBy, 1); // size is number of T, not in bytes
+    // careful because 'charToReplaceBySize - charToSearchSize' overflows when charToSearchSize > charToReplaceBySize, which happens.
+
+    char32_t char32;
+    T* previousData = m_data;
+    T* previousP = m_data;
+    T* p = get_char32_from_string(previousP, &char32);
+    while ( char32 ) {
+      if (!char32) break;
+      if ( char32 == charToSearch ) {
+        if ( CheckSize(currentSize + charToReplaceBySize - charToSearchSize) ) {
+          previousP = m_data + ( previousP - previousData );
+          p = m_data + ( p - previousData );
+          previousData = m_data;
+        }
+        memmove(p+charToReplaceBySize-charToSearchSize, p, uintptr_t(m_data + currentSize - p + 1)*sizeof(T));
+        p += charToReplaceBySize;
+        p -= charToSearchSize;
+        currentSize += charToReplaceBySize;
+        currentSize -= charToSearchSize;
+        utf_stringnn_from_utf_string(previousP, charToReplaceBySize, &charToReplaceBy);
+      }
+      previousP = p;
+      p = get_char32_from_string(previousP, &char32);
+    }
+    return *((ThisXStringClass*)this);
+  }
+  
+  template<typename OtherXStringClass1, class OtherXStringClass2, enable_if( is___String(OtherXStringClass1) && is___String(OtherXStringClass2))>
+  ThisXStringClass& replaceAll(const OtherXStringClass1& search, const OtherXStringClass2& replaceBy )
+  {
+    size_t currentSize = __String<T, ThisXStringClass>::sizeInNativeChars(); // size is number of T, not in bytes
+    size_t sizeLeft = currentSize; // size is number of T, not in bytes
+    size_t searchSize = utf_size_of_utf_string(m_data, search.s()); // size is number of T, not in bytes
+    size_t replaceBySize = utf_size_of_utf_string(m_data, replaceBy.s()); // size is number of T, not in bytes
+    // careful because 'charToReplaceBySize - charToSearchSize' overflows when charToSearchSize > charToReplaceBySize, which happens.
+
+//    size_t pos = __String<T, ThisXStringClass>::indexOf(search);
+    T* previousData = m_data;
+    T* previousP = m_data;
+    T* p = m_data;
+    size_t pos = XStringAbstract__indexOf((const T**)&p, search.s(), 0, false);
+    while ( pos != MAX_XSIZE ) {
+      if ( CheckSize(currentSize + replaceBySize - searchSize) ) {
+          previousP = m_data + ( previousP - previousData );
+          p = m_data + ( p - previousData );
+          previousData = m_data;
+      }
+      sizeLeft -= uintptr_t(p-previousP);
+      memmove(p+replaceBySize, p+searchSize, (sizeLeft - searchSize + 1)*sizeof(T));
+//      memmove(m_data+pos+replaceBySize-searchSize, m_data+pos, (currentSize - pos + 1)*sizeof(T));
+      utf_stringnn_from_utf_string(p, replaceBySize, replaceBy.s());
+      p += replaceBySize;
+      currentSize += replaceBySize;
+      currentSize -= searchSize;
+      sizeLeft -= searchSize;
+// sizeLeft is equal to utf_size_of_utf_string(p, p);
+      previousP = p;
+      pos = XStringAbstract__indexOf((const T**)&p, search.s(), 0, false);
+    }
+    return *((ThisXStringClass*)this);
+  }
+
+
   void trim()
   {
+    size_t lengthInNativeBytes = __String<T, ThisXStringClass>::sizeInNativeChars();
+    if ( lengthInNativeBytes == 0 ) return;
     T* start = 0;
     size_t count = 0;
     T* s = m_data;
     while ( *s && unsigned_type(T)(*s) <= 32 ) s++;
+    if ( !*s ) {
+      m_data[0] = 0;
+      return;
+    }
     start = s;
-    while ( *s && unsigned_type(T)(*s) > 32 ) s++;
-    count = uintptr_t(s - start);
+    s = m_data + lengthInNativeBytes - 1;
+    while ( *s && unsigned_type(T)(*s) <= 32 ) s--;
+    count = uintptr_t(s - start) + 1;
     CheckSize(count); // We have to CheckSize in case this string point to a litteral.
     memmove(m_data, start, count*sizeof(T));
     m_data[count] = 0;
@@ -946,7 +1089,7 @@ public:
   template<typename O, enable_if(is_char(O))>
   ThisXStringClass& takeValueFrom(const O C) { strcpy(C); return *((ThisXStringClass*)this); }
 	template<typename O, class OtherXStringClass>
-	ThisXStringClass& takeValueFrom(const __String<O, OtherXStringClass>& S, size_t len) { strncpy(S.data(0), len); return *((ThisXStringClass*)this);	}
+	ThisXStringClass& takeValueFrom(const __String<O, OtherXStringClass>& S, size_t len) { strncpy(S.s(), len); return *((ThisXStringClass*)this);	}
 	template<typename O>
 	ThisXStringClass& takeValueFrom(const O* S, size_t len) {	strncpy(S, len); return *((ThisXStringClass*)this); }
 	
@@ -965,58 +1108,6 @@ public:
 template<class T, class ThisXStringClass>
 T XStringAbstract<T, ThisXStringClass>::nullChar = 0;
 
-
-//xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-///* __String + char32_t */
-//template<typename CharType1, class XStringClass1>
-//XStringClass1 operator + (const __String<CharType1, XStringClass1>& p1, char32_t p2) { XStringClass1 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
-//
-///* __String + __String */
-//template<typename CharType1, class XStringClass1, typename CharType2, class XStringClass2>
-//XStringClass1 operator + (const __String<CharType1, XStringClass1>& p1, const __String<CharType2, XStringClass2>& p2) { XStringClass1 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
-//
-///* char* + __String */
-//template<typename CharType1, typename CharType2, class XStringClass2>
-//XStringClass2 operator + (const CharType1* p1, const __String<CharType2, XStringClass2>& p2) { XStringClass2 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
-//
-///* __String + char* */
-//template<typename T1, class XStringClass1, typename CharType2>
-//XStringClass1 operator + (const __String<T1, XStringClass1>& p1, const CharType2* p2) { XStringClass1 s; s.takeValueFrom(p1); s.strcat(p2); return s; }
-
-
-template <typename Base> _xtools__true_type is_base_of_test_func( Base* );
-template <typename Base> _xtools__false_type is_base_of_test_func( void* );
-template <typename B, typename D>
-auto test_pre_is_base_of(int) -> decltype(is_base_of_test_func<B>(static_cast<D*>(nullptr)));
-
-
-template< class, class = _xtools__void_t<>, class = _xtools__void_t<> >
-struct __string_type { typedef void type; };
-template< typename T >
-struct __string_type<T, _xtools__void_t<typename T::xs_t>, _xtools__void_t<typename T::char_t>> { typedef __String<typename T::char_t, typename T::xs_t> type; };
-
-#define is___String_t(x) decltype(test_pre_is_base_of<typename __string_type<x>::type , x>(0))
-#define is___String(x) is___String_t(x)::value
-
-
-template< class, class = _xtools__void_t<>, class = _xtools__void_t<> >
-struct __lstring_type { typedef void type; };
-template< typename T >
-struct __lstring_type<T, _xtools__void_t<typename T::xs_t>, _xtools__void_t<typename T::char_t>> { typedef LString<typename T::char_t, typename T::xs_t> type; };
-
-#define is___LString_t(x) decltype(test_pre_is_base_of<    typename __lstring_type<x>::type , x>(0))
-#define is___LString(x) is___LString_t(x)::value
-
-/* __string_class_or<T1, T2>::type is T1 is T1 is a subclass of __String. If T1 is not a subclass of __String, returns T2 if it's a subclass of __String */
-template <typename T1, typename T2, typename Tdummy=void>
-struct __string_class_or;
-template <typename T1, typename T2>
-struct __string_class_or<T1, T2, enable_if_t(!is___String(T1) && !is___String(T2))> { /*typedef double type;*/ };
-template <typename T1, typename T2>
-struct __string_class_or<T1, T2, enable_if_t(is___String(T1))> { typedef typename T1::xs_t type; };
-template <typename T1, typename T2>
-struct __string_class_or<T1, T2, enable_if_t(!is___String(T1) && is___String(T2))> { typedef typename T2::xs_t type; };
 
 //------------------------------------------------------- + operator
 

@@ -1,4 +1,4 @@
-#include <Platform.h>
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "../cpp_foundation/XString.h"
 #include "../cpp_foundation/unicode_conversions.h"
 
@@ -1506,17 +1506,13 @@ XStringClass xstr2 = initia__String.basename();
 //	(void)xsw;
 //}
 
-class C
-{
-  public:
-	typedef char char_t;
-	const char* data;
-	constexpr C() : data(0) { }
-};
-
 //constexpr LString8 g_xs1 = "foobar";
 //constexpr LStringW g_xsw1 = L"foobar";
 //XString g_xs2 = "foobar"_XS8;
+
+
+// U'𐄔' = 0x10114 : this is 2 utf16 chars (codepoint > 0xFFFF)
+// U'𐅃' = 0x10143 : this is 2 utf16 chars (codepoint > 0xFFFF)
 
 int XString_tests()
 {
@@ -1573,9 +1569,114 @@ int XString_tests()
   XStringW xsw2;
   xsw2.takeValueFrom(xsw, 1);
   
-  XString8 xs8 = "  toTRIM  "_XS8;
-//  xs8.trim();
-  xs8.lowerAscii();
+  {
+    XString8 xs8 = "  to TRIM  "_XS8;
+    xs8.trim();
+    if ( xs8 != "to TRIM"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  {
+    XString8 xs8 = "Apple Inc."_XS8;
+    xs8.trim();
+    if ( xs8 != "Apple Inc."_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  
+  {
+    XString8 xsReplace = "babcbdeb"_XS8;
+    xsReplace.replaceAll(U'b', U'𐅃');
+  }
+  {
+    XString8 xsReplace2 = "𐄔a𐄔c𐄔de𐄔"_XS8;
+    xsReplace2.replaceAll(U'𐄔', U'x');
+  }
+//  {
+//    XString8 xsReplace = "𐅃𐅃ab"_XS8;
+//    xsReplace.replaceAll("𐅃𐅃"_XS8, "12"_XS8);
+//    if ( xsReplace != "12ab"_XS8 ) {
+//      nbTestFailed += 1;
+//    }
+//  }
+
+  // TODO proper test
+  // XSW XS8
+  {
+    XString8 xsReplace = "12ab12cd12ef1212"_XS8;
+    xsReplace.replaceAll(L"12"_XSW, L"𐅃𐅃"_XSW);
+    if ( xsReplace != "𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  {
+    XString8 xsReplace = "𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XS8;
+    xsReplace.replaceAll(L"𐅃𐅃"_XSW, L"12"_XSW);
+    if ( xsReplace != "12ab12cd12ef1212"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  // XS8 XSW
+  {
+    XStringW xsReplace = L"12ab12cd12ef1212"_XSW;
+    xsReplace.replaceAll("12"_XS8, "𐅃𐅃"_XS8);
+    if ( xsReplace != "𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  {
+    XStringW xsReplace = L"𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XSW;
+    xsReplace.replaceAll("𐅃𐅃"_XS8, "12"_XS8);
+    if ( xsReplace != "12ab12cd12ef1212"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  //XSW XSW
+  {
+    XStringW xsReplace = L"12ab12cd12ef1212"_XSW;
+    xsReplace.replaceAll(L"12"_XSW, L"𐅃𐅃"_XSW);
+    if ( xsReplace != L"𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XSW ) {
+      nbTestFailed += 1;
+    }
+  }
+  {
+    XStringW xsReplace = L"𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XSW;
+    xsReplace.replaceAll(L"𐅃𐅃"_XSW, L"12"_XSW);
+    if ( xsReplace != L"12ab12cd12ef1212"_XSW ) {
+      nbTestFailed += 1;
+    }
+  }
+  // XS8 XS8
+  {
+    XString8 xsReplace = "12ab12cd12ef1212"_XS8;
+    xsReplace.replaceAll("12"_XS8, "𐅃𐅃"_XS8);
+    if ( xsReplace != "𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  {
+    XString8 xsReplace = "𐅃𐅃ab𐅃𐅃cd𐅃𐅃ef𐅃𐅃𐅃𐅃"_XS8;
+    xsReplace.replaceAll("𐅃𐅃"_XS8, "12"_XS8);
+    if ( xsReplace != "12ab12cd12ef1212"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  //
+  {
+    XString8 xsReplace = "ab𐅃𐅃cd𐅃𐅃𐅃𐅃ef"_XS8;
+    xsReplace.replaceAll("𐅃𐅃"_XS8, "12"_XS8);
+    if ( xsReplace != "ab12cd1212ef"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+  {
+    XString8 xsReplace = "ab𐅃𐅃cd𐅃𐅃𐅃ef"_XS8;
+    xsReplace.replaceAll("𐅃𐅃"_XS8, "12"_XS8);
+    if ( xsReplace != "ab12cd12𐅃ef"_XS8 ) {
+      nbTestFailed += 1;
+    }
+  }
+
 
   // Quick check of stealValueFrom. TOTO proper test
   {

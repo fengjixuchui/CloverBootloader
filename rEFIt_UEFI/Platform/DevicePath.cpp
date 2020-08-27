@@ -13,7 +13,7 @@
 //
 //**/
 //
-//#include "Platform.h"
+//#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 ////#include <Library/GenericBdsLib.h>
 ////#include "InternalBdsLib.h"
 //
@@ -42,7 +42,7 @@
 //  VA_LIST Args;
 //  UINTN   StringSize;
 //
-//  AppendStr = (__typeof__(AppendStr))BllocateZeroPool(0x1000);
+//  AppendStr = (__typeof__(AppendStr))AllocateZeroPool(0x1000);
 //  if (AppendStr == NULL) {
 //    return Str->Str;
 //  }
@@ -52,7 +52,7 @@
 //  VA_END (Args);
 //  if (NULL == Str->Str) {
 //    StringSize   = StrSize (AppendStr);
-//    Str->Str = (__typeof__(Str->Str))BllocateZeroPool(StringSize);
+//    Str->Str = (__typeof__(Str->Str))AllocateZeroPool(StringSize);
 ////    ASSERT (Str->Str != NULL);
 //  } else {
 //    StringSize = StrSize (AppendStr);

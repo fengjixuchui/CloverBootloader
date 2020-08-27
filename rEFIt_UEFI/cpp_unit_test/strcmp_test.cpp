@@ -1,4 +1,4 @@
-#include <Platform.h>
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "../cpp_foundation/XString.h"
 #include "../cpp_foundation/unicode_conversions.h"
 #include "global_test.h"
@@ -42,8 +42,7 @@ static int strcmp_reference(const char *p1, const char *p2)
 static int compare(const char*s1, const char*s2)
 {
 	int ret1 = strcmp(s1, s2);
-	int ret2 = strcmp_reference(s1, s2);;
-
+	int ret2 = strcmp_reference(s1, s2);
 	if ( sign(ret1) != sign(ret2) ) {
 		printf("Comparing '%s' and '%s' gives %d and should have given %d\n", s1, s2, ret1, ret2);
 		return 1; // whatever if not 0

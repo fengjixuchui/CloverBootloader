@@ -15,8 +15,8 @@
  * XMP detection - apianti
  */
 
-//
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
+#include "../Platform/Settings.h"
 #include "spd.h"
 #include "memvendors.h"
 #include "cpu.h"
@@ -671,7 +671,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
   // needed at least for laptops
   //fullBanks = (gDMI->MemoryModules == gDMI->CntMemorySlots);
 
-  spdbuf = (__typeof__(spdbuf))BllocateZeroPool(MAX_SPD_SIZE);
+  spdbuf = (__typeof__(spdbuf))AllocateZeroPool(MAX_SPD_SIZE);
 
   // Search MAX_RAM_SLOTS slots
   //==>
@@ -904,7 +904,7 @@ VOID ScanSPD()
                gPci.Hdr.ClassCode[2],
                gPci.Hdr.ClassCode[1],
                gPci.Hdr.ClassCode[0],
-               strerror(Status)
+               efiStrError(Status)
                );
           read_smb(PciIo, gPci.Hdr.VendorId, gPci.Hdr.DeviceId);
         }

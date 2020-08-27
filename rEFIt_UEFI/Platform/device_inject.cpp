@@ -8,10 +8,12 @@
 
 
 
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "device_inject.h"
 #include "FixBiosDsdt.h"
 #include "../include/Devices.h"
+#include "../refit/lib.h"
+#include "../Platform/Settings.h"
 
 #ifndef DEBUG_INJECT
 #ifndef DEBUG_ALL
@@ -55,7 +57,7 @@ UINT32 device_inject_stringlength   = 0;
 DevPropString *devprop_create_string(VOID)
 {
   //	DBG("Begin creating strings for devices:\n");
-  device_inject_string = (DevPropString*)BllocateZeroPool(sizeof(DevPropString));
+  device_inject_string = (DevPropString*)AllocateZeroPool(sizeof(DevPropString));
 
   if(device_inject_string == NULL)
     return NULL;
@@ -107,7 +109,7 @@ UINT32 pci_config_read32(pci_dt_t *PciDt, UINT8 reg)
                             &res
                             );
   if (EFI_ERROR(Status)) {
-    DBG("pci_config_read32 failed %s\n", strerror(Status));
+    DBG("pci_config_read32 failed %s\n", efiStrError(Status));
     return 0;
   }
   return res;
@@ -138,7 +140,7 @@ DevPropDevice *devprop_add_device_pci(DevPropString *StringBuf, pci_dt_t *PciDt,
   if (!DevicePath)
     return NULL;
 
-  device = (__typeof__(device))BllocateZeroPool(sizeof(DevPropDevice));
+  device = (__typeof__(device))AllocateZeroPool(sizeof(DevPropDevice));
   if (!device) {
     return NULL;
   }
@@ -197,7 +199,7 @@ DevPropDevice *devprop_add_device_pci(DevPropString *StringBuf, pci_dt_t *PciDt,
   StringBuf->length += device->length;
 
   if(!StringBuf->entries) {
-    StringBuf->entries = (DevPropDevice**)BllocateZeroPool(MAX_NUM_DEVICES * sizeof(device));
+    StringBuf->entries = (DevPropDevice**)AllocateZeroPool(MAX_NUM_DEVICES * sizeof(device));
     if(!StringBuf->entries) {
       FreePool(device);
       return NULL;
@@ -230,7 +232,7 @@ BOOLEAN devprop_add_value(DevPropDevice *device, CONST CHAR8 *nm, UINT8 *vl, UIN
    DBG("\n"); */
   l = AsciiStrLen(nm);
   length = (UINT32)((l * 2) + len + (2 * sizeof(UINT32)) + 2);
-  data = (UINT8*)BllocateZeroPool(length);
+  data = (UINT8*)AllocateZeroPool(length);
   if(!data)
     return FALSE;
 
@@ -256,7 +258,7 @@ BOOLEAN devprop_add_value(DevPropDevice *device, CONST CHAR8 *nm, UINT8 *vl, UIN
 
   offset = device->length - (24 + (6 * device->num_pci_devpaths));
 
-  newdata = (UINT8*)BllocateZeroPool((length + offset));
+  newdata = (UINT8*)AllocateZeroPool((length + offset));
   if(!newdata)
     return FALSE;
   if((device->data) && (offset > 1)) {

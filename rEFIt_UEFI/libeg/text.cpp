@@ -42,6 +42,8 @@ extern "C" {
 #include "libegint.h"
 #include "nanosvg.h"
 #include "VectorGraphics.h"
+#include "XTheme.h"
+#include "../Platform/Settings.h"
 
 //#include "egemb_font.h"
 //#define FONT_CELL_WIDTH (7)
@@ -99,7 +101,7 @@ void XTheme::LoadFontImage(IN BOOLEAN UseEmbedded, IN INTN Rows, IN INTN Cols)
     MsgLog("Using embedded font\n");
   } else if (isKorean){
     Status = NewImage.LoadXImage(ThemeDir, L"FontKorean.png"_XSW);
-    MsgLog("Loading korean font from ThemeDir: %s\n", strerror(Status));
+    MsgLog("Loading korean font from ThemeDir: %s\n", efiStrError(Status));
     if (!EFI_ERROR(Status)) {
       CharWidth = 22; //standard for korean
     } else {

@@ -34,7 +34,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//#include "Platform.h"
 #include "../libeg/libegint.h"   //this includes platform.h
 //#include "../include/scroll_images.h"
 
@@ -804,7 +803,7 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
 
     if (HaveTimeout) {
       XStringW TOMessage = SWPrintf("%ls in %lld seconds", TimeoutText.wc_str(), TimeoutCountdown);
-      ((*this).*(StyleFunc))(MENU_FUNCTION_PAINT_TIMEOUT, TOMessage.data());
+      ((*this).*(StyleFunc))(MENU_FUNCTION_PAINT_TIMEOUT, TOMessage.wc_str());
     }
 
     if (gEvent) { //for now used at CD eject.
@@ -988,10 +987,10 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
 /* just a sample code
       case SCAN_F7:
         Status = egMkDir(SelfRootDir,  L"EFI\\CLOVER\\new_folder");
-        DBG("create folder %s\n", strerror(Status));
+        DBG("create folder %s\n", efiStrError(Status));
         if (!EFI_ERROR(Status)) {
           Status = egSaveFile(SelfRootDir,  L"EFI\\CLOVER\\new_folder\\new_file.txt", (UINT8*)SomeText, sizeof(*SomeText)+1);
-          DBG("create file %s\n", strerror(Status));
+          DBG("create file %s\n", efiStrError(Status));
         }
         break;
 */
@@ -1000,7 +999,7 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
               OldChosenAudio = 0; //security correction
         }
         Status = gBS->HandleProtocol(AudioList[OldChosenAudio].Handle, &gEfiAudioIoProtocolGuid, (VOID**)&AudioIo);
-			DBG("open %llu audio handle status=%s\n", OldChosenAudio, strerror(Status));
+			DBG("open %llu audio handle status=%s\n", OldChosenAudio, efiStrError(Status));
         if (!EFI_ERROR(Status)) {
           StartupSoundPlay(SelfRootDir, NULL); //play embedded sound
         }
@@ -1156,7 +1155,7 @@ VOID REFIT_MENU_SCREEN::TextMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
 
         for (i = 0; i < (INTN)InfoLines.size(); i++) {
           gST->ConOut->SetCursorPosition (gST->ConOut, 3, 4 + i);
-          gST->ConOut->OutputString (gST->ConOut, InfoLines[i].data());
+          gST->ConOut->OutputString (gST->ConOut, InfoLines[i].wc_str());
         }
       }
 
@@ -1820,7 +1819,7 @@ VOID REFIT_MENU_SCREEN::GraphicsMenuStyle(IN UINTN Function, IN CONST CHAR16 *Pa
       TitleLen = ResultString.length();
       if ( EntryC->getREFIT_MENU_SWITCH() ) {
         if (EntryC->getREFIT_MENU_SWITCH()->Item->IValue == 3) {
-          OldChosenItem = (OldChosenTheme == 0xFFFF) ? 0: OldChosenTheme + 1;;
+          OldChosenItem = (OldChosenTheme == 0xFFFF) ? 0: OldChosenTheme + 1;
         } else if (EntryC->getREFIT_MENU_SWITCH()->Item->IValue == 90) {
           OldChosenItem = OldChosenConfig;
         } else if (EntryC->getREFIT_MENU_SWITCH()->Item->IValue == 116) {
@@ -2396,7 +2395,7 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
 
               ThemeX.FillRectAreaOfScreen(textPosX, textPosY, EntriesWidth + ThemeX.TileXSpace,
                                    MessageHeight);
-              DrawBCSText(Entries[i].Title.data(), textPosX, textPosY, X_IS_CENTER);
+              DrawBCSText(Entries[i].Title.wc_str(), textPosX, textPosY, X_IS_CENTER);
             }
           }
         } else {
@@ -2430,7 +2429,7 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
 //      DBG("MouseBirth\n");
       Status = MouseBirth();
       if(EFI_ERROR(Status)) {
-        DBG("can't bear mouse at all! Status=%s\n", strerror(Status));
+        DBG("can't bear mouse at all! Status=%s\n", efiStrError(Status));
       }
       break;
 
@@ -2467,7 +2466,7 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
       DrawTextCorner(TEXT_CORNER_REVISION, X_IS_RIGHT);
       Status = MouseBirth();
       if(EFI_ERROR(Status)) {
-        DBG("can't bear mouse at sel! Status=%s\n", strerror(Status));
+        DBG("can't bear mouse at sel! Status=%s\n", efiStrError(Status));
       }
       break;
 
@@ -2487,7 +2486,7 @@ VOID REFIT_MENU_SCREEN::MainMenuStyle(IN UINTN Function, IN CONST CHAR16 *ParamT
       DrawTextCorner(TEXT_CORNER_REVISION, X_IS_RIGHT);
       Status = MouseBirth();
       if(EFI_ERROR(Status)) {
-        DBG("can't bear mouse at timeout! Status=%s\n", strerror(Status));
+        DBG("can't bear mouse at timeout! Status=%s\n", efiStrError(Status));
       }
       break;
 
@@ -2591,7 +2590,7 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
 
     if (MenuExit == MENU_EXIT_DETAILS && MainChosenEntry->SubScreen != NULL) {
       XString8Array TmpArgs;
-      if (AsciiStrLen(gSettings.BootArgs) > 0) {
+      if ( gSettings.BootArgs.length() > 0) {
         TmpArgs = Split<XString8Array>(gSettings.BootArgs, " ");
       }
       SubMenuIndex = -1;
@@ -2653,11 +2652,11 @@ UINTN REFIT_MENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABSTRAC
 
         if (/*MenuExit == MENU_EXIT_ENTER &&*/ TempChosenEntry->getLOADER_ENTRY()) {
           if (TempChosenEntry->getLOADER_ENTRY()->LoadOptions.notEmpty()) {
-            snprintf(gSettings.BootArgs, 255, "%s", TempChosenEntry->getLOADER_ENTRY()->LoadOptions.ConcatAll(" "_XS8).c_str());
+            gSettings.BootArgs = TempChosenEntry->getLOADER_ENTRY()->LoadOptions.ConcatAll(" "_XS8);
           } else {
             ZeroMem(&gSettings.BootArgs, 255);
           }
-          DBG(" boot with args: %s\n", gSettings.BootArgs);
+          DBG(" boot with args: %s\n", gSettings.BootArgs.c_str());
         }
 
         //---- Details submenu (kexts disabling etc)

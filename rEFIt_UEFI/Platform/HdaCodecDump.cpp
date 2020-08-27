@@ -25,6 +25,7 @@
 #include "HdaCodecDump.h"
 #include "StateGenerator.h"
 #include "AmlGenerator.h"
+#include "../Platform/Settings.h"
 
 CONST CHAR8 *gWidgetNames[HDA_WIDGET_TYPE_VENDOR + 1] = {
 	"Audio Output", "Audio Input", "Audio Mixer",
@@ -412,7 +413,7 @@ EFI_STATUS SaveHdaDumpBin()
 		HdaCodec.WidgetCount = AudioFuncGroup->WidgetsCount;
 		
 		// Allocate space for codec data
-		HdaCodecData = (__typeof__(HdaCodecData))BllocateZeroPool(HdaCodecDataSize);
+		HdaCodecData = (__typeof__(HdaCodecData))AllocateZeroPool(HdaCodecDataSize);
 		HdaCodecDataPtr = HdaCodecData;
 	
 		if (!HdaCodecData)

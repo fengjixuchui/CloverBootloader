@@ -1,6 +1,9 @@
-#include "Platform.h"
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "kext_inject.h"
 #include "DataHubCpu.h"
+#include "../Platform/plist/plist.h"
+#include "../Platform/Settings.h"
+#include "../Platform/guid.h"
 
 #ifndef DEBUG_ALL
 #define KEXT_INJECT_DEBUG 1
@@ -81,7 +84,7 @@ EFI_STATUS EFIAPI ThinFatFile(IN OUT UINT8 **binary, IN OUT UINTN *length, IN cp
   return EFI_SUCCESS;
 }
 
-void toLowerStr(CHAR8 *tstr, CHAR8 *str) {
+void toLowerStr(CHAR8 *tstr, IN CONST CHAR8 *str) {
     UINT16 cnt = 0;
     
     for (cnt = 0; *str != '\0' && cnt <= 0xFF; cnt++, str++, tstr++) {
@@ -93,24 +96,24 @@ void toLowerStr(CHAR8 *tstr, CHAR8 *str) {
     *tstr = '\0';
 }
 
-BOOLEAN checkOSBundleRequired(UINT8 loaderType, TagPtr dict)
+BOOLEAN checkOSBundleRequired(UINT8 loaderType, const TagDict* dict)
 {
     BOOLEAN inject = TRUE;
-    TagPtr  osBundleRequired;
-    CHAR8   osbundlerequired[256];
+    const TagStruct*  osBundleRequiredTag;
+    XString8 osbundlerequired;
     
-    osBundleRequired = GetProperty(dict,"OSBundleRequired");
-    if (osBundleRequired)
-        toLowerStr(osbundlerequired, osBundleRequired->string);
-    else
-        osbundlerequired[0] = '\0';
+    osBundleRequiredTag = dict->propertyForKey("OSBundleRequired");
+    if (osBundleRequiredTag) {
+      osbundlerequired = osBundleRequiredTag->getString()->stringValue();
+      osbundlerequired.lowerAscii();
+    }
 
     if (OSTYPE_IS_OSX_RECOVERY(loaderType) ||
         OSTYPE_IS_OSX_INSTALLER(loaderType)) {
-        if (strncmp(osbundlerequired, "root", 4) &&
-            strncmp(osbundlerequired, "local", 5) &&
-            strncmp(osbundlerequired, "console", 7) &&
-            strncmp(osbundlerequired, "network-root", 12)) {
+        if ( osbundlerequired != "root"_XS8  &&
+             osbundlerequired != "local"_XS8  &&
+             osbundlerequired != "console"_XS8  &&
+             osbundlerequired != "network-root"_XS8 ) {
             inject = FALSE;
         }
     }
@@ -133,8 +136,8 @@ EFI_STATUS LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CONST CHAR16 *FileNam
   UINTN       bundlePathBufferLength = 0;
   XStringW    TempName;
   XStringW    Executable;
-  TagPtr      dict = NULL;
-  TagPtr      prop = NULL;
+  TagDict*    dict = NULL;
+  const TagStruct*      prop = NULL;
   BOOLEAN     NoContents = FALSE;
   BOOLEAN     inject = FALSE;
   _BooterKextFileInfo *infoAddr = NULL;
@@ -150,12 +153,12 @@ EFI_STATUS LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CONST CHAR16 *FileNam
     infoDictBufferLength = 0;
     Status = egLoadFile(RootDir, TempName.wc_str(), &infoDictBuffer, &infoDictBufferLength);
     if (EFI_ERROR(Status)) {
-      MsgLog("Failed to load extra kext : %ls status=%s\n", TempName.wc_str(), strerror(Status));
+      MsgLog("Failed to load extra kext : %ls status=%s\n", TempName.wc_str(), efiStrError(Status));
       return EFI_NOT_FOUND;
     }
     NoContents = TRUE;
   }
-  if(ParseXML((CHAR8*)infoDictBuffer,&dict,(UINT32)infoDictBufferLength)!=0) {
+  if( ParseXML((CHAR8*)infoDictBuffer, &dict,infoDictBufferLength)!=0 ) {
     FreePool(infoDictBuffer);
     MsgLog("Failed to load extra kext (failed to parse Info.plist): %ls\n", FileName);
     return EFI_NOT_FOUND;
@@ -167,10 +170,10 @@ EFI_STATUS LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CONST CHAR16 *FileNam
       return EFI_UNSUPPORTED;
   }
     
-  prop = GetProperty(dict,"CFBundleExecutable");
-  if(prop!=0) {
-    Executable.takeValueFrom(prop->string);
-    //   AsciiStrToUnicodeStrS(prop->string, Executable, 256);
+  prop = dict->propertyForKey("CFBundleExecutable");
+  if( prop != NULL && prop->isString() && prop->getString()->stringValue().notEmpty() ) {
+    Executable.takeValueFrom(prop->getString()->stringValue());
+    //   AsciiStrToUnicodeStrS(prop->getString()->stringValue(), Executable, 256);
     if (NoContents) {
       TempName = SWPrintf("%ls\\%ls", FileName, Executable.wc_str());
       //     snwprintf(TempName, 512, "%s\\%s", FileName, Executable);
@@ -193,7 +196,7 @@ EFI_STATUS LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CONST CHAR16 *FileNam
     }
   }
   bundlePathBufferLength = StrLen(FileName) + 1;
-  bundlePathBuffer = (__typeof__(bundlePathBuffer))BllocateZeroPool(bundlePathBufferLength);
+  bundlePathBuffer = (__typeof__(bundlePathBuffer))AllocateZeroPool(bundlePathBufferLength);
   UnicodeStrToAsciiStrS(FileName, bundlePathBuffer, bundlePathBufferLength);
 
   kext->length = (UINT32)(sizeof(_BooterKextFileInfo) + infoDictBufferLength + executableBufferLength + bundlePathBufferLength);
@@ -211,6 +214,7 @@ EFI_STATUS LOADER_ENTRY::LoadKext(IN EFI_FILE *RootDir, IN CONST CHAR16 *FileNam
   FreePool(infoDictBuffer);
   FreePool(executableFatBuffer);
   FreePool(bundlePathBuffer);
+  dict->FreeTag();
 
   return EFI_SUCCESS;
 }
@@ -517,10 +521,10 @@ EFI_STATUS LOADER_ENTRY::LoadKexts()
   // reserve space in the device tree
   if (GetKextCount() > 0) {
     mm_extra_size = GetKextCount() * (sizeof(DeviceTreeNodeProperty) + sizeof(_DeviceTreeBuffer));
-    mm_extra = (__typeof__(mm_extra))BllocateZeroPool(mm_extra_size - sizeof(DeviceTreeNodeProperty));
+    mm_extra = (__typeof__(mm_extra))AllocateZeroPool(mm_extra_size - sizeof(DeviceTreeNodeProperty));
     /*Status =  */LogDataHub(&gEfiMiscSubClassGuid, L"mm_extra", mm_extra, (UINT32)(mm_extra_size - sizeof(DeviceTreeNodeProperty)));
     extra_size = GetKextsSize();
-    extra = (__typeof__(extra))BllocateZeroPool(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE);
+    extra = (__typeof__(extra))AllocateZeroPool(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE);
     /*Status =  */LogDataHub(&gEfiMiscSubClassGuid, L"extra", extra, (UINT32)(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE));
     // MsgLog("count: %d    \n", GetKextCount());
     // MsgLog("mm_extra_size: %d    \n", mm_extra_size);

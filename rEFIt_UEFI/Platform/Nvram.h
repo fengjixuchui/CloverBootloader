@@ -11,6 +11,8 @@
 #define NON_APPLE_SMC_SIGNATURE SIGNATURE_64('S','M','C','H','E','L','P','E')
 
 #include "../cpp_foundation/XString.h"
+#include "../gui/REFIT_MENU_SCREEN.h"
+
 
 extern EFI_GUID                       *gEfiBootDeviceGuid;
 extern EFI_DEVICE_PATH_PROTOCOL       *gEfiBootDeviceData;
@@ -25,11 +27,17 @@ FindStartupDiskVolume (
 
 VOID
 *GetNvramVariable(
-  IN      CONST CHAR16   *VariableName,
-  IN      EFI_GUID *VendorGuid,
-     OUT  UINT32   *Attributes    OPTIONAL,
-     OUT  UINTN    *DataSize      OPTIONAL
-     );
+    IN      CONST CHAR16   *VariableName,
+    IN      EFI_GUID       *VendorGuid,
+    OUT  UINT32            *Attributes    OPTIONAL,
+    OUT  UINTN             *DataSize      OPTIONAL
+  );
+XString8 GetNvramVariableAsXString8(
+    IN      CONST CHAR16   *VariableName,
+    IN      EFI_GUID       *VendorGuid,
+    OUT     UINT32         *Attributes    OPTIONAL,
+    OUT     UINTN          *DataSize      OPTIONAL
+  );
 
 EFI_STATUS
 AddNvramVariable (
@@ -39,6 +47,13 @@ AddNvramVariable (
   IN  UINTN    DataSize,
   IN  VOID     *Data
   );
+EFI_STATUS
+AddNvramXString8 (
+  IN  CONST CHAR16   *VariableName,
+  IN  EFI_GUID *VendorGuid,
+  IN  UINT32   Attributes,
+  const XString8& s
+  );
 
 EFI_STATUS
 SetNvramVariable (
@@ -47,6 +62,13 @@ SetNvramVariable (
   IN  UINT32       Attributes,
   IN  UINTN        DataSize,
   IN  CONST VOID  *Data
+  );
+EFI_STATUS
+SetNvramXString8 (
+    IN  CONST CHAR16     *VariableName,
+    IN  EFI_GUID   *VendorGuid,
+    IN  UINT32      Attributes,
+    const XString8& s
   );
 
 EFI_STATUS

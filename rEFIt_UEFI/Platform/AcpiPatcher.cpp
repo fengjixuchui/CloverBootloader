@@ -796,7 +796,7 @@ VOID MarkTableAsSaved(VOID *TableEntry)
     //DBG(" Allocaing mSavedTables");
     mSavedTablesEntries = SAVED_TABLES_ALLOC_ENTRIES;
     mSavedTablesNum = 0;
-    mSavedTables = (__typeof__(mSavedTables))BllocateZeroPool(sizeof(*mSavedTables) * mSavedTablesEntries);
+    mSavedTables = (__typeof__(mSavedTables))AllocateZeroPool(sizeof(*mSavedTables) * mSavedTablesEntries);
     if (mSavedTables == NULL) {
       return;
     }
@@ -947,7 +947,7 @@ VOID DumpChildSsdt(EFI_ACPI_DESCRIPTION_HEADER *TableEntry, CONST CHAR16 *DirNam
               MarkTableAsSaved((VOID*)adr);
               ChildCount++;
             } else {
-              DBG(" -> %s", strerror(Status));
+              DBG(" -> %s", efiStrError(Status));
             }
           }
           DBG("\n");
@@ -990,7 +990,7 @@ VOID DumpChildSsdt(EFI_ACPI_DESCRIPTION_HEADER *TableEntry, CONST CHAR16 *DirNam
             MarkTableAsSaved((VOID*)adr);
             ChildCount++;
           } else {
-            DBG(" -> %s", strerror(Status));
+            DBG(" -> %s", efiStrError(Status));
           }
         }
         DBG("\n");
@@ -1135,7 +1135,7 @@ EFI_STATUS DumpFadtTables(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *Fadt, CONST
     TableEntry = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)DsdtAdr;
     Status = DumpTable(TableEntry, "DSDT", DirName,  L""_XSW, FileNamePrefix, NULL);
     if (EFI_ERROR(Status)) {
-      DBG(" - %s\n", strerror(Status));
+      DBG(" - %s\n", efiStrError(Status));
       return Status;
     }
     DBG("\n");
@@ -1168,7 +1168,7 @@ EFI_STATUS DumpFadtTables(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *Fadt, CONST
       Status = SaveBufferToDisk(Facs, Facs->Length, DirName, FileName.wc_str());
       MarkTableAsSaved(Facs);
       if (EFI_ERROR(Status)) {
-        DBG(" - %s\n", strerror(Status));
+        DBG(" - %s\n", efiStrError(Status));
         return Status;
       }
     }
@@ -1290,7 +1290,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
     Status = SaveBufferToDisk(RsdPtr, Length, DirName, L"RSDP.aml");
     MarkTableAsSaved(RsdPtr);
     if (EFI_ERROR(Status)) {
-      DBG(" - %s\n", strerror(Status));
+      DBG(" - %s\n", efiStrError(Status));
       return;
     }
   }
@@ -1320,7 +1320,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
     DBG(" ");
     Status = DumpTable((EFI_ACPI_DESCRIPTION_HEADER *)Xsdt, "XSDT", DirName,  L"XSDT.aml"_XSW, FileNamePrefix, NULL);
     if (EFI_ERROR(Status)) {
-      DBG(" - %s", strerror(Status));
+      DBG(" - %s", efiStrError(Status));
       Xsdt = NULL;
     }
     DBG("\n");
@@ -1332,7 +1332,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
     DBG(" ");
     Status = DumpTable((EFI_ACPI_DESCRIPTION_HEADER *)Rsdt, "RSDT", DirName,  L"RSDT.aml"_XSW, FileNamePrefix, NULL);
     if (EFI_ERROR(Status)) {
-      DBG(" - %s", strerror(Status));
+      DBG(" - %s", efiStrError(Status));
       Rsdt = NULL;
     }
     DBG("\n");
@@ -1365,7 +1365,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
         // Fadt - save Dsdt and Facs
         Status = DumpTable(Table, NULL, DirName,  L""_XSW, FileNamePrefix, &SsdtCount);
         if (EFI_ERROR(Status)) {
-          DBG(" - %s\n", strerror(Status));
+          DBG(" - %s\n", efiStrError(Status));
           return;
         }
         DBG("\n");
@@ -1377,7 +1377,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
       } else {
         Status = DumpTable(Table, NULL, DirName,  L""_XSW, FileNamePrefix, &SsdtCount);
         if (EFI_ERROR(Status)) {
-          DBG(" - %s\n", strerror(Status));
+          DBG(" - %s\n", efiStrError(Status));
           return;
         }
         DBG("\n");
@@ -1408,7 +1408,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
         // Fadt - save Dsdt and Facs
         Status = DumpTable(Table, NULL, DirName,  L""_XSW, FileNamePrefix, &SsdtCount);
         if (EFI_ERROR(Status)) {
-          DBG(" - %s\n", strerror(Status));
+          DBG(" - %s\n", efiStrError(Status));
           return;
         }
         DBG("\n");
@@ -1420,7 +1420,7 @@ VOID DumpTables(VOID *RsdPtrVoid, CONST CHAR16 *DirName)
       } else {
         Status = DumpTable(Table, NULL, DirName,  L""_XSW, FileNamePrefix, &SsdtCount);
         if (EFI_ERROR(Status)) {
-          DBG(" - %s\n", strerror(Status));
+          DBG(" - %s\n", efiStrError(Status));
           return;
         }
         DBG("\n");
@@ -1508,7 +1508,7 @@ VOID SaveOemDsdt(BOOLEAN FullPatch)
   XStringW           PathDsdt;
   XStringW           AcpiOemPath     = SWPrintf("%ls\\ACPI\\patched", OEMPath.wc_str());
 
-  PathDsdt.SWPrintf("\\%ls", gSettings.DsdtName);
+  PathDsdt.SWPrintf("\\%ls", gSettings.DsdtName.wc_str());
 
   if (FileExists(SelfRootDir, SWPrintf("%ls%ls", AcpiOemPath.wc_str(), PathDsdt.wc_str()))) {
     DBG("DSDT found in Clover volume OEM folder: %ls%ls\n", AcpiOemPath.wc_str(), PathDsdt.wc_str());
@@ -1564,7 +1564,7 @@ VOID SaveOemDsdt(BOOLEAN FullPatch)
     if (!EFI_ERROR(Status)) {
       MsgLog("DSDT saved to %ls\n", OriginDsdt.wc_str());
     } else {
-      MsgLog("Saving DSDT to %ls failed - %s\n", OriginDsdt.wc_str(), strerror(Status));
+      MsgLog("Saving DSDT to %ls failed - %s\n", OriginDsdt.wc_str(), efiStrError(Status));
     }
     gBS->FreePages(dsdt, Pages);
   }
@@ -1607,7 +1607,7 @@ BOOLEAN LoadPatchedAML(CONST CHAR16* AcpiOemPath, CONST CHAR16* PartName, UINTN 
     }
     FreePool(buffer);
   }
-  DBG("... %s\n", strerror(Status));
+  DBG("... %s\n", efiStrError(Status));
   return !EFI_ERROR(Status);
 }
 
@@ -1713,7 +1713,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const XString8& OSVersion)
 
   DbgHeader("PatchACPI");
 
-  PathDsdt = SWPrintf("\\%ls", gSettings.DsdtName);
+  PathDsdt = SWPrintf("\\%ls", gSettings.DsdtName.wc_str());
   //try to find in SystemTable
   for(Index = 0; Index < gST->NumberOfTableEntries; Index++) {
     if(CompareGuid (&gST->ConfigurationTable[Index].VendorGuid, &gEfiAcpi20TableGuid)) {
@@ -1850,7 +1850,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const XString8& OSVersion)
     DBG("old FADT length=%X\n", oldLength);
     CopyMem(newFadt, FadtPointer, oldLength); //old data
     newFadt->Header.Length = 0xF4;
-    CopyMem(newFadt->Header.OemId, BiosVendor, 6);
+    CopyMem(newFadt->Header.OemId, BiosVendor.c_str(), 6);
     if (newFadt->Header.Revision < EFI_ACPI_4_0_FIXED_ACPI_DESCRIPTION_TABLE_REVISION) {
       newFadt->Header.Revision = EFI_ACPI_4_0_FIXED_ACPI_DESCRIPTION_TABLE_REVISION;
     }
@@ -2059,7 +2059,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const XString8& OSVersion)
       }
     }
     if (EFI_ERROR(Status)) {
-      DBG("...saving DSDT failed with status=%s\n", strerror(Status));
+      DBG("...saving DSDT failed with status=%s\n", efiStrError(Status));
     }
   }
 
@@ -2069,7 +2069,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const XString8& OSVersion)
 
   // XsdtReplaceSizes array is used to keep track of allocations for the merged tables,
   //  as those tables may need to be freed if patched later.
-  XsdtReplaceSizes = (__typeof__(XsdtReplaceSizes))BllocateZeroPool(XsdtTableCount() * sizeof(*XsdtReplaceSizes));
+  XsdtReplaceSizes = (__typeof__(XsdtReplaceSizes))AllocateZeroPool(XsdtTableCount() * sizeof(*XsdtReplaceSizes));
 
   // Load merged ACPI files from ACPI/patched
   LoadAllPatchedAML(AcpiOemPath.wc_str(), AUTOMERGE_PASS1);
@@ -2236,7 +2236,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const XString8& OSVersion)
       Status = InsertTable(Ssdt, Ssdt->Length);
     }
     if(EFI_ERROR(Status)){
-      DBG("GeneratePStates failed: Status=%s\n", strerror(Status));
+      DBG("GeneratePStates failed: Status=%s\n", efiStrError(Status));
     }
   }
 
@@ -2247,7 +2247,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const XString8& OSVersion)
       Status = InsertTable(Ssdt, Ssdt->Length);
     }
     if(EFI_ERROR(Status)){
-      DBG("GenerateCStates failed Status=%s\n", strerror(Status));
+      DBG("GenerateCStates failed Status=%s\n", efiStrError(Status));
     }
   }
 
@@ -2307,11 +2307,11 @@ EFI_STATUS LoadAndInjectDSDT(CONST CHAR16 *PathPatched,
   EFI_PHYSICAL_ADDRESS  Dsdt;
 
   // load if exists
-  Status = LoadAcpiTable(PathPatched, gSettings.DsdtName, &Buffer, &BufferLen);
+  Status = LoadAcpiTable(PathPatched, gSettings.DsdtName.wc_str(), &Buffer, &BufferLen);
 
   if (!EFI_ERROR(Status)) {
     // loaded - allocate EfiACPIReclaim
-    DBG("Loaded DSDT at %ls\\%ls\n", PathPatched, gSettings.DsdtName);
+    DBG("Loaded DSDT at %ls\\%ls\n", PathPatched, gSettings.DsdtName.wc_str());
     Dsdt = EFI_SYSTEM_TABLE_MAX_ADDRESS; //0xFE000000;
     Status = gBS->AllocatePages (
                                  AllocateMaxAddress,
@@ -2386,7 +2386,7 @@ EFI_STATUS LoadAndInjectAcpiTable(CONST CHAR16 *PathPatched,
         }
       }
     } else {
-      DBG("Insert return status %s\n", strerror(Status));
+      DBG("Insert return status %s\n", efiStrError(Status));
     }
 
     FreePool(Buffer);

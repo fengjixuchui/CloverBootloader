@@ -103,9 +103,17 @@ size_t utf8_size_of_utf32_string_len(const char32_t* s, size_t len);
 size_t utf32_size_of_utf8_string(const char* s);
 size_t utf32_size_of_utf8_string_len(const char* s, size_t len);
 
+/*
+ * Convert s to dst. Do not add null terminator.
+ * Return the number of utf32 char written
+ */
 size_t utf32_stringnn_from_utf8_string(char32_t* dst, size_t dst_max_size, const char* s);
 size_t utf32_string_from_utf8_string(char32_t* dst, size_t dst_max_size, const char* s);
 size_t utf32_string_from_utf8_string_len(char32_t* dst, size_t dst_max_size, const char* s, size_t len);
+/*
+* Convert s to dst. Do not add null terminator.
+* Return the number of utf8 char written
+*/
 size_t utf8_stringnn_from_utf32_string(char* dst, size_t dst_max_size, const char32_t *s);
 size_t utf8_string_from_utf32_string(char* dst, size_t dst_max_size, const char32_t *s);
 size_t utf8_string_from_utf32_string_len(char* dst, size_t dst_max_size, const char32_t *s, size_t len);
@@ -243,6 +251,11 @@ size_t length_of_wchar_string(const wchar_t* s);
 
 
 #ifdef __cplusplus
+
+inline char*     get_char32_from_string(char* s,     char32_t* char32) { return (char*)get_char32_from_utf8_string(s, char32); }
+inline char16_t* get_char32_from_string(char16_t* s, char32_t* char32) { return (char16_t*)get_char32_from_utf16_string(s, char32); }
+inline char32_t* get_char32_from_string(char32_t* s, char32_t* char32) { *char32 = *s; if ( !*s ) return s; return s+1; }
+inline wchar_t*  get_char32_from_string(wchar_t* s,  char32_t* char32) { return (wchar_t*)get_char32_from_string((wchar_cast*)s, char32); }
 
 inline const char* get_char32_from_string(const char* s, char32_t* char32) { return get_char32_from_utf8_string(s, char32); }
 inline const char16_t* get_char32_from_string(const char16_t* s, char32_t* char32) { return get_char32_from_utf16_string(s, char32); }
