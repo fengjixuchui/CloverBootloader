@@ -95,16 +95,13 @@ UINT8                           *gLanMmio[4];     // their MMIO regions
 UINT8                           gLanMac[4][6];    // their MAC addresses
 UINTN                           nLanPaths;        // number of LAN pathes
 
-UINTN                           ThemesNum                   = 0;
-CONST CHAR16                          *ThemesList[100]; //no more then 100 themes?
+XStringWArray                   ThemeNameArray;
 UINTN                           ConfigsNum;
 CHAR16                          *ConfigsList[20];
 UINTN                           DsdtsNum = 0;
 CHAR16                          *DsdtsList[20];
-UINTN                           AudioNum;
-HDA_OUTPUTS                     AudioList[20];
-UINTN                           RtVariablesNum;
-RT_VARIABLES                    *RtVariables;
+XObjArray<HDA_OUTPUTS>          AudioList;
+XObjArray<RT_VARIABLES>         BlockRtVariableArray;
 
 // firmware
 BOOLEAN                         gFirmwareClover             = FALSE;
@@ -928,8 +925,8 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
     p = GetDataSetting (DictPointer, "ATIConnectorsPatch", &i);
     Patches->KPATIConnectorsPatch.stealValueFrom(p, i);
 
-    if (Patches->KPATIConnectorsData == NULL
-        || Patches->KPATIConnectorsPatch == NULL
+    if (Patches->KPATIConnectorsData.isEmpty()
+        || Patches->KPATIConnectorsPatch.isEmpty()
         || Patches->KPATIConnectorsData.size() == 0
         || Patches->KPATIConnectorsData.size() != i) {
       // invalid params - no patching
@@ -2418,9 +2415,9 @@ GetEarlyUserSettings (
         GlobalConfig.Theme.takeValueFrom(Prop->getString()->stringValue());
         DBG("Default theme: %ls\n", GlobalConfig.Theme.wc_str());
         OldChosenTheme = 0xFFFF; //default for embedded
-        for (UINTN i = 0; i < ThemesNum; i++) {
+        for (UINTN i = 0; i < ThemeNameArray.size(); i++) {
           //now comparison is case sensitive
-          if (StriCmp(GlobalConfig.Theme.wc_str(), ThemesList[i]) == 0) {
+          if ( GlobalConfig.Theme.equalIC(ThemeNameArray[i]) ) {
             OldChosenTheme = i;
             break;
           }
@@ -2591,15 +2588,12 @@ GetEarlyUserSettings (
           if (IsPropertyNotNullAndFalse(prop2)) {
             gSettings.DisableEntryScan = TRUE;
           }
-
           prop2 = Prop->getDict()->propertyForKey("Tool");
           if (IsPropertyNotNullAndFalse(prop2)) {
             gSettings.DisableToolScan = TRUE;
           }
-
           prop2 = Prop->getDict()->propertyForKey("Linux");
           gSettings.LinuxScan = !IsPropertyNotNullAndFalse(prop2);
-
           prop2 = Prop->getDict()->propertyForKey("Legacy");
           if (prop2 != NULL) {
             if (prop2->isFalse()) {
@@ -2609,10 +2603,9 @@ GetEarlyUserSettings (
                 GlobalConfig.NoLegacy = TRUE;
               } else if ((prop2->getString()->stringValue()[0] == 'F') || (prop2->getString()->stringValue()[0] == 'f')) {
                 GlobalConfig.LegacyFirst = TRUE;
-              }
+               }
             }
           }
-
           prop2 = Prop->getDict()->propertyForKey("Kernel");
           if (prop2 != NULL) {
             if (prop2->isFalse()) {
@@ -2639,11 +2632,10 @@ GetEarlyUserSettings (
       const TagDict* CustomDict2 = GUIDict->dictPropertyForKey("Custom");
       if (CustomDict2 != NULL) {
         const TagArray* arrayProp = CustomDict2->arrayPropertyForKey("Entries"); // Entries is an array of dict
-        if (Prop != NULL) {
-          INTN   i;
+        if (arrayProp != NULL) {
           INTN   Count = arrayProp->arrayContent().size();
           if (Count > 0) {
-            for (i = 0; i < Count; i++) {
+            for (INTN i = 0; i < Count; i++) {
               const TagDict* Dict3 = arrayProp->dictElementAt(i, "Custom/Entries"_XS8);
               // Allocate an entry
               CUSTOM_LOADER_ENTRY* Entry = new CUSTOM_LOADER_ENTRY;
@@ -2654,7 +2646,6 @@ GetEarlyUserSettings (
             }
           }
         }
-
         const TagArray* LegacyArray = CustomDict2->arrayPropertyForKey("Legacy"); // is an array of dict
         if (LegacyArray != NULL) {
           CUSTOM_LEGACY_ENTRY *Entry;
@@ -2674,7 +2665,6 @@ GetEarlyUserSettings (
             }
           }
         }
-
         const TagArray* ToolArray = CustomDict2->arrayPropertyForKey("Tool"); // is an array of dict
         if (ToolArray != NULL) {
           CUSTOM_TOOL_ENTRY *Entry;
@@ -2700,7 +2690,6 @@ GetEarlyUserSettings (
         }
       }
     }
-
     const TagDict* GraphicsDict = CfgDict->dictPropertyForKey("Graphics");
     if (GraphicsDict != NULL) {
 
@@ -2718,7 +2707,6 @@ GetEarlyUserSettings (
           UINTN             FindSize    = 0;
           UINTN             ReplaceSize = 0;
           BOOLEAN           Valid;
-
           // alloc space for up to 16 entries
           gSettings.PatchVBiosBytes = (__typeof__(gSettings.PatchVBiosBytes))AllocateZeroPool(Count * sizeof(VBIOS_PATCH_BYTES));
 
@@ -2945,7 +2933,7 @@ GetListOfConfigs ()
 }
 
 VOID
-GetListOfDsdts ()
+GetListOfDsdts()
 {
   REFIT_DIR_ITER    DirIter;
   EFI_FILE_INFO     *DirEntry;
@@ -2986,14 +2974,14 @@ GetListOfDsdts ()
 
 
 VOID
-GetListOfACPI ()
+GetListOfACPI()
 {
   REFIT_DIR_ITER    DirIter;
-  EFI_FILE_INFO     *DirEntry;
+  EFI_FILE_INFO     *DirEntry = NULL;
   ACPI_PATCHED_AML  *ACPIPatchedAMLTmp;
   INTN               Count = gSettings.DisabledAMLCount;
   XStringW           AcpiPath = SWPrintf("%ls\\ACPI\\patched", OEMPath.wc_str());
-
+//  DBG("Get list of ACPI at path %ls\n", AcpiPath.wc_str());
   while (ACPIPatchedAML != NULL) {
     if (ACPIPatchedAML->FileName) {
       FreePool(ACPIPatchedAML->FileName);
@@ -3003,18 +2991,19 @@ GetListOfACPI ()
     FreePool(ACPIPatchedAMLTmp);
   }
   ACPIPatchedAML = NULL;
-
+//  DBG("free acpi list done\n");
   DirIterOpen(SelfRootDir, AcpiPath.wc_str(), &DirIter);
 
   while (DirIterNext(&DirIter, 2, L"*.aml", &DirEntry)) {
     CHAR16  FullName[256];
+//    DBG("next entry is %ls\n", DirEntry->FileName);
     if (DirEntry->FileName[0] == L'.') {
       continue;
     }
     if (StriStr(DirEntry->FileName, L"DSDT")) {
       continue;
     }
-
+//    DBG("Found name %ls\n", DirEntry->FileName);
     snwprintf(FullName, 512, "%ls\\%ls", AcpiPath.wc_str(), DirEntry->FileName);
     if (FileExists(SelfRootDir, FullName)) {
       BOOLEAN ACPIDisabled = FALSE;
@@ -3047,16 +3036,16 @@ XStringW GetBundleVersion(const XStringW& FullName)
   TagDict*      InfoPlistDict = NULL;
   const TagStruct*      Prop = NULL;
   UINTN           Size;
-
   InfoPlistPath = SWPrintf("%ls\\%ls", FullName.wc_str(), L"Contents\\Info.plist");
   Status = egLoadFile(SelfRootDir, InfoPlistPath.wc_str(), (UINT8**)&InfoPlistPtr, &Size);
   if (EFI_ERROR(Status)) {
-//    InfoPlistPath = SWPrintf("%ls", FullName, L"Info.plist"); // Jief : there was this line. Seems that L"Info.plist" parameter was not used
+    InfoPlistPath = SWPrintf("%ls\\%ls", FullName.wc_str(), L"Info.plist");
     Status = egLoadFile(SelfRootDir, FullName.wc_str(), (UINT8**)&InfoPlistPtr, &Size);
   }
   if(!EFI_ERROR(Status)) {
+    DBG("file %ls\n", InfoPlistPath.wc_str());
     Status = ParseXML(InfoPlistPtr, &InfoPlistDict, Size);
-    if(!EFI_ERROR(Status)) {
+    if(!EFI_ERROR(Status) && (InfoPlistDict != nullptr)) {
       Prop = InfoPlistDict->propertyForKey("CFBundleVersion");
       if (Prop != NULL && Prop->isString() && Prop->getString()->stringValue().notEmpty()) {
         CFBundleVersion = SWPrintf("%s", Prop->getString()->stringValue().c_str());
@@ -3087,7 +3076,6 @@ VOID GetListOfInjectKext(CHAR16 *KextDirNameUnderOEMPath)
   if (StrCmp(KextDirNameUnderOEMPath, L"Off") == 0) {
     Blocked = TRUE;
   }
-
   DirIterOpen(SelfRootDir, FullPath.wc_str(), &DirIter);
   while (DirIterNext(&DirIter, 1, L"*.kext", &DirEntry)) {
     if (DirEntry->FileName[0] == L'.' || StrStr(DirEntry->FileName, L".kext") == NULL) {
@@ -3098,11 +3086,11 @@ VOID GetListOfInjectKext(CHAR16 *KextDirNameUnderOEMPath)
      <string>8.8.8</string>
      */
     FullName = SWPrintf("%ls\\%ls", FullPath.wc_str(), DirEntry->FileName);
-
     mKext = new SIDELOAD_KEXT;
     mKext->FileName = SWPrintf("%ls", DirEntry->FileName);
     mKext->MenuItem.BValue = Blocked;
     mKext->KextDirNameUnderOEMPath = SWPrintf("%ls", KextDirNameUnderOEMPath);
+
     mKext->Next = InjectKextList;
     mKext->Version = GetBundleVersion(FullName);
     InjectKextList = mKext;
@@ -3144,7 +3132,6 @@ VOID InitKextList()
   KextsPath = SWPrintf("%ls\\kexts", OEMPath.wc_str());
 
   // Iterate over kexts directory
-
   DirIterOpen(SelfRootDir, KextsPath.wc_str(), &KextsIter);
   while (DirIterNext(&KextsIter, 1, L"*", &FolderEntry)) {
     if (FolderEntry->FileName[0] == L'.') {
@@ -3171,7 +3158,7 @@ GetListOfThemes ()
 
   DbgHeader("GetListOfThemes");
 
-  ThemesNum = 0;
+  ThemeNameArray.setEmpty();
   DirIterOpen(SelfRootDir, L"\\EFI\\CLOVER\\themes", &DirIter);
   while (DirIterNext(&DirIter, 1, L"*", &DirEntry)) {
     if (DirEntry->FileName[0] == '.') {
@@ -3179,7 +3166,7 @@ GetListOfThemes ()
       continue;
     }
     //DBG("Found theme directory: %ls", DirEntry->FileName);
-	  DBG("- [%02llu]: %ls", ThemesNum, DirEntry->FileName);
+	  DBG("- [%02zuu]: %ls", ThemeNameArray.size(), DirEntry->FileName);
     ThemeTestPath = SWPrintf("EFI\\CLOVER\\themes\\%ls", DirEntry->FileName);
     Status = SelfRootDir->Open(SelfRootDir, &ThemeTestDir, ThemeTestPath.wc_str(), EFI_FILE_MODE_READ, 0);
     if (!EFI_ERROR(Status)) {
@@ -3197,7 +3184,7 @@ GetListOfThemes ()
             (StriCmp(DirEntry->FileName, L"random") == 0)) {
           ThemePtr = NULL;
         } else {
-          ThemesList[ThemesNum++] = (CHAR16*)AllocateCopyPool(StrSize(DirEntry->FileName), DirEntry->FileName);
+          ThemeNameArray.Add(DirEntry->FileName);
         }
       }
     }
@@ -3700,12 +3687,12 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
    */
   ThemeX.FontImage.setEmpty();
 
-  Rnd = (ThemesNum != 0) ? Now.Second % ThemesNum : 0;
+  Rnd = (ThemeNameArray.size() != 0) ? Now.Second % ThemeNameArray.size() : 0;
 
   //  DBG("...done\n");
   ThemeX.GetThemeTagSettings(NULL);
 
-  if (ThemesNum > 0  &&
+  if (ThemeNameArray.size() > 0  &&
       (GlobalConfig.Theme.isEmpty() || StriCmp(GlobalConfig.Theme.wc_str(), L"embedded") != 0)) {
     // Try special theme first
       XStringW TestTheme;
@@ -3737,7 +3724,7 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
           goto finish;
         }
         if (AsciiStrCmp(ChosenTheme, "random") == 0) {
-          ThemeDict = ThemeX.LoadTheme(XStringW(ThemesList[Rnd]));
+          ThemeDict = ThemeX.LoadTheme(XStringW(ThemeNameArray[Rnd]));
           goto finish;
         }
 
@@ -3764,11 +3751,11 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
     // Try to get theme from settings
     if (ThemeDict == NULL) {
       if (GlobalConfig.Theme.isEmpty()) {
-        DBG("no default theme, get random theme %ls\n", ThemesList[Rnd]);
-        ThemeDict = ThemeX.LoadTheme(XStringW(ThemesList[Rnd]));
+        DBG("no default theme, get random theme %ls\n", ThemeNameArray[Rnd].wc_str());
+        ThemeDict = ThemeX.LoadTheme(XStringW(ThemeNameArray[Rnd]));
       } else {
         if (StriCmp(GlobalConfig.Theme.wc_str(), L"random") == 0) {
-          ThemeDict = ThemeX.LoadTheme(XStringW(ThemesList[Rnd]));
+          ThemeDict = ThemeX.LoadTheme(XStringW(ThemeNameArray[Rnd]));
         } else {
           ThemeDict = ThemeX.LoadTheme(GlobalConfig.Theme);
           if (ThemeDict == NULL) {
@@ -3830,8 +3817,8 @@ finish:
     }
 
   }
-  for (i = 0; i < ThemesNum; i++) {
-    if ( ThemeX.Theme.equalIC(ThemesList[i]) ) {
+  for (i = 0; i < ThemeNameArray.size(); i++) {
+    if ( ThemeX.Theme.equalIC(ThemeNameArray[i]) ) {
       OldChosenTheme = i;
       break;
     }
@@ -4449,17 +4436,20 @@ static void getACPISettings(const TagDict *CfgDict)
         INTN   i;
         INTN Count = PatchesArray->arrayContent().size();
         if (Count > 0) {
-          gSettings.PatchDsdtNum      = (UINT32)Count;
-          gSettings.PatchDsdtFind = (__typeof__(gSettings.PatchDsdtFind))AllocateZeroPool(Count * sizeof(UINT8*));
-          gSettings.PatchDsdtReplace = (__typeof__(gSettings.PatchDsdtReplace))AllocateZeroPool(Count * sizeof(UINT8*));
-          gSettings.PatchDsdtTgt = (__typeof__(gSettings.PatchDsdtTgt))AllocateZeroPool(Count * sizeof(UINT8*));
-          gSettings.LenToFind = (__typeof__(gSettings.LenToFind))AllocateZeroPool(Count * sizeof(UINT32));
-          gSettings.LenToReplace = (__typeof__(gSettings.LenToReplace))AllocateZeroPool(Count * sizeof(UINT32));
-          gSettings.PatchDsdtLabel = (__typeof__(gSettings.PatchDsdtLabel))AllocateZeroPool(Count * sizeof(UINT8*));
-          gSettings.PatchDsdtMenuItem = new INPUT_ITEM[Count];
+//          gSettings.DSDTPatchArray.size()      = (UINT32)Count;
+//          gSettings.PatchDsdtFind = (__typeof__(gSettings.PatchDsdtFind))AllocateZeroPool(Count * sizeof(UINT8*));
+//          gSettings.PatchDsdtReplace = (__typeof__(gSettings.PatchDsdtReplace))AllocateZeroPool(Count * sizeof(UINT8*));
+//          gSettings.PatchDsdtTgt = (__typeof__(gSettings.PatchDsdtTgt))AllocateZeroPool(Count * sizeof(UINT8*));
+//          gSettings.LenToFind = (__typeof__(gSettings.LenToFind))AllocateZeroPool(Count * sizeof(UINT32));
+//          gSettings.LenToReplace = (__typeof__(gSettings.LenToReplace))AllocateZeroPool(Count * sizeof(UINT32));
+//          gSettings.PatchDsdtLabel = (__typeof__(gSettings.PatchDsdtLabel))AllocateZeroPool(Count * sizeof(UINT8*));
+//          gSettings.PatchDsdtMenuItem = new INPUT_ITEM[Count];
           DBG("PatchesDSDT: %lld requested\n", Count);
-          
-          for (i = 0; i < Count; i++) {
+          gSettings.DSDTPatchArray.setEmpty();
+          for (i = 0; i < Count; i++)
+          {
+            DSDT_Patch* dsdtPatchPtr = new DSDT_Patch();
+            DSDT_Patch& dsdtPatch = *dsdtPatchPtr;
             UINTN Size = 0;
             const TagDict* Prop2 = PatchesArray->dictElementAt(i,"DSDT/Patches"_XS8);
             DBG(" - [%02lld]:", i);
@@ -4471,25 +4461,26 @@ static void getACPISettings(const TagDict *CfgDict)
             } else {
               DSDTPatchesLabel = " (NoLabel)"_XS8;
             }
-            gSettings.PatchDsdtLabel[i] = (__typeof_am__(gSettings.PatchDsdtLabel[i]))AllocateZeroPool(256);
-            snprintf(gSettings.PatchDsdtLabel[i], 255, "%s", DSDTPatchesLabel.c_str());
-            DBG(" (%s)", gSettings.PatchDsdtLabel[i]);
+            dsdtPatch.PatchDsdtLabel = DSDTPatchesLabel;
+            DBG(" (%s)", dsdtPatch.PatchDsdtLabel.c_str());
             
             Prop3 = Prop2->propertyForKey("Disabled");
-            gSettings.PatchDsdtMenuItem[i].BValue = !IsPropertyNotNullAndTrue(Prop3);
+            dsdtPatch.PatchDsdtMenuItem.BValue = !IsPropertyNotNullAndTrue(Prop3);
             
             //DBG(" DSDT bin patch #%d ", i);
-            gSettings.PatchDsdtFind[i]    = GetDataSetting (Prop2, "Find",     &Size);
-            DBG(" lenToFind: %llu", Size);
-            gSettings.LenToFind[i]        = (UINT32)Size;
-            gSettings.PatchDsdtReplace[i] = GetDataSetting (Prop2, "Replace",  &Size);
-            DBG(", lenToReplace: %llu", Size);
-            gSettings.LenToReplace[i]     = (UINT32)Size;
-            gSettings.PatchDsdtTgt[i]     = (CHAR8*)GetDataSetting (Prop2, "TgtBridge", &Size);
-            DBG(", Target Bridge: %s\n", gSettings.PatchDsdtTgt[i]);
-            if (!gSettings.PatchDsdtMenuItem[i].BValue) {
+            UINT8* data = GetDataSetting (Prop2, "Find", &Size);
+            dsdtPatch.PatchDsdtFind.stealValueFrom(data, Size);
+            DBG(" lenToFind: %zu", dsdtPatch.PatchDsdtFind.size());
+            data = GetDataSetting (Prop2, "Replace",  &Size);
+            dsdtPatch.PatchDsdtReplace.stealValueFrom(data, Size);
+            DBG(", lenToReplace: %zu", dsdtPatch.PatchDsdtReplace.size());
+            data = GetDataSetting (Prop2, "TgtBridge", &Size);
+            dsdtPatch.PatchDsdtTgt.stealValueFrom((char*)data);
+            DBG(", Target Bridge: %s\n", dsdtPatch.PatchDsdtTgt.c_str());
+            if (!dsdtPatch.PatchDsdtMenuItem.BValue) {
               DBG("  patch disabled at config\n");
             }
+            gSettings.DSDTPatchArray.AddReference(dsdtPatchPtr, true);
           }
         } //if count > 0
       } //if prop PatchesDSDT
@@ -5243,11 +5234,11 @@ GetUserSettings(const TagDict* CfgDict)
       }
       //can use AddProperties with ArbProperties
       const TagArray* AddPropertiesArray = DevicesDict->arrayPropertyForKey("AddProperties"); // array of dict
-      if (Prop != NULL) {
+      if (AddPropertiesArray != NULL) {
         INTN i;
         INTN Count = AddPropertiesArray->arrayContent().size();
         INTN Index = 0;  //begin from 0 if second enter
-
+//count = 0x1F1E1D1C1B1A1918
         if (Count > 0) {
 			DBG("Add %lld properties:\n", Count);
           gSettings.AddProperties = new DEV_PROPERTY[Count];
@@ -5814,8 +5805,9 @@ GetUserSettings(const TagDict* CfgDict)
       if (BlockArray != NULL) {
         INTN   i;
         INTN Count = BlockArray->arrayContent().size();
-        RtVariablesNum = 0;
-        RtVariables = (__typeof__(RtVariables))AllocateZeroPool(Count * sizeof(RT_VARIABLES));
+        BlockRtVariableArray.setEmpty();
+        RT_VARIABLES* RtVariablePtr = new RT_VARIABLES();
+        RT_VARIABLES& RtVariable = *RtVariablePtr;
         for (i = 0; i < Count; i++) {
           CfgDict = BlockArray->dictElementAt(i, "Block"_XS8);
           const TagStruct* Prop2 = CfgDict->propertyForKey("Comment");
@@ -5839,7 +5831,7 @@ GetUserSettings(const TagDict* CfgDict)
             }else{
               if( Prop2->getString()->stringValue().notEmpty() ) {
                 if (IsValidGuidAsciiString(Prop2->getString()->stringValue())) {
-                  StrToGuidLE(Prop2->getString()->stringValue(), &RtVariables[RtVariablesNum].VarGuid);
+                  StrToGuidLE(Prop2->getString()->stringValue(), &RtVariable.VarGuid);
                 }else{
                  DBG("Error: invalid GUID for RT var '%s' - should be in the format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX\n", Prop->getString()->stringValue().c_str());
                 }
@@ -5848,17 +5840,17 @@ GetUserSettings(const TagDict* CfgDict)
           }
 
           Prop2 = CfgDict->propertyForKey("Name");
-          RtVariables[RtVariablesNum].Name = NULL;
+          RtVariable.Name.setEmpty();
           if ( Prop2 != NULL ) {
             if ( !Prop2->isString() ) {
               MsgLog("ATTENTION : property not string in Block/Name\n");
             }else{
               if( Prop2->getString()->stringValue().notEmpty() ) {
-                snwprintf(RtVariables[RtVariablesNum].Name, 64, "%s", Prop2->getString()->stringValue().c_str());
+                RtVariable.Name = Prop2->getString()->stringValue();
               }
             }
           }
-          RtVariablesNum++;
+          BlockRtVariableArray.AddReference(RtVariablePtr, true);
         }
       }
     }
@@ -6544,7 +6536,7 @@ GetDevices ()
 
   NGFX = 0;
   NHDA = 0;
-  AudioNum = 0;
+  AudioList.setEmpty();
   //Arpt.Valid = FALSE; //global variables initialized by 0 - c-language
   XStringW GopDevicePathStr;
   XStringW DevicePathStr;
@@ -8397,11 +8389,12 @@ checkOffset(Rtc8Allowed);
   xb.cat(DisableFunctions);
 
   //Patch DSDT arbitrary
-  xb.cat(PatchDsdtNum);
-  xb.cat(PatchDsdtFind);
-  xb.cat(LenToFind);
-  xb.cat(PatchDsdtReplace);
-  xb.cat(LenToReplace);
+  xb.cat((UINT32)DSDTPatchArray.size()); // PatchDsdtNum
+  xb.cat(uintptr_t(0)); // PatchDsdtFind
+  xb.cat(uintptr_t(0)); // LenToFind
+  xb.cat(uintptr_t(0)); // PatchDsdtReplace
+  xb.cat(uintptr_t(0)); // LenToReplace
+checkOffset(DebugDSDT);
   xb.cat(DebugDSDT);
   xb.cat(SlpWak);
   xb.cat(UseIntelHDMI);
@@ -8441,9 +8434,9 @@ checkOffset(CustomEntries);
   xb.cat(DisabledAMLCount);
   xb.ncat(&pad36, sizeof(pad36));
   xb.cat(DisabledAML);
-  xb.cat(PatchDsdtLabel);
-  xb.cat(PatchDsdtTgt);
-  xb.cat(PatchDsdtMenuItem);
+  xb.cat(uintptr_t(0)); // PatchDsdtLabel
+  xb.cat(uintptr_t(0)); // PatchDsdtTgt
+  xb.cat(uintptr_t(0)); // PatchDsdtMenuItem
 
   //other
   xb.cat(IntelMaxValue);

@@ -501,7 +501,7 @@ VOID ApplyInputs(VOID)
     if (OldChosenTheme == 0xFFFF) {
       GlobalConfig.Theme = L"embedded"_XSW;
     } else {
-      GlobalConfig.Theme.takeValueFrom(ThemesList[OldChosenTheme]);
+      GlobalConfig.Theme.takeValueFrom(ThemeNameArray[OldChosenTheme]);
     }
 
     //will change theme after ESC
@@ -1029,8 +1029,8 @@ VOID ApplyInputs(VOID)
   i++; //119
   if (InputItems[i].Valid) {
     EFI_DEVICE_PATH_PROTOCOL*  DevicePath = NULL;
-    UINT8 TmpIndex;
-    if (OldChosenAudio > AudioNum) {
+    int TmpIndex;
+    if (OldChosenAudio >= AudioList.size()) {
 //      DBG("crasy OldChosenAudio = %lld\n", OldChosenAudio);
       OldChosenAudio = 0;
     }
@@ -2142,18 +2142,17 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDSDTPatches()
   REFIT_MENU_SCREEN    *SubScreen;
   REFIT_INPUT_DIALOG   *InputBootArgs;
 
-  INTN             PatchDsdtNum = gSettings.PatchDsdtNum;
-  INPUT_ITEM   *DSDTPatchesMenu = gSettings.PatchDsdtMenuItem;
-  INTN                 Index;
+  size_t        PatchDsdtNum = gSettings.DSDTPatchArray.size();
+//  INPUT_ITEM*   DSDTPatchesMenu = gSettings.PatchDsdtMenuItem;
 
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_DSDT_PATCHES, "Custom DSDT patches->"_XS8);
 
-  for (Index = 0; Index < PatchDsdtNum; Index++) {
+  for (size_t Index = 0; Index < PatchDsdtNum; Index++) {
     InputBootArgs = new REFIT_INPUT_DIALOG;
-    InputBootArgs->Title.SWPrintf("%90s", gSettings.PatchDsdtLabel[Index]);
+    InputBootArgs->Title.SWPrintf("%90s", gSettings.DSDTPatchArray[Index].PatchDsdtLabel.c_str());
 //    InputBootArgs->Tag = TAG_INPUT;
     InputBootArgs->Row = 0xFFFF; //cursor
-    InputBootArgs->Item = &DSDTPatchesMenu[Index];
+    InputBootArgs->Item = &gSettings.DSDTPatchArray[Index].PatchDsdtMenuItem;
     InputBootArgs->AtClick = ActionEnter;
     InputBootArgs->AtRightClick = ActionDetails;
     SubScreen->AddMenuEntry(InputBootArgs, true);
@@ -2227,9 +2226,9 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuAudioPort()
   SubScreen->AddMenuInfoLine_f("Select an audio output, press F7 to test");
   SubScreen->AddMenuItemInput(120, "Volume:", TRUE);
 
-  for (i = 0; i < AudioNum; i++) {
+  for (i = 0; i < AudioList.size(); i++) {
     InputBootArgs = new REFIT_MENU_SWITCH;
-    InputBootArgs->Title.SWPrintf("%ls_%s", AudioList[i].Name, AudioOutputNames[AudioList[i].Device]);
+    InputBootArgs->Title.SWPrintf("%ls_%s", AudioList[i].Name.wc_str(), AudioOutputNames[AudioList[i].Device]);
 //    InputBootArgs->Tag = TAG_SWITCH_OLD;
     InputBootArgs->Row = i;
     InputBootArgs->Item = &InputItems[119];
@@ -2357,9 +2356,9 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuThemes()
   //add embedded
   SubScreen->AddMenuItemSwitch(3,  "embedded", FALSE);
 
-  for (i = 0; i < ThemesNum; i++) {
+  for (i = 0; i < ThemeNameArray.size(); i++) {
     InputBootArgs = new REFIT_MENU_SWITCH;
-    InputBootArgs->Title.takeValueFrom(ThemesList[i]);
+    InputBootArgs->Title.takeValueFrom(ThemeNameArray[i]);
 //    InputBootArgs->Tag = TAG_SWITCH_OLD;
     InputBootArgs->Row = i + 1;
     InputBootArgs->Item = &InputItems[3];

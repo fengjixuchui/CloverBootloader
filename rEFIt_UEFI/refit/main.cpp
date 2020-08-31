@@ -125,14 +125,10 @@ extern VOID HelpRefit(VOID);
 extern VOID AboutRefit(VOID);
 //extern BOOLEAN BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize, LOADER_ENTRY *Entry);
 
-extern UINTN                ThemesNum;
-extern CONST CHAR16               *ThemesList[];
 extern UINTN                 ConfigsNum;
 extern CHAR16                *ConfigsList[];
 extern UINTN                 DsdtsNum;
 extern CHAR16                *DsdtsList[];
-extern UINTN                 AudioNum;
-extern HDA_OUTPUTS           AudioList[20];
 extern EFI_AUDIO_IO_PROTOCOL *AudioIo;
 
 extern EFI_DXE_SERVICES  *gDS;
@@ -614,12 +610,6 @@ VOID LOADER_ENTRY::StartLoader()
   }
   
   //Free memory
-  for (i = 0; i < ThemesNum; i++) {
-    if (ThemesList[i]) {
-      FreePool(ThemesList[i]);
-      ThemesList[i] = NULL;
-    }
-  }
   for (i = 0; i < ConfigsNum; i++) {
     if (ConfigsList[i]) {
       FreePool(ConfigsList[i]);
@@ -1846,6 +1836,10 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
 #endif
   }
   construct_globals_objects(gImageHandle); // do this after SelfLoadedImage is initialized
+#ifdef JIEF_DEBUG
+//  all_tests();
+//  PauseForKey(L"press\n");
+#endif
 
   gRT->GetTime(&Now, NULL);
 
@@ -1877,10 +1871,6 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
   if (EFI_ERROR(Status))
     return Status;
 
-#ifdef JIEF_DEBUG
-  all_tests();
-//  PauseForKey(L"press\n");
-#endif
 
   //dumping SETTING structure
   // if you change something in Platform.h, please uncomment and test that all offsets
@@ -2268,7 +2258,6 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
       GetListOfACPI(); //ssdt and other tables
     }
     gBootChanged = FALSE;
-
     MainMenu.Entries.setEmpty();
     OptionMenu.Entries.setEmpty();
     InitKextList();
@@ -2283,10 +2272,10 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     
     // log Audio devices in boot-log. This is for clients like Clover.app
     GetOutputs();
-    for (i = 0; i < AudioNum; i++) {
-      if (AudioList[i].Name) {
+    for (i = 0; i < AudioList.size(); i++) {
+      if (AudioList[i].Name.notEmpty()) {
         // Never change this log, otherwise clients will stop interprete the output.
-	  	  MsgLog("Found Audio Device %ls (%s) at index %llu\n", AudioList[i].Name, AudioOutputNames[AudioList[i].Device], i);
+	  	  MsgLog("Found Audio Device %ls (%s) at index %llu\n", AudioList[i].Name.wc_str(), AudioOutputNames[AudioList[i].Device], i);
       }
     }
     
