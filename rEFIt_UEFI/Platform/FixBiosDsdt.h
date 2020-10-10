@@ -57,7 +57,7 @@ struct _oper_region {
 typedef struct _oper_region OPER_REGION;
 
 
-VOID
+void
 FixBiosDsdt (
   UINT8                                     *Dsdt,
   EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *fadt,
@@ -65,10 +65,10 @@ FixBiosDsdt (
   );
 
 
-VOID
+void
 RenameDevices(UINT8* table);
 
-VOID
+void
 GetBiosRegions (
   UINT8  *buffer
   );
@@ -84,7 +84,7 @@ INT32 FindBin (UINT8 *dsdt, size_t len, const XBuffer<UINT8>& bin);
 
 
 UINT32 FixAny (UINT8* dsdt, UINT32 len, const XBuffer<UINT8> ToFind, const XBuffer<UINT8> ToReplace);
-UINT32 FixRenameByBridge2 (UINT8* dsdt, UINT32 len, const XString8& TgtBrgName, const XBuffer<UINT8>& ToFind, const XBuffer<UINT8>& ToReplace);
+UINT32 FixRenameByBridge2 (UINT8* dsdt, UINT32 len, const XBuffer<UINT8>& TgtBrgName, const XBuffer<UINT8>& ToFind, const XBuffer<UINT8>& ToReplace);
 
 
 
