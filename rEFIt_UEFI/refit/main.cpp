@@ -385,7 +385,7 @@ void DumpKernelAndKextPatches(KERNEL_AND_KEXT_PATCHES *Patches)
     DBG("Kernel and Kext Patches null pointer\n");
     return;
   }
-  DBG("Kernel and Kext Patches at %p:\n", Patches);
+  DBG("Kernel and Kext Patches at %llx:\n", (uintptr_t)Patches);
   DBG("\tAllowed: %c\n", gSettings.KextPatchesAllowed ? 'y' : 'n');
   DBG("\tDebug: %c\n", Patches->KPDebug ? 'y' : 'n');
 //  DBG("\tKernelCpu: %c\n", Patches->KPKernelCpu ? 'y' : 'n');
@@ -397,23 +397,23 @@ void DumpKernelAndKextPatches(KERNEL_AND_KEXT_PATCHES *Patches)
   // Dell smbios truncate fix
   DBG("\tDellSMBIOSPatch: %c\n", Patches->KPDELLSMBIOS ? 'y' : 'n');
   DBG("\tFakeCPUID: 0x%X\n", Patches->FakeCPUID);
-  DBG("\tATIController: %s\n", (Patches->KPATIConnectorsController == NULL) ? "(null)": Patches->KPATIConnectorsController);
-  DBG("\tATIDataLength: %d\n", Patches->KPATIConnectorsDataLen);
-  DBG("\t%d Kexts to load\n", Patches->ForceKexts.size());
-  if (Patches->ForceKexts) {
-    INTN i = 0;
+  DBG("\tATIController: %s\n", Patches->KPATIConnectorsController.isEmpty() ? "(null)": Patches->KPATIConnectorsController.c_str());
+  DBG("\tATIDataLength: %zu\n", Patches->KPATIConnectorsData.size());
+  DBG("\t%zu Kexts to load\n", Patches->ForceKexts.size());
+  if (Patches->ForceKexts.size()) {
+    size_t i = 0;
     for (; i < Patches->ForceKexts.size(); ++i) {
-       DBG("\t  KextToLoad[%d]: %ls\n", i, Patches->ForceKexts[i]);
+       DBG("\t  KextToLoad[%zu]: %ls\n", i, Patches->ForceKexts[i].wc_str());
     }
   }
-  DBG("\t%d Kexts to patch\n", Patches->KextPatches.size());
-  if (Patches->KextPatches) {
-    INTN i = 0;
+  DBG("\t%zu Kexts to patch\n", Patches->KextPatches.size());
+  if (Patches->KextPatches.size()) {
+    size_t i = 0;
     for (; i < Patches->KextPatches.size(); ++i) {
        if (Patches->KextPatches[i].IsPlistPatch) {
-          DBG("\t  KextPatchPlist[%d]: %d bytes, %s\n", i, Patches->KextPatches[i].DataLen, Patches->KextPatches[i].Name);
+          DBG("\t  KextPatchPlist[%zu]: %zu bytes, %s\n", i, Patches->KextPatches[i].Data.size(), Patches->KextPatches[i].Name.c_str());
        } else {
-          DBG("\t  KextPatch[%d]: %d bytes, %s\n", i, Patches->KextPatches[i].DataLen, Patches->KextPatches[i].Name);
+          DBG("\t  KextPatch[%zu]: %zu bytes, %s\n", i, Patches->KextPatches[i].Data.size(), Patches->KextPatches[i].Name.c_str());
        }
     }
   }
@@ -687,6 +687,26 @@ size_t setKextAtPos(XObjArray<SIDELOAD_KEXT>* kextArrayPtr, const XString8& kext
   return pos;
 }
 
+static XStringW getDriversPath()
+{
+#if defined(MDE_CPU_X64)
+  if (gFirmwareClover) {
+    if (FileExists(&self.getCloverDir(), L"drivers\\BIOS")) {
+      return L"drivers\\BIOS"_XSW;
+    } else {
+      return L"drivers64"_XSW;
+    }
+  } else
+  if (FileExists(&self.getCloverDir(), L"drivers\\UEFI")) {
+    return L"drivers\\UEFI"_XSW;
+  } else {
+    return L"drivers64UEFI"_XSW;
+  }
+#else
+  return L"drivers32"_XSW;
+#endif
+}
+
 void debugStartImageWithOC()
 {
 MsgLog("debugStartImageWithOC\n");
@@ -755,7 +775,48 @@ MsgLog("debugStartImageWithOC : path %ls\n", UnicodeDevicePath);
   }else{
     MsgLog("debugStartImageWithOC : not found\n");
   }
+}
+
+void LOADER_ENTRY::DelegateKernelPatches()
+{
+  XObjArray<KEXT_PATCH> selectedPathArray;
+  for (size_t kextPatchIdx = 0 ; kextPatchIdx < KernelAndKextPatches.KextPatches.size() ; kextPatchIdx++ )
+  {
+    if ( KernelAndKextPatches.KextPatches[kextPatchIdx].MenuItem.BValue )
+      selectedPathArray.AddReference(&KernelAndKextPatches.KextPatches[kextPatchIdx], false);
   }
+  for (size_t kernelPatchIdx = 0 ; kernelPatchIdx < KernelAndKextPatches.KernelPatches.size() ; kernelPatchIdx++ )
+  {
+    if ( KernelAndKextPatches.KernelPatches[kernelPatchIdx].MenuItem.BValue )
+      selectedPathArray.AddReference(&KernelAndKextPatches.KernelPatches[kernelPatchIdx], false);
+  }
+  mOpenCoreConfiguration.Kernel.Patch.Count = (UINT32)selectedPathArray.size();
+  mOpenCoreConfiguration.Kernel.Patch.AllocCount = mOpenCoreConfiguration.Kernel.Patch.Count;
+  mOpenCoreConfiguration.Kernel.Patch.ValueSize = sizeof(__typeof_am__(**mOpenCoreConfiguration.Kernel.Patch.Values));
+  mOpenCoreConfiguration.Kernel.Patch.Values = (__typeof_am__(*mOpenCoreConfiguration.Kernel.Patch.Values)*)malloc(mOpenCoreConfiguration.Kernel.Patch.AllocCount*sizeof(__typeof_am__(*mOpenCoreConfiguration.Kernel.Patch.Values)));
+  memset(mOpenCoreConfiguration.Kernel.Patch.Values, 0, mOpenCoreConfiguration.Kernel.Patch.AllocCount*sizeof(*mOpenCoreConfiguration.Kernel.Patch.Values));
+  for (size_t kextPatchIdx = 0 ; kextPatchIdx < selectedPathArray.size() ; kextPatchIdx++ )
+  {
+    const KEXT_PATCH& kextPatch = selectedPathArray[kextPatchIdx];  //as well as kernel patches
+    DBG("Bridge %s patch to OC : %s\n", kextPatch.Name.c_str(), kextPatch.Label.c_str());
+    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx] = (__typeof_am__(*mOpenCoreConfiguration.Kernel.Patch.Values))AllocateZeroPool(mOpenCoreConfiguration.Kernel.Patch.ValueSize); // sizeof(OC_KERNEL_ADD_ENTRY) == 680
+    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Arch, OC_BLOB_GET(&mOpenCoreConfiguration.Kernel.Scheme.KernelArch));
+    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Base, kextPatch.ProcedureName.c_str());
+    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Comment, kextPatch.Label.c_str());
+    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Count = (UINT32)kextPatch.Count;
+    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Enabled = 1;
+    
+    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Find, kextPatch.Data.data(), kextPatch.Data.size());
+    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Identifier, kextPatch.Name.c_str());
+    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Limit = (UINT32)kextPatch.SearchLen;
+    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Mask, kextPatch.MaskFind.vdata(), kextPatch.MaskFind.size());
+    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->MaxKernel, ""); // it has been filtered, so we don't need to set Min and MaxKernel
+    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->MinKernel, "");
+    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Replace, kextPatch.Patch.vdata(), kextPatch.Patch.size());
+    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->ReplaceMask, kextPatch.MaskReplace.vdata(), kextPatch.MaskReplace.size());
+    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Skip = (UINT32)kextPatch.Skip;
+  }
+}
 
 void LOADER_ENTRY::StartLoader()
 {
@@ -959,10 +1020,12 @@ DBG("Beginning OC\n");
 #endif
   }
 
+  #ifndef USE_OC_SECTION_Misc
   OC_STRING_ASSIGN(mOpenCoreConfiguration.Misc.Security.SecureBootModel, "Disabled");
   OC_STRING_ASSIGN(mOpenCoreConfiguration.Misc.Security.Vault, "Optional");
+  #endif
+  #ifdef USE_OC_SECTION_Nvram
   mOpenCoreConfiguration.Nvram.WriteFlash = true;
-#ifdef JIEF_DEBUG
 #endif
 
 #ifndef USE_OC_SECTION_Booter
@@ -1063,42 +1126,8 @@ DBG("Beginning OC\n");
     mOpenCoreConfiguration.Kernel.Add.Values[kextIdx]->PlistDataSize = 0;
   }
 
-
-  XObjArray<KEXT_PATCH> selectedPathArray;
-  for (size_t kextPatchIdx = 0 ; kextPatchIdx < KernelAndKextPatches.KextPatches.size() ; kextPatchIdx++ )
-  {
-    if ( KernelAndKextPatches.KextPatches[kextPatchIdx].MenuItem.BValue ) selectedPathArray.AddReference(&KernelAndKextPatches.KextPatches[kextPatchIdx], false);
-  }
-  for (size_t kernelPatchIdx = 0 ; kernelPatchIdx < KernelAndKextPatches.KernelPatches.size() ; kernelPatchIdx++ )
-  {
-    if ( KernelAndKextPatches.KernelPatches[kernelPatchIdx].MenuItem.BValue ) selectedPathArray.AddReference(&KernelAndKextPatches.KernelPatches[kernelPatchIdx], false);
-  }
-  mOpenCoreConfiguration.Kernel.Patch.Count = (UINT32)selectedPathArray.size();
-  mOpenCoreConfiguration.Kernel.Patch.AllocCount = mOpenCoreConfiguration.Kernel.Patch.Count;
-  mOpenCoreConfiguration.Kernel.Patch.ValueSize = sizeof(__typeof_am__(**mOpenCoreConfiguration.Kernel.Patch.Values));
-  mOpenCoreConfiguration.Kernel.Patch.Values = (__typeof_am__(*mOpenCoreConfiguration.Kernel.Patch.Values)*)malloc(mOpenCoreConfiguration.Kernel.Patch.AllocCount*sizeof(__typeof_am__(*mOpenCoreConfiguration.Kernel.Patch.Values)));
-  memset(mOpenCoreConfiguration.Kernel.Patch.Values, 0, mOpenCoreConfiguration.Kernel.Patch.AllocCount*sizeof(*mOpenCoreConfiguration.Kernel.Patch.Values));
-  for (size_t kextPatchIdx = 0 ; kextPatchIdx < selectedPathArray.size() ; kextPatchIdx++ )
-  {
-    const KEXT_PATCH& kextPatch = selectedPathArray[kextPatchIdx];  //as well as kernel patches
-    DBG("Bridge %s patch to OC : %s\n", kextPatch.Name.c_str(), kextPatch.Label.c_str());
-    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx] = (__typeof_am__(*mOpenCoreConfiguration.Kernel.Patch.Values))AllocateZeroPool(mOpenCoreConfiguration.Kernel.Patch.ValueSize); // sizeof(OC_KERNEL_ADD_ENTRY) == 680
-    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Arch, OC_BLOB_GET(&mOpenCoreConfiguration.Kernel.Scheme.KernelArch));
-    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Base, kextPatch.ProcedureName.c_str());
-    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Comment, kextPatch.Label.c_str());
-    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Count = (UINT32)kextPatch.Count;
-    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Enabled = 1;
-
-    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Find, kextPatch.Data.data(), kextPatch.Data.size());
-    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Identifier, kextPatch.Name.c_str());
-    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Limit = (UINT32)kextPatch.SearchLen;
-    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Mask, kextPatch.MaskFind.vdata(), kextPatch.MaskFind.size());
-    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->MaxKernel, ""); // it has been filtered, so we don't need to set Min and MaxKernel
-    OC_STRING_ASSIGN(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->MinKernel, "");
-    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Replace, kextPatch.Patch.vdata(), kextPatch.Patch.size());
-    OC_STRING_ASSIGN_N(mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->ReplaceMask, kextPatch.MaskReplace.vdata(), kextPatch.MaskReplace.size());
-    mOpenCoreConfiguration.Kernel.Patch.Values[kextPatchIdx]->Skip = (UINT32)kextPatch.Skip;
-  }
+//DelegateKernelPatches();
+    
   for (size_t forceKextIdx = 0 ; forceKextIdx < KernelAndKextPatches.ForceKexts.size() ; forceKextIdx++ )
   {
     const XStringW& forceKext = KernelAndKextPatches.ForceKexts[forceKextIdx];
@@ -1142,7 +1171,26 @@ DBG("Beginning OC\n");
   EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* FileSystem = LocateFileSystem(OcLoadedImage->DeviceHandle, OcLoadedImage->FilePath);
   Status = OcStorageInitFromFs(&mOpenCoreStorage, FileSystem, self.getCloverDirPathAsXStringW().wc_str(), NULL);
 
+  XStringW FileName = SWPrintf("%ls\\%ls\\%s", self.getCloverDirPathAsXStringW().wc_str(), getDriversPath().wc_str(), "OpenRuntime.efi");
+  EFI_HANDLE DriverHandle;
+  Status = gBS->LoadImage(false, gImageHandle, FileDevicePath(self.getSelfLoadedImage().DeviceHandle, FileName), NULL, 0, &DriverHandle);
+  DBG("Load OpenRuntime.efi : Status %s\n", efiStrError(Status));
+  Status = gBS->StartImage(DriverHandle, 0, 0);
+  DBG("Start OpenRuntime.efi : Status %s\n", efiStrError(Status));
+
   OcMain(&mOpenCoreStorage, NULL);
+//  {
+//    gCurrentConfig = &gMainConfig;
+//    RedirectRuntimeServices();
+//    EFI_HANDLE Handle = NULL;
+//    Status = gBS->InstallMultipleProtocolInterfaces (
+//      &Handle,
+//      &gOcFirmwareRuntimeProtocolGuid,
+//      &mOcFirmwareRuntimeProtocol,
+//      NULL
+//      );
+//    DBG("Install gOcFirmwareRuntimeProtocolGuid : Status %s\n", efiStrError(Status));
+//  }
 
   CHAR16* UnicodeDevicePath = NULL; (void)UnicodeDevicePath;
   UnicodeDevicePath = ConvertDevicePathToText (DevicePath, FALSE, FALSE);
@@ -1258,6 +1306,8 @@ DBG("Beginning OC\n");
     if (LoadedImage && !BooterPatch((UINT8*)LoadedImage->ImageBase, LoadedImage->ImageSize)) {
       DBG("Will not patch boot.efi\n");
     }
+    
+    DelegateKernelPatches();
 
     // Set boot argument for kernel if no caches, this should force kernel loading
     if (  OSFLAG_ISSET(Flags, OSFLAG_NOCACHES)  &&  !LoadOptions.containsStartWithIC("Kernel=")  ) {
@@ -1849,7 +1899,7 @@ void DisconnectInvalidDiskIoChildDrivers(void)
         Found = TRUE;
         Status = gBS->DisconnectController (Handles[Index], OpenInfo[OpenInfoIndex].AgentHandle, NULL);
         //DBG(" BY_DRIVER Agent: %p, Disconnect: %s", OpenInfo[OpenInfoIndex].AgentHandle, efiStrError(Status));
-        DBG(" - Handle %p with DiskIo, is Partition, no Fs, BY_DRIVER Agent: %p, Disconnect: %s\n", Handles[Index], OpenInfo[OpenInfoIndex].AgentHandle, efiStrError(Status));
+        DBG(" - Handle %llx with DiskIo, is Partition, no Fs, BY_DRIVER Agent: %llx, Disconnect: %s\n", (uintptr_t)Handles[Index], (uintptr_t)(OpenInfo[OpenInfoIndex].AgentHandle), efiStrError(Status));
       }
     }
     FreePool(OpenInfo);
