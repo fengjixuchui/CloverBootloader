@@ -792,7 +792,21 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
   // exhaust key buffer and be sure no key is pressed to prevent option selection
   // when coming with a key press from timeout=0, for example
   while (ReadAllKeyStrokes()) gBS->Stall(500 * 1000);
-  while (!MenuExit) {
+  while (!MenuExit)
+  {
+    // do this BEFORE calling StyleFunc.
+    EFI_TIME          Now;
+    gRT->GetTime(&Now, NULL);
+    if (GlobalConfig.Timezone != 0xFF) {
+      INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
+      if (NowHour <  0 ) NowHour += 24;
+      if (NowHour >= 24 ) NowHour -= 24;
+      Daylight = (NowHour > 8) && (NowHour < 20);  //this is the screen member
+    } else {
+      Daylight = true;
+    }
+
+
     // update the screen
     if (ScrollState.PaintAll) {
       ((*this).*(StyleFunc))(MENU_FUNCTION_PAINT_ALL, NULL);
@@ -820,17 +834,6 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
       DBG("GUI ready\n");
     }
     
-    EFI_TIME          Now;
-    gRT->GetTime(&Now, NULL);
-    if (GlobalConfig.Timezone != 0xFF) {
-      INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
-      if (NowHour <  0 ) NowHour += 24;
-      if (NowHour >= 24 ) NowHour -= 24;
-      Daylight = (NowHour > 8) && (NowHour < 20);  //this is the screen member
-    } else {
-      Daylight = true;
-    }
-
     Status = WaitForInputEventPoll(1); //wait for 1 seconds.
     if (Status == EFI_TIMEOUT) {
       if (HaveTimeout) {
@@ -965,7 +968,7 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
       case SCAN_F2:
         SavePreBootLog = TRUE;
         //let it be twice
-        Status = SaveBooterLog(&self.getCloverDir(), PREBOOT_LOG_new);
+        Status = SaveBooterLog(&self.getCloverDir(), PREBOOT_LOG);
 // Jief : don't write outside SelfDir
 //        if (EFI_ERROR(Status)) {
 //          Status = SaveBooterLog(NULL, PREBOOT_LOG);
@@ -1959,10 +1962,10 @@ void REFIT_MENU_SCREEN::DrawTextCorner(UINTN TextC, UINT8 Align)
     case TEXT_CORNER_REVISION:
       // Display Clover boot volume
       if (SelfVolume->VolLabel.notEmpty()  &&  SelfVolume->VolLabel[0] != L'#') {
-        Text = SWPrintf("%ls, booted from %ls %ls", gFirmwareRevision, SelfVolume->VolLabel.wc_str(), self.getCloverDirPathAsXStringW().wc_str());
+        Text = SWPrintf("%ls, booted from %ls %ls", gFirmwareRevision, SelfVolume->VolLabel.wc_str(), self.getCloverDirFullPath().wc_str());
       }
       if (Text.isEmpty()) {
-        Text = SWPrintf("%ls %ls %ls", gFirmwareRevision, SelfVolume->VolName.wc_str(), self.getCloverDirPathAsXStringW().wc_str());
+        Text = SWPrintf("%ls %ls %ls", gFirmwareRevision, SelfVolume->VolName.wc_str(), self.getCloverDirFullPath().wc_str());
       }
       break;
     case TEXT_CORNER_HELP:

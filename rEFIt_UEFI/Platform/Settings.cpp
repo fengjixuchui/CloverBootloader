@@ -2,6 +2,8 @@
  Slice 2012
  */
 
+#include <Platform.h>
+
 #include "../entry_scan/entry_scan.h"
 #include "../entry_scan/loader.h"
 #include "kernel_patcher.h"
@@ -131,12 +133,15 @@ CONST CHAR8* gFirmwareBuildDate = "unknown";
 CONST CHAR8* gBuildInfo = NULL;
 #endif
 #ifdef BUILD_ID
-const LString8 gBuildId __attribute__((used)) = "Clover build id: " BUILD_ID;
+const LString8 gBuildId __attribute__((used)) = BUILD_ID;
+const LString8 gBuildIdGrepTag __attribute__((used)) = "CloverBuildIdGrepTag: " BUILD_ID;
 #else
-const LString8 gBuildId __attribute__((used)) = "Clover build id: " "unknown";
+const LString8 gBuildId __attribute__((used)) = "unknown";
+const LString8 gBuildIdGrepTag __attribute__((used)) = "CloverBuildIdGrepTag: " "unknown";
 #endif
 
-const char* path_independant __attribute__((used)) = "path_independant";
+// __attribute__((used)) seems to not always work. So, in AboutRefit(), there is a trick to let the compiler thinks it's used.
+const LString8 path_independant __attribute__((used)) = "path_independant";
 
 EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl = NULL;
 
@@ -213,7 +218,7 @@ ParseACPIName(const XString8& String)
       while ((pos1 < Len) && String[pos1] != '.') pos1++; // 3,8,13,18
       //    if ((pos1 == Len) || (String[pos1] == ',')) { //always
       for (i = pos0 + 1, j = 0; i < pos1; i++) {
-        List->Name[j++] = String[i];
+        List->Name[j++] = String.data()[i]; // String[i] return a char32_t. what if there is an utf8 char ?
       }
       // extend by '_' up to 4 symbols
       if (j < 4) {
@@ -386,7 +391,7 @@ SetBootCurrent(REFIT_MENU_ITEM_BOOTNUM *Entry)
   if (VarSize > NameSize + 6) {
     Data += NameSize;
     if (StriCmp((CHAR16*)Data, Basename(Entry->LoaderPath.wc_str())) != 0) {
-		DBG("Boot option %llu has other loader name %ls\n", Entry->BootNum, (CHAR16*)Data);
+      DBG("Boot option %llu has other loader name %ls\n", Entry->BootNum, (CHAR16*)Data);
       FreePool(BootVariable);
       return;
     }
@@ -516,22 +521,27 @@ LoadUserSettings (
 
 //  ConfigPlistPath = SWPrintf("%ls.plist", ConfName.wc_str());
 //  ConfigOemPath   = SWPrintf("%ls\\%ls.plist", selfOem.getOOEMPath.wc_str(), ConfName.wc_str());
+  Status = EFI_NOT_FOUND;
   XStringW configFilename = SWPrintf("%ls.plist", ConfName.wc_str());
-  if (FileExists (&selfOem.getOemDir(), configFilename)) {
-    Status = egLoadFile(&selfOem.getOemDir(), configFilename.wc_str(), (UINT8**)&ConfigPtr, &Size);
+  if ( selfOem.oemDirExists() ) {
+    if (FileExists (&selfOem.getOemDir(), configFilename)) {
+      Status = egLoadFile(&selfOem.getOemDir(), configFilename.wc_str(), (UINT8**)&ConfigPtr, &Size);
+      if (EFI_ERROR(Status)) {
+        DBG("Cannot find %ls at path (%s): '%ls', trying '%ls'\n", configFilename.wc_str(), efiStrError(Status), selfOem.getOemFullPath().wc_str(), self.getCloverDirFullPath().wc_str());
+      }else{
+        DBG("Using %ls at path: %ls\n", configFilename.wc_str(), selfOem.getOemFullPath().wc_str());
+      }
+    }
   }
   if (EFI_ERROR(Status)) {
-    DBG("Cannot find %ls at path: '%ls', trying '%ls'\n", configFilename.wc_str(), selfOem.getOemFullPath().wc_str(), self.getCloverDirPathAsXStringW().wc_str());
     if ( FileExists(&self.getCloverDir(), configFilename.wc_str())) {
       Status = egLoadFile(&self.getCloverDir(), configFilename.wc_str(), (UINT8**)&ConfigPtr, &Size);
     }
-    if (!EFI_ERROR(Status)) {
-      DBG("Using %ls at path: %ls\n", configFilename.wc_str(), self.getCloverDirPathAsXStringW().wc_str());
+    if (EFI_ERROR(Status)) {
+      DBG("Cannot find %ls at path '%ls' : %s\n", configFilename.wc_str(), self.getCloverDirFullPath().wc_str(), efiStrError(Status));
     } else {
-      DBG("Cannot find %ls at path: '%ls'\n", configFilename.wc_str(), self.getCloverDirPathAsXStringW().wc_str());
+      DBG("Using %ls at path: %ls\n", configFilename.wc_str(), self.getCloverDirFullPath().wc_str());
     }
-  }else{
-    DBG("Using %ls at path: %ls\n", configFilename.wc_str(), selfOem.getOemFullPath().wc_str());
   }
 
   if (!EFI_ERROR(Status) && ConfigPtr != NULL) {
@@ -1181,7 +1191,7 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
 
         if (TmpData == NULL || MaskLen == 0) {
         } else {
-          newPatch.MaskFind.memset(FindLen, 0xFF);
+          newPatch.MaskFind.memset(0xFF, FindLen);
           newPatch.MaskFind.ncpy(TmpData, MaskLen);
         }
         FreePool(TmpData);
@@ -1548,6 +1558,13 @@ BOOLEAN IsOSValid(const XString8& MatchOS, const XString8& CurrOS)
   XString8Array osToc = Split<XString8Array>(MatchOS, "."_XS8).trimEachString();
   XString8Array currOStoc = Split<XString8Array>(CurrOS, "."_XS8).trimEachString();
 
+  if ( osToc.size() > 0 && currOStoc.size() > 0 && osToc[0] == "11"_XS8 && currOStoc[0] == "11"_XS8 ) {
+    if (osToc.size() == 1 ) return true;
+    if (osToc.size() == 2 ) {
+      if ( osToc[1].equalIC("x") ) return true;
+      if ( currOStoc.size() == 2 && osToc[1] == currOStoc[1] ) return true;
+    }
+  }
   if (osToc.size() == 2) {
     if (currOStoc.size() == 2) {
       if ( osToc[0] == currOStoc[0] && osToc[1] == currOStoc[1]) {
@@ -1717,7 +1734,7 @@ FillinCustomEntry (
     // we can't load the file yet, as ThemeDir is not initialized
   } else {
     UINTN DataLen = 0;
-    UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
+    UINT8 *TmpData = GetDataSetting (DictPointer, "DriveImageData", &DataLen);
     if (TmpData) {
       if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
         Entry->DriveImage.setFilled();
@@ -1728,7 +1745,9 @@ FillinCustomEntry (
 
   Prop = DictPointer->propertyForKey("Hotkey");
   if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-    Entry->Hotkey = Prop->getString()->stringValue()[0];
+  	if ( Prop->getString()->stringValue()[0] < __WCHAR_MAX__ ) {
+  		Entry->Hotkey = (wchar_t)(Prop->getString()->stringValue()[0]);
+  	}
   }
 
   // Whether or not to draw boot screen
@@ -2023,7 +2042,9 @@ FillingCustomLegacy (
 
   Prop = DictPointer->propertyForKey("Hotkey");
   if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-    Entry->Hotkey = Prop->getString()->stringValue()[0];
+  	if ( Prop->getString()->stringValue()[0] < __WCHAR_MAX__ ) {
+  		Entry->Hotkey = (wchar_t)(Prop->getString()->stringValue()[0]);
+  	}
   }
 
   // Hidden Property, Values:
@@ -2090,14 +2111,14 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
       Entry->LoadOptions = Split<XString8Array>(Prop->getString()->stringValue(), " ");
   }
 
-  Prop = DictPointer->propertyForKey("FullTitle");
-  if (Prop != NULL && (Prop->isString())) {
-    Entry->FullTitle = Prop->getString()->stringValue();
-  }
-
   Prop = DictPointer->propertyForKey("Title");
   if (Prop != NULL && (Prop->isString())) {
     Entry->Title = Prop->getString()->stringValue();
+  }
+
+  Prop = DictPointer->propertyForKey("FullTitle");
+  if (Prop != NULL && (Prop->isString())) {
+    Entry->FullTitle = Prop->getString()->stringValue();
   }
 
   Prop = DictPointer->propertyForKey("Image");
@@ -2119,7 +2140,9 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
   }
   Prop = DictPointer->propertyForKey("Hotkey");
   if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-    Entry->Hotkey = Prop->getString()->stringValue()[0];
+  	if ( Prop->getString()->stringValue()[0] < __WCHAR_MAX__ ) {
+  		Entry->Hotkey = (wchar_t)(Prop->getString()->stringValue()[0]);
+  	}
   }
 
   // Hidden Property, Values:
@@ -2295,6 +2318,9 @@ GetEarlyUserSettings (
         }
       }
 
+      Prop = BootDict->propertyForKey("EmptyDebugLogAtStart");
+      GlobalConfig.ScratchDebugLogAtStart = IsPropertyNotNullAndTrue(Prop);
+
       Prop = BootDict->propertyForKey("Fast");
       GlobalConfig.FastBoot       = IsPropertyNotNullAndTrue(Prop);
 
@@ -2424,7 +2450,7 @@ GetEarlyUserSettings (
             gSettings.XMPDetection = (INT8)AsciiStrDecimalToUintn(Prop->getString()->stringValue().c_str());
           }
         } else if (Prop->isInt64()) {
-          gSettings.XMPDetection   = Prop->getInt64()->intValue();
+          gSettings.XMPDetection = (INT8)Prop->getInt64()->intValue();
         }
         // Check that the setting value is sane
         if ((gSettings.XMPDetection < -1) || (gSettings.XMPDetection > 2)) {
@@ -2500,7 +2526,7 @@ GetEarlyUserSettings (
     }
 
     //*** SYSTEM ***
-
+    gSettings.WithKexts            = TRUE;  //default
     const TagDict* SystemParametersDict = CfgDict->dictPropertyForKey("SystemParameters");
     if (SystemParametersDict != NULL) {
       // Inject kexts
@@ -2513,8 +2539,6 @@ GetEarlyUserSettings (
           //   gSettings.WithKexts            = TRUE;
           gSettings.WithKextsIfNoFakeSMC = TRUE;
         }
-      } else {
-        gSettings.WithKexts            = TRUE;  //default
       }
 
       // No caches - obsolete
@@ -2522,10 +2546,10 @@ GetEarlyUserSettings (
       if (IsPropertyNotNullAndTrue(Prop)) {
         gSettings.NoCaches = TRUE;
       }
-      //test float
-      Prop = SystemParametersDict->propertyForKey("BlueValue");
-      float tmpF = GetPropertyFloat(Prop, 1.2f);
-      DBG(" get BlueValue=%f\n", tmpF);
+      //test float - success
+//      Prop = SystemParametersDict->propertyForKey("BlueValue");
+//      float tmpF = GetPropertyFloat(Prop, 1.2f);
+//      DBG(" get BlueValue=%f\n", tmpF);
       
     }
 
@@ -2594,7 +2618,7 @@ GetEarlyUserSettings (
       }
 
       Prop = GUIDict->propertyForKey("ProvideConsoleGop");
-      gSettings.ProvideConsoleGop = IsPropertyNotNullAndTrue(Prop);
+      gSettings.ProvideConsoleGop = !IsPropertyNotNullAndFalse(Prop); //default is true
 
       Prop = GUIDict->propertyForKey("ConsoleMode");
       if (Prop != NULL) {
@@ -2980,13 +3004,14 @@ GetEarlyUserSettings (
       Prop               = OcQuirksDict->propertyForKey( "ProtectUefiServices");
       gSettings.ocBooterQuirks.ProtectUefiServices = IsPropertyNotNullAndTrue(Prop);
       gSettings.QuirksMask  |= gSettings.ocBooterQuirks.ProtectUefiServices? QUIRK_UEFI:0;
-      Prop               = OcQuirksDict->propertyForKey( "ProvideConsoleGopEnable");
-      gSettings.ProvideConsoleGop = !IsPropertyNotNullAndFalse(Prop);
+      //it is in GUI section
+//      Prop               = OcQuirksDict->propertyForKey( "ProvideConsoleGopEnable");
+//      gSettings.ProvideConsoleGop = !IsPropertyNotNullAndFalse(Prop);
       Prop               = OcQuirksDict->propertyForKey( "ProvideCustomSlide");
       gSettings.ocBooterQuirks.ProvideCustomSlide = IsPropertyNotNullAndTrue(Prop);
       gSettings.QuirksMask  |= gSettings.ocBooterQuirks.ProvideCustomSlide? QUIRK_CUSTOM:0;
       Prop               = OcQuirksDict->propertyForKey( "ProvideMaxSlide");
-      gSettings.ocBooterQuirks.ProvideMaxSlide = GetPropertyAsInteger(Prop, 0);
+      gSettings.ocBooterQuirks.ProvideMaxSlide = (UINT8)GetPropertyAsInteger(Prop, 0); // cast will be safe when the new parser will ensure that the value is UINT8
       Prop               = OcQuirksDict->propertyForKey( "RebuildAppleMemoryMap");
       gSettings.ocBooterQuirks.RebuildAppleMemoryMap = IsPropertyNotNullAndTrue(Prop);
       gSettings.QuirksMask  |= gSettings.ocBooterQuirks.RebuildAppleMemoryMap? QUIRK_MAP:0;
@@ -3055,11 +3080,11 @@ GetEarlyUserSettings (
       // Booter Quirks
 //      Prop = OcQuirksDict->propertyForKey("AppleCpuPmCfgLock");
 //      gSettings.KernelAndKextPatches.OcKernelQuirks.AppleCpuPmCfgLock = IsPropertyNotNullAndTrue(Prop);
-      gSettings.KernelAndKextPatches.OcKernelQuirks.AppleCpuPmCfgLock = gSettings.KernelAndKextPatches.KPKernelPm;
+      gSettings.KernelAndKextPatches.OcKernelQuirks.AppleCpuPmCfgLock = gSettings.KernelAndKextPatches.KPAppleIntelCPUPM;
 
 //      Prop = OcQuirksDict->propertyForKey("AppleXcpmCfgLock"); //
 //      gSettings.KernelAndKextPatches.OcKernelQuirks.AppleXcpmCfgLock = IsPropertyNotNullAndTrue(Prop);
-      gSettings.KernelAndKextPatches.OcKernelQuirks.AppleXcpmCfgLock = gSettings.KernelAndKextPatches.KPKernelXCPM;
+      gSettings.KernelAndKextPatches.OcKernelQuirks.AppleXcpmCfgLock = gSettings.KernelAndKextPatches.KPKernelPm;
 
       Prop = OcQuirksDict->propertyForKey("AppleXcpmExtraMsrs");
       gSettings.KernelAndKextPatches.OcKernelQuirks.AppleXcpmExtraMsrs = IsPropertyNotNullAndTrue(Prop);
@@ -3078,8 +3103,9 @@ GetEarlyUserSettings (
       Prop = OcQuirksDict->propertyForKey("DisableLinkeditJettison");
       gSettings.KernelAndKextPatches.OcKernelQuirks.DisableLinkeditJettison = IsPropertyNotNullAndTrue(Prop);
 
-      Prop = OcQuirksDict->propertyForKey("DisableRtcChecksum");
-      gSettings.KernelAndKextPatches.OcKernelQuirks.DisableRtcChecksum = IsPropertyNotNullAndTrue(Prop);
+ //     Prop = OcQuirksDict->propertyForKey("DisableRtcChecksum");
+ //     gSettings.KernelAndKextPatches.OcKernelQuirks.DisableRtcChecksum = IsPropertyNotNullAndTrue(Prop);
+      gSettings.KernelAndKextPatches.OcKernelQuirks.DisableRtcChecksum = gSettings.KernelAndKextPatches.KPAppleRTC;
 
       Prop = OcQuirksDict->propertyForKey("DummyPowerManagement");
       gSettings.KernelAndKextPatches.OcKernelQuirks.DummyPowerManagement = IsPropertyNotNullAndTrue(Prop);
@@ -3122,7 +3148,7 @@ GetListOfConfigs ()
   ConfigsNum = 0;
   OldChosenConfig = 0;
 
-  DirIterOpen(&selfOem.getOemDir(), NULL, &DirIter);
+  DirIterOpen(&selfOem.getConfigDir(), NULL, &DirIter);
   DbgHeader("Found config plists");
   while (DirIterNext(&DirIter, 2, L"config*.plist", &DirEntry)) {
     if (DirEntry->FileName[0] == L'.') {
@@ -3156,7 +3182,7 @@ GetListOfDsdts()
   DsdtsNum = 0;
   OldChosenDsdt = 0xFFFF;
 
-  DirIterOpen(&selfOem.getOemDir(), L"ACPI\\patched", &DirIter);
+  DirIterOpen(&selfOem.getConfigDir(), L"ACPI\\patched", &DirIter);
   DbgHeader("Found DSDT tables");
   while (DirIterNext(&DirIter, 2, L"DSDT*.aml", &DirEntry)) {
     if (DirEntry->FileName[0] == L'.') {
@@ -3193,7 +3219,7 @@ GetListOfACPI()
   }
   ACPIPatchedAML = NULL;
 //  DBG("free acpi list done\n");
-  DirIterOpen(&selfOem.getOemDir(), L"ACPI\\patched", &DirIter);
+  DirIterOpen(&selfOem.getConfigDir(), L"ACPI\\patched", &DirIter);
 
   while (DirIterNext(&DirIter, 2, L"*.aml", &DirEntry)) {
 //    DBG("next entry is %ls\n", DirEntry->FileName);
@@ -3273,9 +3299,13 @@ void GetListOfInjectKext(CHAR16 *KextDirNameUnderOEMPath)
   XStringW        PlugInsPath;
   XStringW         PlugInsName;
   BOOLEAN         Blocked = FALSE;
+
+  if( !selfOem.isKextsDirFound() ) return;
+
   if (StrCmp(KextDirNameUnderOEMPath, L"Off") == 0) {
     Blocked = TRUE;
   }
+
   DirIterOpen(&selfOem.getKextsDir(), KextDirNameUnderOEMPath, &DirIter);
   while (DirIterNext(&DirIter, 1, L"*.kext", &DirEntry)) {
     if (DirEntry->FileName[0] == L'.' || StrStr(DirEntry->FileName, L".kext") == NULL) {
@@ -3286,7 +3316,7 @@ void GetListOfInjectKext(CHAR16 *KextDirNameUnderOEMPath)
      <string>8.8.8</string>
      */
 //    FullName = SWPrintf("%ls\\%ls", FullPath.wc_str(), DirEntry->FileName);
-    XStringW pathRelToSelfDir = SWPrintf("%ls\\%ls\\%ls", selfOem.getKextsPathRelToSelfDir().wc_str(), KextDirNameUnderOEMPath, DirEntry->FileName);
+    XStringW pathRelToSelfDir = SWPrintf("%ls\\%ls\\%ls", selfOem.getKextsDirPathRelToSelfDir().wc_str(), KextDirNameUnderOEMPath, DirEntry->FileName);
     mKext = new SIDELOAD_KEXT;
     mKext->FileName.SWPrintf("%ls", DirEntry->FileName);
     mKext->MenuItem.BValue = Blocked;
@@ -5723,7 +5753,7 @@ GetUserSettings(const TagDict* CfgDict)
             if (Prop2->isString() && Prop2->getString()->stringValue().notEmpty() ) {
               Slot = (UINT8)AsciiStrDecimalToUintn(Prop2->getString()->stringValue());
             } else if (Prop2->isInt64()) {
-              Slot = Prop2->getInt64()->intValue();
+              Slot = (UINT8)Prop2->getInt64()->intValue();
             } else {
               continue;
             }
@@ -5877,6 +5907,8 @@ GetUserSettings(const TagDict* CfgDict)
     }
 
     //CPU
+    gSettings.CpuType = GetAdvancedCpuType(); //let it be default
+    gSettings.SavingMode = 0xFF; //default
     const TagDict* CPUDict = CfgDict->dictPropertyForKey("CPU");
     if (CPUDict != NULL) {
       const TagStruct* Prop = CPUDict->propertyForKey("QPI");
@@ -5892,10 +5924,9 @@ GetUserSettings(const TagDict* CfgDict)
       }
 
       Prop = CPUDict->propertyForKey("Type");
-      gSettings.CpuType = GetAdvancedCpuType();
       if (Prop != NULL) {
         gSettings.CpuType = (UINT16)GetPropertyAsInteger(Prop, gSettings.CpuType);
-		  DBG("CpuType: %hX\n", gSettings.CpuType);
+        DBG("CpuType: %hX\n", gSettings.CpuType);
       }
 
       Prop = CPUDict->propertyForKey("QEMU");
@@ -5993,7 +6024,7 @@ GetUserSettings(const TagDict* CfgDict)
       }
       // CsrActiveConfig
       Prop = RtVariablesDict->propertyForKey("CsrActiveConfig");
-      gSettings.CsrActiveConfig = (UINT32)GetPropertyAsInteger(Prop, 0x267); //the value 0xFFFF means not set
+      gSettings.CsrActiveConfig = (UINT32)GetPropertyAsInteger(Prop, 0x2E7); //the value 0xFFFF means not set
 
       //BooterConfig
       Prop = RtVariablesDict->propertyForKey("BooterConfig");
@@ -7974,7 +8005,7 @@ SetDevices (LOADER_ENTRY *Entry)
       mPropSize = hex2bin (gDeviceProperties, mProperties, mPropSize);
       //     DBG("Final size of mProperties=%d\n", mPropSize);
       //---------
-      //      Status = egSaveFile(&self.getSelfRootDir(),  SWPrintf("%ls\\misc\\devprop.bin", self.getCloverDirPathAsXStringW().wc_str()).wc_str()    , (UINT8*)mProperties, mPropSize);
+      //      Status = egSaveFile(&self.getSelfRootDir(),  SWPrintf("%ls\\misc\\devprop.bin", self.getCloverDirFullPath().wc_str()).wc_str()    , (UINT8*)mProperties, mPropSize);
       //and now we can free memory?
       if (gSettings.AddProperties) {
         FreePool(gSettings.AddProperties);
@@ -8105,14 +8136,15 @@ XStringW GetOtherKextsDir (BOOLEAN On)
   return NullXStringW;
 }
 
+
 //dmazar
-XStringW
-GetOSVersionKextsDir (
-                       const XString8& OSVersion
-                       )
+// Jief 2020-10: this is only called by SetFSInjection(). SetFSInjection() doesn't check for return value emptiness.
+XStringW GetOSVersionKextsDir(const XString8& OSVersion)
 {
   XString8 FixedVersion;
   CHAR8  *DotPtr;
+
+  if ( !selfOem.isKextsDirFound() ) return NullXStringW;
 
   if (OSVersion.notEmpty()) {
     FixedVersion.strncpy(OSVersion.c_str(), 5);
@@ -8132,14 +8164,10 @@ GetOSVersionKextsDir (
   // find source injection folder with kexts
   // note: we are just checking for existance of particular folder, not checking if it is empty or not
   // check OEM subfolders: version specific or default to Other
-  XStringW SrcDir = SWPrintf("%ls\\kexts\\%s", selfOem.getOemFullPath().wc_str(), FixedVersion.c_str());
-  if (!FileExists (&self.getSelfVolumeRootDir(), SrcDir)) {
-    SrcDir = SWPrintf("\\%ls\\kexts\\%s", self.getCloverDirPathAsXStringW().wc_str(), FixedVersion.c_str());
-    if (!FileExists (SelfVolume->RootDir, SrcDir)) {
-      SrcDir.setEmpty();
-    }
-  }
-  return SrcDir;
+  // Jief : NOTE selfOem.getKextsFullPath() return a path under OEM if exists, or in Clover if not.
+  XStringW SrcDir = SWPrintf("%ls\\%s", selfOem.getKextsFullPath().wc_str(), FixedVersion.c_str());
+  if (FileExists (&self.getSelfVolumeRootDir(), SrcDir)) return SrcDir;
+  return NullXStringW;
 }
 
 EFI_STATUS
@@ -8157,7 +8185,7 @@ InjectKextsFromDir (
   return Status;
 }
 
-EFI_STATUS LOADER_ENTRY::SetFSInjection ()
+EFI_STATUS LOADER_ENTRY::SetFSInjection()
 {
   EFI_STATUS           Status;
   FSINJECTION_PROTOCOL *FSInject;

@@ -29,8 +29,6 @@ Copyright (c) 2006 JLA
 #define DBG(...) DebugLog(0, __VA_ARGS__) // until a better solution is found, force DebugLog(0, ...) to prevent saving to DebugLog, which may cause legacy boot to fail
 #endif
 
-extern XObjArray<REFIT_VOLUME> Volumes;
-
 #pragma pack(push)
 #pragma pack(1)
 
@@ -398,7 +396,7 @@ EFI_STATUS bootElTorito(REFIT_VOLUME*	volume)
 		return Status;
 	}
   
-   Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG_new);
+   Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG);
    
    // Jief : don't write outside of SelfDir
 //  if (EFI_ERROR(Status)) {
@@ -516,7 +514,7 @@ EFI_STATUS bootMBR(REFIT_VOLUME* volume)
         DBG("\n");
     }
   
-  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG_new);
+  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG);
   // Jief : don't write outside SelfDir
 //  if (EFI_ERROR(Status)) {
 //    Status = SaveBooterLog(NULL, LEGBOOT_LOG);
@@ -671,7 +669,7 @@ EFI_STATUS bootPBRtest(REFIT_VOLUME* volume)
     DBG("\n");
   }
   DBG("Reset disk controller 0x80\n"); 
-  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG_new);
+  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG);
   if (EFI_ERROR(Status)) {
     DBG("can't save legacy-boot.log\n");
 // Jief : don't write outside SelfDir
@@ -723,7 +721,7 @@ EFI_STATUS bootPBRtest(REFIT_VOLUME* volume)
 */ 
  
   //if not success then save legacyboot.log
-  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG_new);
+  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG);
   if (EFI_ERROR(Status)) {
     DBG("can't save legacy-boot.log\n");
     // Jief : don't write outside SelfDir
@@ -975,7 +973,7 @@ EFI_STATUS bootPBR(REFIT_VOLUME* volume, BOOLEAN SataReset)
   
   //Status = gLegacy8259->SetMask(gLegacy8259, &OldMask, NULL, NULL, NULL);
   PauseForKey(L"save legacy-boot.log ...\n");
-  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG_new);
+  Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG);
   if (EFI_ERROR(Status)) {
     DBG("can't save legacy-boot.log\n");
 // Jief : don't write outside SelfDir

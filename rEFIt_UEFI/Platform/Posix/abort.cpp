@@ -27,6 +27,7 @@ static void panic_(const char* format, VA_LIST va)
 
 #ifdef CLOVER_BUILD
 extern void egSetGraphicsModeEnabled(BOOLEAN);
+extern const LString8 gBuildId;
 #endif
 
 #define FATAL_ERROR_MSG "\nA fatal error happened. System halted.\n"
@@ -34,6 +35,7 @@ static void panic_(const char* format, VA_LIST va)
 {
 #ifdef CLOVER_BUILD
   egSetGraphicsModeEnabled(false);
+  printf("Clover build id: %s\n", gBuildId.c_str());
 #endif
   if ( format ) {
     vprintf(format, va);
@@ -74,4 +76,14 @@ void panic(const char* format, ...)
 void panic(void)
 {
   panic(nullptr);
+}
+
+
+void _assert(bool b, const char* format, ...)
+{
+  if ( !b ) {
+    VA_LIST va;
+    VA_START(va, format);
+    panic_(format, va); // panic doesn't return
+  }
 }

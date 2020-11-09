@@ -35,6 +35,7 @@
  */
 
 #include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
+#include "lib.h"
 #include "screen.h"
 #include "../Platform/guid.h"
 #include "../Platform/APFS.h"
@@ -42,6 +43,7 @@
 #include "../Platform/Settings.h"
 #include "Self.h"
 #include "SelfOem.h"
+#include "../include/OC.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_LIB 1
@@ -69,7 +71,12 @@ BOOLEAN          gThemeOptionsChanged = FALSE;
 REFIT_VOLUME     *SelfVolume = NULL;
 //REFIT_VOLUME     **Volumes = NULL;
 //UINTN            VolumesCount = 0;
-XObjArray<REFIT_VOLUME> Volumes;
+VolumesArrayClass Volumes;
+
+//REFIT_VOLUME* VolumesArrayClass::getApfsPartitionWithUUID(const XString8& ApfsContainerUUID, const XString8& APFSTargetUUID)
+//{
+//}
+
 //
 // Unicode collation protocol interface
 //
@@ -163,7 +170,7 @@ EFI_STATUS GetRootFromPath(IN EFI_DEVICE_PATH_PROTOCOL* DevicePath, OUT EFI_FILE
 EFI_STATUS InitRefitLib(IN EFI_HANDLE ImageHandle)
 {
   self.initialize(ImageHandle);
-  DBG("SelfDirPath = %ls\n", self.getCloverDirPathAsXStringW().wc_str());
+//  DBG("SelfDirPath = %ls\n", self.getCloverDirFullPath().wc_str());
   return EFI_SUCCESS;
 }
 
@@ -173,9 +180,10 @@ void UninitRefitLib(void)
   
   ThemeX.closeThemeDir();
 
-  self.closeHandle();
   selfOem.closeHandle();
+  self.closeHandle();
   
+  closeDebugLog();
   UninitVolumes();
 }
 
@@ -591,9 +599,6 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
     //    DumpHex(1, 0, GetDevicePathSize(Volume->DevicePath), Volume->DevicePath);
     //#endif
   }
-  if ( Volume->ApfsFileSystemUUID.notEmpty() ) {
-	  DBG("          apfsFileSystemUUID=%s\n", Volume->ApfsFileSystemUUID.c_str());
-  }
 #else
     DBG("\n");
 #endif
@@ -793,6 +798,23 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
     return EFI_SUCCESS;
   }
   
+  if ( Volume->ApfsFileSystemUUID.notEmpty() ) {
+    APPLE_APFS_CONTAINER_INFO       *ApfsContainerInfo;
+    APPLE_APFS_VOLUME_INFO          *ApfsVolumeInfo;
+    Status = InternalGetApfsSpecialFileInfo(Volume->RootDir, &ApfsVolumeInfo, &ApfsContainerInfo);
+    if ( !EFI_ERROR(Status) ) {
+      //DBG("Status : %s, APFS role : %x\n", efiStrError(Status), ApfsVolumeInfo->Role);
+      Volume->ApfsRole = ApfsVolumeInfo->Role;
+      Volume->ApfsContainerUUID = GuidLEToXString8(ApfsContainerInfo->Uuid);
+    }else{
+      MsgLog("Status : %s, APFS role : %x\n", efiStrError(Status), ApfsVolumeInfo->Role);
+    }
+  }
+  if ( Volume->ApfsFileSystemUUID.notEmpty() ) {
+    DBG("          apfsFileSystemUUID=%s, ApfsContainerUUID=%s, ApfsRole=0x%x\n", Volume->ApfsFileSystemUUID.c_str(), Volume->ApfsContainerUUID.c_str(), Volume->ApfsRole);
+  }
+
+
   if ( FileExists(Volume->RootDir, L"\\.VolumeLabel.txt") ) {
       EFI_FILE*     FileHandle;
       Status = Volume->RootDir->Open(Volume->RootDir, &FileHandle, L"\\.VolumeLabel.txt", EFI_FILE_MODE_READ, 0);
@@ -837,7 +859,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
   {
     void *Instance;
     if (!EFI_ERROR(gBS->HandleProtocol(Volume->DeviceHandle, &gEfiPartTypeSystemPartGuid, &Instance))) {
-      Volume->VolName = L"EFI"_XSW;                                 \
+      Volume->VolName = L"EFI"_XSW;
     }
   }
   if (Volume->VolName.isEmpty()) {
@@ -872,6 +894,8 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
 		}
 		DirIterClose(&DirIter);
   }
+
+  DBG("          label : %ls\n", Volume->getVolLabelOrOSXVolumeNameOrVolName().wc_str());
   
   //Status = GetOSVersion(Volume); NOTE: Sothor - We will find icon names later once we have found boot.efi on the volume //here we set Volume->IconName (tiger,leo,snow,lion,cougar, etc)
   
@@ -1215,9 +1239,14 @@ BOOLEAN FileExists(IN CONST EFI_FILE *Root, IN CONST CHAR16 *RelativePath)
   return FALSE;
 }
 
-BOOLEAN FileExists(IN CONST EFI_FILE *Root, IN CONST XStringW& RelativePath)
+BOOLEAN FileExists(const EFI_FILE *Root, const XStringW& RelativePath)
 {
 	return FileExists(Root, RelativePath.wc_str());
+}
+
+BOOLEAN FileExists(const EFI_FILE& Root, const XStringW& RelativePath)
+{
+  return FileExists(&Root, RelativePath.wc_str());
 }
 
 BOOLEAN DeleteFile(const EFI_FILE *Root, IN CONST CHAR16 *RelativePath)

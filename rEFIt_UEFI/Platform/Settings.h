@@ -809,7 +809,10 @@ extern CONST CHAR16                   *gFirmwareRevision;
 extern CONST CHAR8* gRevisionStr;
 extern CONST CHAR8* gFirmwareBuildDate;
 extern CONST CHAR8* gBuildInfo;
-extern const LString8 gBuildId;
+extern const LString8  gBuildId;
+extern const LString8  path_independant;
+extern const LString8  gBuildIdGrepTag;
+
 
 extern BOOLEAN                        ResumeFromCoreStorage;
 extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass argument for Dell SMBIOS here

@@ -188,7 +188,7 @@ isNASMGood() {
   # nasm should be greater or equal to 2.12.02 to be good building Clover.
   # There was a bad macho relocation in outmacho.c, fixed by Zenith432
   # and accepted by nasm devel during 2.12.rcxx (release candidate)
-  # modern nasm is 2.14
+  # modern nasm is 2.15
 
   result=1
   local nasmver=$( "${1}" -v | grep 'NASM version' | awk '{print $3}' )
@@ -567,7 +567,7 @@ MainBuildScript() {
         cmd="build $cmd"
     fi
 
-    cmd="$cmd -p $PLATFORMFILE $MODULEFILE -a $TARGETARCH -b $BUILDTARGET"
+    cmd="$cmd -p $PLATFORMFILE $MODULEFILE -a $TARGETARCH -b $BUILDTARGET -DLESS_DEBUG"
     cmd="$cmd -t $TOOLCHAIN -n $BUILDTHREADS $TARGETRULE"
 
     echo
@@ -848,15 +848,13 @@ MainPostBuildScript() {
     done
 
     # drivers64UEFI/MemoryFix
-    binArray=( OsxAptioFixDrv OsxLowMemFixDrv OsxAptioFix3Drv AptioMemoryFix OcQuirks OpenRuntime )
+    binArray=( OpenRuntime )
 
     for efi in "${binArray[@]}"
     do
       copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers/$DRIVERS_OFF/$DRIVERS_UEFI/MemoryFix/$efi.efi
     done
     
-    copyBin "${CLOVERROOT}"/MemoryFix/OcQuirks/OcQuirks.plist "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers/$DRIVERS_OFF/$DRIVERS_UEFI/MemoryFix/
-
     # Applications
     echo "Copy Applications:"
     copyBin "$BUILD_DIR_ARCH"/bdmesg.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/tools/

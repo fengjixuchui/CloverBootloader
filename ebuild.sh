@@ -879,15 +879,13 @@ MainPostBuildScript() {
     done
 
     # drivers64UEFI/MemoryFix
-    binArray=( OsxAptioFixDrv OsxLowMemFixDrv OsxAptioFix3Drv AptioMemoryFix OcQuirks OpenRuntime )
+    binArray=( OpenRuntime )
 
     for efi in "${binArray[@]}"
     do
       copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers/$DRIVERS_OFF/$DRIVERS_UEFI/MemoryFix/$efi.efi
     done
     
-    copyBin "${CLOVERROOT}"/MemoryFix/OcQuirks/OcQuirks.plist "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers/$DRIVERS_OFF/$DRIVERS_UEFI/MemoryFix/
-
     # Applications
     echo "Copy Applications:"
     copyBin "$BUILD_DIR_ARCH"/bdmesg.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/tools/
@@ -932,7 +930,7 @@ rm -rf ${WORKSPACE}/Build/*.efi
 rm -rf ${WORKSPACE}/Build/*.zip
 
 #extract build_id from efi instead of Version.h to be 100% sure that name correspond to actual content.
-dstFileName=CloverX64-"$BUILDTARGET"_"$TOOLCHAIN"-"$(grep -aEo "Clover build id: [^[:cntrl:]]*" < "$BUILD_DIR_ARCH"/CLOVERX64.efi | sed "s/Clover build id: //")"
+dstFileName=CloverX64-"$BUILDTARGET"_"$TOOLCHAIN"-"$(grep -aEo "CloverBuildIdGrepTag: [^[:cntrl:]]*" < "$BUILD_DIR_ARCH"/CLOVERX64.efi | sed "s/CloverBuildIdGrepTag: //")"
 
 copyBin "$BUILD_DIR_ARCH"/CLOVERX64.efi ${WORKSPACE}/Build/"$dstFileName".efi
 rm -f ${WORKSPACE}/Build/"$dstFileName".zip

@@ -43,6 +43,7 @@
   include/OneLinerMacros.h
   include/Pci.h
   include/XToolsConf.h
+  include/OC.h
   refit/main.cpp
   refit/icns.cpp
   refit/lib.cpp
@@ -258,13 +259,10 @@
 	Platform/VersionString.cpp
 	Platform/VersionString.h
   ../Version.h
-  cpp_util/memory.cpp
   cpp_util/globals_ctor.cpp
   cpp_util/globals_ctor.h
   cpp_util/globals_dtor.cpp
   cpp_util/globals_dtor.h
-  cpp_util/memory.cpp
-  cpp_util/memory.h
   cpp_util/operatorNewDelete.cpp
   cpp_util/operatorNewDelete.h
   cpp_util/remove_ref.h
@@ -318,6 +316,7 @@
   cpp_unit_test/XStringArray_test.h
   cpp_unit_test/plist_tests.cpp
   cpp_unit_test/plist_tests.h
+  cpp_unit_test/XToolsCommon_test.cpp
   cpp_unit_test/XToolsCommon_test.h
 #  cpp_unit_test/XUINTN_test.cpp
 #  cpp_unit_test/XUINTN_test.h
@@ -365,6 +364,8 @@
   OpenCoreLib
   #OcDebugLogLib
   OcDebugLogLibOc2Clover
+  OcAppleBootPolicyLib
+  CppMemLib
 
 [Guids]
   gEfiAcpiTableGuid
@@ -481,7 +482,7 @@
 [Pcd]
 
 [BuildOptions]
-  XCODE:*_*_*_CC_FLAGS = -fsigned-char -O2 -fno-omit-frame-pointer      -ffreestanding -fno-rtti -fno-exceptions -Wno-deprecated -Wno-writable-strings -Wno-unused-const-variable -DJCONST=CONST -Wno-incompatible-ms-struct
+  XCODE:*_*_*_CC_FLAGS = -fsigned-char -fno-omit-frame-pointer -ffreestanding -fno-rtti -fno-exceptions -Wno-deprecated -Wno-writable-strings -Wno-unused-const-variable -DJCONST=CONST -Wno-incompatible-ms-struct
   GCC:*_*_*_CC_FLAGS = -std=c99 -fno-omit-frame-pointer -maccumulate-outgoing-args
-  GCC:*_*_*_CXX_FLAGS = -std=c++11 -fno-omit-frame-pointer -maccumulate-outgoing-args   -ffreestanding -fno-rtti -fno-exceptions -Wno-deprecated -Wno-write-strings -Wno-unused-const-variable -Wno-pointer-arith -DJCONST=CONST
+  GCC:*_*_*_CXX_FLAGS = -std=c++11 -fno-omit-frame-pointer -maccumulate-outgoing-args -ffreestanding -fno-rtti -fno-exceptions -Wno-deprecated -Wno-write-strings -Wno-unused-const-variable -Wno-pointer-arith -DJCONST=CONST
   MSFT:*_*_*_CC_FLAGS = /Os /wd4201 /D JCONST=const

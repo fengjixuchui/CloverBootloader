@@ -69,15 +69,6 @@ extern XTheme ThemeX; //global variable defined in lib.cpp
 #define REFIT_DEBUG (2)
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-#ifdef __cplusplus
-}
-#endif
-
 //
 // lib module
 //
@@ -298,9 +289,19 @@ typedef enum {
 #define SCREEN_EDGE_BOTTOM  80000
 
 extern REFIT_VOLUME     *SelfVolume;
+
 #ifdef __cplusplus
-extern XObjArray<REFIT_VOLUME> Volumes;
+class VolumesArrayClass : public XObjArray<REFIT_VOLUME>
+{
+  public:
+//    REFIT_VOLUME* getApfsPartitionWithUUID(const XString8& ApfsContainerUUID, const XString8& APFSTargetUUID);
+
+};
+
+extern VolumesArrayClass Volumes;
+
 #endif
+
 //extern UINTN            VolumesCount;
 
 extern BOOLEAN          gThemeChanged;
@@ -329,8 +330,9 @@ void ScanVolumes(void);
 
 REFIT_VOLUME *FindVolumeByName(IN CONST CHAR16 *VolName);
 
-BOOLEAN FileExists(IN CONST EFI_FILE *BaseDir, IN CONST CHAR16 *RelativePath);
-BOOLEAN FileExists(IN CONST EFI_FILE *BaseDir, IN CONST XStringW& RelativePath);
+BOOLEAN FileExists(const EFI_FILE *BaseDir, const CHAR16 *RelativePath);
+BOOLEAN FileExists(const EFI_FILE *BaseDir, const XStringW& RelativePath);
+BOOLEAN FileExists(const EFI_FILE& Root, const XStringW& RelativePath);
 
 inline EFI_DEVICE_PATH_PROTOCOL* FileDevicePath (IN EFI_HANDLE Device, IN CONST XStringW& FileName) { return FileDevicePath(Device, FileName.wc_str()); }
 
@@ -467,10 +469,6 @@ void DebugPause(void);
 #define ICON_FORMAT_BMP       (3)
 
 
-
-#ifdef _cplusplus
-extern XObjArray<REFIT_VOLUME> Volumes;
-#endif
 
 
 //

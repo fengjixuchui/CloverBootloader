@@ -273,7 +273,11 @@ MemLogVA (
   // Add log to buffer
   //
   LastMessage = mMemLog->Cursor;
+#ifdef JIEF_DEBUG
+  if (0) {
+#else
   if (Timing) {
+#endif
     //
     // Write timing only at the beginning of a new line
     //
@@ -295,16 +299,19 @@ MemLogVA (
   mMemLog->Cursor += DataWritten;
   
   //
+  // Write to standard debug device also
+  //
+  // Jief : use SerialPortWrite instead of DebugPrint to avoid 256 chars message length limitation.
+  // Jief : do this before CallBack to preserve order of messages sent from inside callback.
+  SerialPortWrite((UINT8*)LastMessage, mMemLog->Cursor - LastMessage);
+//  DebugPrint(DEBUG_INFO, "%a", LastMessage);
+
+  //
   // Pass this last message to callback if defined
   //
   if (mMemLog->Callback != NULL) {
     mMemLog->Callback(DebugMode, LastMessage);
   }
-  
-  //
-  // Write to standard debug device also
-  //
-  DebugPrint(DEBUG_INFO, "%a", LastMessage);
 }
 
 /**
@@ -401,6 +408,16 @@ SetMemLogCallback (
     }
   }
   mMemLog->Callback = Callback;
+}
+
+/**
+  Sets callback that will be called when message is added to mem log.
+ **/
+MEM_LOG_CALLBACK
+EFIAPI
+GetMemLogCallback ()
+{
+  return mMemLog->Callback;
 }
 
 /**
@@ -519,15 +536,12 @@ MemLogfVA (
   //
   UINTN LastMessage = mMemLog->Cursor - mMemLog->Buffer;
 
+#ifdef JIEF_DEBUG
+  vprintf_with_callback_timestamp_emitcr(Format, Marker, transmitS8Printf, NULL, &printfNewline, 0, 1);
+#else
   vprintf_with_callback_timestamp_emitcr(Format, Marker, transmitS8Printf, NULL, &printfNewline, Timing, 1);
+#endif
   size_t DataWritten = mMemLog->Cursor - mMemLog->Buffer - LastMessage;
-
-  //
-  // Pass this last message to callback if defined
-  //
-  if (mMemLog->Callback != NULL) {
-    mMemLog->Callback(DebugMode,  mMemLog->Buffer + LastMessage);
-  }
 
   //
   // Check driver debug mask value and global mask
@@ -539,8 +553,16 @@ MemLogfVA (
   // Write to standard debug device also
   //
   // Jief : use SerialPortWrite instead of DebugPrint to avoid 256 chars message length limitation.
+  // Jief : do this before CallBack to preserve order of messages sent from inside callback.
   SerialPortWrite((UINT8*)(mMemLog->Buffer + LastMessage), DataWritten);
 //  DebugPrint(DEBUG_INFO, "%a", LastMessage);
+
+  //
+  // Pass this last message to callback if defined
+  //
+  if (mMemLog->Callback != NULL) {
+    mMemLog->Callback(DebugMode,  mMemLog->Buffer + LastMessage);
+  }
 }
 
 /**
