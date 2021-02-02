@@ -41,6 +41,7 @@
   include/Efi.h
   include/Handle.h
   include/OneLinerMacros.h
+  include/OsType.h
   include/Pci.h
   include/XToolsConf.h
   include/OC.h
@@ -180,9 +181,11 @@
 	Platform/LegacyBiosThunk.cpp
 	Platform/LegacyBoot.h
 	Platform/LegacyBoot.cpp
-	Platform/memvendors.h
+  Platform/MacOsVersion.cpp
+  Platform/MacOsVersion.h
   Platform/MemoryOperation.h
   Platform/MemoryOperation.c
+  Platform/memvendors.h
 	Platform/nvidia.h
 	Platform/nvidia.cpp
     Platform/Net.h
@@ -294,6 +297,8 @@
   cpp_unit_test/global_test.cpp
   cpp_unit_test/LoadOptions_test.cpp
   cpp_unit_test/LoadOptions_test.h
+  cpp_unit_test/MacOsVersion_test.cpp
+  cpp_unit_test/MacOsVersion_test.h
   cpp_unit_test/printf_lite-test.cpp
   cpp_unit_test/printf_lite-test.h
   cpp_unit_test/printf_lite-test-cpp_conf.h

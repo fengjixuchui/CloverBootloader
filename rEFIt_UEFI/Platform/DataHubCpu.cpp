@@ -38,6 +38,7 @@
 
 
 #include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
+#include "../include/OsType.h"
 #include "Nvram.h"
 #include "platformdata.h"
 #include "smbios.h"
@@ -212,7 +213,7 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
   CONST CHAR16  *KbdPrevLang;
   UINTN   LangLen;
   void    *OldData;
-  UINT64  os_version = AsciiOSVersionToUint64(Entry->OSVersion);
+//  UINT64  os_version = AsciiOSVersionToUint64(Entry->OSVersion);
   CHAR8   *PlatformLang;
 
   EFI_GUID uuid;
@@ -407,7 +408,7 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
 
   // Sherlocks: to fix "OSInstall.mpkg appears to be missing or damaged" in 10.13+, we should remove this variables.
   if (Entry->LoaderType == OSTYPE_OSX_INSTALLER) {
-    if (os_version > AsciiOSVersionToUint64("10.12"_XS8)) {
+    if (Entry->macOSVersion.isEmpty() || Entry->macOSVersion > MacOsVersion("10.12"_XS8)) {
       DeleteNvramVariable(L"install-product-url",  &gEfiAppleBootGuid);
       DeleteNvramVariable(L"previous-system-uuid", &gEfiAppleBootGuid);
     }
@@ -536,6 +537,8 @@ SetupDataForOSX(BOOLEAN Hibernate)
     // all current settings
     XBuffer<UINT8> xb = gSettings.serialize();
     LogDataHub(&gEfiMiscSubClassGuid, L"Settings", xb.data(), (UINT32)xb.size());
+  }else{
+    MsgLog("DataHub protocol not located. Smbios not send to datahub\n");
   }
   if (!gAppleSmc) {
     return;
@@ -557,7 +560,7 @@ SetupDataForOSX(BOOLEAN Hibernate)
   AddSMCkey(SMC_MAKE_KEY('M','S','T','c'), 1, SmcKeyTypeUint8, (SMC_DATA *)&Zero); // CPU Plimit
   AddSMCkey(SMC_MAKE_KEY('M','S','A','c'), 2, SmcKeyTypeUint16, (SMC_DATA *)&Zero);// GPU Plimit
 //  AddSMCkey(SMC_MAKE_KEY('M','S','L','D'), 1, SmcKeyTypeUint8, (SMC_DATA *)&Zero);   //isLidClosed
-  Zero = Hibernate?((ResumeFromCoreStorage||GlobalConfig.HibernationFixup)?25:29):0;
+  Zero = Hibernate?((ResumeFromCoreStorage||gSettings.Boot.HibernationFixup)?25:29):0;
 
   AddSMCkey(SMC_MAKE_KEY('M','S','W','r'), 1, SmcKeyTypeUint8, (SMC_DATA *)&Zero);
   Zero = 1;

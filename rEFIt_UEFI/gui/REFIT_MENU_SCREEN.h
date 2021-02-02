@@ -148,6 +148,22 @@ public:
     return SIZE_T_MAX;
   }
 
+  size_t getApfsLoaderIdx(const XString8& ApfsContainerUUID, const XString8& ApfsFileSystemUUID, uint8_t osType)
+  {
+    for ( size_t i=0 ; i < XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::size() ; i++ ) {
+      if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY() ) {
+        if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->LoaderType == osType ) {
+          if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->Volume->ApfsContainerUUID == ApfsContainerUUID ) {
+            if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->Volume->ApfsFileSystemUUID == ApfsFileSystemUUID ) {
+              return i;
+            }
+          }
+        }
+      }
+    }
+    return SIZE_T_MAX;
+  }
+
   size_t getApfsPrebootLoaderIdx(const XString8& ApfsContainerUUID, const XString8& ApfsFileSystemUUID)
   {
     for ( size_t i=0 ; i < XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::size() ; i++ ) {
@@ -156,6 +172,24 @@ public:
           if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->Volume->ApfsContainerUUID == ApfsContainerUUID ) {
             if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->APFSTargetUUID == ApfsFileSystemUUID ) {
               return i;
+            }
+          }
+        }
+      }
+    }
+    return SIZE_T_MAX;
+  }
+
+  size_t getApfsPrebootLoaderIdx(const XString8& ApfsContainerUUID, const XString8& ApfsFileSystemUUID, uint8_t osType)
+  {
+    for ( size_t i=0 ; i < XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::size() ; i++ ) {
+      if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY() ) {
+        if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->LoaderType == osType ) {
+          if ( (XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->Volume->ApfsRole & APPLE_APFS_VOLUME_ROLE_PREBOOT) != 0 ) {
+            if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->Volume->ApfsContainerUUID == ApfsContainerUUID ) {
+              if ( XObjArray<REFIT_ABSTRACT_MENU_ENTRY>::ElementAt(i).getLOADER_ENTRY()->APFSTargetUUID == ApfsFileSystemUUID ) {
+                return i;
+              }
             }
           }
         }
@@ -252,8 +286,8 @@ public:
   {
     EFI_TIME          Now;
     gRT->GetTime(&Now, NULL);
-    if (GlobalConfig.Timezone != 0xFF) {
-      INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
+    if (gSettings.GUI.Timezone != 0xFF) {
+      INT32 NowHour = Now.Hour + gSettings.GUI.Timezone;
       if (NowHour <  0 ) NowHour += 24;
       if (NowHour >= 24 ) NowHour -= 24;
       Daylight = (NowHour > 8) && (NowHour < 20);  //this is the screen member

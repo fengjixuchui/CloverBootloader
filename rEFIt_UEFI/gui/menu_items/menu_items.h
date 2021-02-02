@@ -45,11 +45,12 @@
 #include "../../cpp_foundation/XStringArray.h"
 #include "../../cpp_foundation/XString.h"
 #include "../../libeg/XPointer.h"
+#include "../../Platform/MacOsVersion.h"
 
 
 //
 //#define REFIT_DEBUG (2)
-//#define Print if ((!GlobalConfig.Quiet) || (GlobalConfig.TextOnly)) Print
+//#define Print if ((!GlobalConfig.Quiet) || (gSettings.GUI.TextOnly)) Print
 ////#include "GenericBdsLib.h"
 
 
@@ -370,7 +371,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
 				EFI_DEVICE_PATH  *DevicePath;
 				UINT16            Flags;
 				UINT8             LoaderType;
-				XString8          OSVersion;
+				MacOsVersion      macOSVersion;
 				XString8          BuildVersion;
         EFI_GRAPHICS_OUTPUT_BLT_PIXEL BootBgColor;
 
@@ -414,7 +415,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
         
 
 				LOADER_ENTRY()
-						: REFIT_MENU_ITEM_BOOTNUM(), APFSTargetUUID(), DisplayedVolName(), DevicePath(0), Flags(0), LoaderType(0), OSVersion(), BuildVersion(),
+						: REFIT_MENU_ITEM_BOOTNUM(), APFSTargetUUID(), DisplayedVolName(), DevicePath(0), Flags(0), LoaderType(0), macOSVersion(), BuildVersion(),
               BootBgColor({0,0,0,0}),
               CustomBoot(0), CustomLogo(), KernelAndKextPatches(), Settings(), KernelData(0),
               AddrVtable(0), SizeVtable(0), NamesTable(0), SegVAddr(0), shift(0),
@@ -458,7 +459,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
         
         EFI_STATUS    SetFSInjection();
         EFI_STATUS    InjectKexts(IN UINT32 deviceTreeP, IN UINT32 *deviceTreeLength);
-        EFI_STATUS    LoadKexts();
+//        EFI_STATUS    LoadKexts();
  //       int           is_mkext_v1(UINT8* drvPtr);
  //       void          patch_mkext_v1(UINT8 *drvPtr); //not used
  
@@ -466,7 +467,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
         EFI_STATUS AddKext(const EFI_FILE *RootDir, const XString8& FileName, IN cpu_type_t archCpuType);
         void      LoadPlugInKexts(const EFI_FILE *RootDir, const XString8& DirName, IN cpu_type_t archCpuType, IN BOOLEAN Force);
 //        void      AddKexts(const XStringW& SrcDir, const XStringW& Path, cpu_type_t archCpuType);
-        void      AddKextsFromDirInArray(const XString8& SrcDir, const XString8& Path, cpu_type_t archCpuType, XObjArray<SIDELOAD_KEXT>* kextArray);
+        void      AddKextsFromDirInArray(const XString8& SrcDir, cpu_type_t archCpuType, XObjArray<SIDELOAD_KEXT>* kextArray);
         void      AddKextsInArray(XObjArray<SIDELOAD_KEXT>* kextArray);
         void      KextPatcherRegisterKexts(void *FSInject, void *ForceLoadKexts);
         void      KextPatcherStart();

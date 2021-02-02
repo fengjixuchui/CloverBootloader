@@ -9,7 +9,11 @@
 #include <Library/BaseMemoryLib.h>
 
 #ifndef DEBUG_MEMORYOPERATION
-#define DEBUG_MEMORYOPERATION 1
+# ifdef UNIT_TESTS
+#   define DEBUG_MEMORYOPERATION 0
+# else
+#   define DEBUG_MEMORYOPERATION 1
+# endif
 #else
 #define DEBUG_MAIN DEBUG_ALL
 #endif
@@ -61,7 +65,21 @@ UINTN SearchAndReplace(UINT8 *Source, UINT64 SourceSize, const UINT8 *Search, UI
   while ((Source < End) && (NoReplacesRestriction || (MaxReplaces > 0))) {
     if (CompareMem(Source, Search, SearchSize) == 0) {
  //     printf("  found pattern at %llx\n", (UINTN)(Source - Begin));
+
+      DBG("Replace " );
+      for (UINTN Index = 0; Index < SearchSize; ++Index) {
+        DBG("%02X", Search[Index]);
+      }
+      DBG(" by " );
+
+
       CopyMem(Source, Replace, SearchSize);
+
+
+      for (UINTN Index = 0; Index < SearchSize; ++Index) {
+        DBG("%02X", Replace[Index]);
+      }
+
       NumReplaces++;
       MaxReplaces--;
       Source += SearchSize;
@@ -128,7 +146,9 @@ UINTN SearchAndReplaceMask(UINT8 *Source, UINT64 SourceSize, const UINT8 *Search
 {
   UINTN     NumReplaces = 0;
   BOOLEAN   NoReplacesRestriction = MaxReplaces <= 0;
+#if DEBUG_MEMORYOPERATION > 0
   UINT8*    SourceBak = Source;
+#endif
   UINT8     *End = Source + SourceSize;
   if (!Source || !Search || !Replace || !SearchSize) {
     return 0;

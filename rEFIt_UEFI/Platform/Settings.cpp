@@ -36,6 +36,8 @@
 #include "Self.h"
 #include "SelfOem.h"
 #include "Net.h"
+#include "MacOsVersion.h"
+#include "../include/OsType.h"
 
 
 #ifndef DEBUG_ALL
@@ -326,17 +328,17 @@ GetBootFromOption(void)
   NameSize = *(UINT16*)Data;
 
   Data += 2; // pointer to Volume name
-  gSettings.DefaultVolume.strncpy((__typeof__(gSettings.DefaultVolume.wc_str()))Data, NameSize);
+  gSettings.Boot.DefaultVolume.strncpy((__typeof__(gSettings.Boot.DefaultVolume.wc_str()))Data, NameSize);
 
   Data += NameSize;
   Name2Size = Len - NameSize;
   if (Name2Size != 0) {
-    gSettings.DefaultLoader.strncpy((__typeof__(gSettings.DefaultVolume.wc_str()))Data, NameSize);
+    gSettings.Boot.DefaultLoader.strncpy((__typeof__(gSettings.Boot.DefaultVolume.wc_str()))Data, NameSize);
   }
 
   DBG("Clover started with option to boot %ls from %ls\n",
-      gSettings.DefaultLoader.notEmpty() ? gSettings.DefaultLoader.wc_str() : L"legacy",
-      gSettings.DefaultVolume.wc_str());
+      gSettings.Boot.DefaultLoader.notEmpty() ? gSettings.Boot.DefaultLoader.wc_str() : L"legacy",
+      gSettings.Boot.DefaultVolume.wc_str());
 }
 
 //
@@ -1510,8 +1512,37 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
   return TRUE;
 }
 
+
 BOOLEAN
-IsPatchEnabled (const XString8& MatchOSEntry, const XString8& CurrOS)
+IsPatchEnabledByBuildNumber(const XString8& MatchOSEntry, const XString8& Build)
+{
+  BOOLEAN ret = FALSE;
+
+  if (MatchOSEntry.isEmpty() || Build.isEmpty()) {
+    return TRUE; //undefined matched corresponds to old behavior
+  }
+
+  XString8Array mos = Split<XString8Array>(MatchOSEntry, ","_XS8).trimEachString();
+  
+  if ( mos[0] == "All"_XS8) {
+    return TRUE;
+  }
+
+  for (size_t i = 0; i < mos.size(); ++i) {
+    // dot represent MatchOS
+    MacOsVersion mosv = mos[i];
+    if ( mos[i].contains(Build) ) { // MatchBuild
+      //DBG("\nthis patch will activated for OS %ls!\n", mos->array[i]);
+      ret =  TRUE;
+      break;
+    }
+  }
+  return ret;
+}
+
+
+BOOLEAN
+IsPatchEnabled(const XString8& MatchOSEntry, const MacOsVersion& CurrOS)
 {
   BOOLEAN ret = FALSE;
 
@@ -1527,10 +1558,8 @@ IsPatchEnabled (const XString8& MatchOSEntry, const XString8& CurrOS)
 
   for (size_t i = 0; i < mos.size(); ++i) {
     // dot represent MatchOS
-    if (
-        ( mos[i].contains("."_XS8) && IsOSValid(mos[i], CurrOS)) || // MatchOS
-        ( mos[i].contains(CurrOS) ) // MatchBuild
-        ) {
+    MacOsVersion mosv = mos[i];
+    if ( CurrOS.match(mos[i]) ) {
       //DBG("\nthis patch will activated for OS %ls!\n", mos->array[i]);
       ret =  TRUE;
       break;
@@ -1540,61 +1569,61 @@ IsPatchEnabled (const XString8& MatchOSEntry, const XString8& CurrOS)
 }
 
 
-BOOLEAN IsOSValid(const XString8& MatchOS, const XString8& CurrOS)
-{
-  /* example for valid matches are:
-   10.7, only 10.7 (10.7.1 will be skipped)
-   10.10.2 only 10.10.2 (10.10.1 or 10.10.5 will be skipped)
-   10.10.x (or 10.10.X), in this case is valid for all minor version of 10.10 (10.10.(0-9))
-   */
-
-  BOOLEAN ret = FALSE;
-
-  if (MatchOS.isEmpty() || CurrOS.isEmpty()) {
-    return TRUE; //undefined matched corresponds to old behavior
-  }
-
-//  osToc = GetStrArraySeparatedByChar(MatchOS, '.');
-  XString8Array osToc = Split<XString8Array>(MatchOS, "."_XS8).trimEachString();
-  XString8Array currOStoc = Split<XString8Array>(CurrOS, "."_XS8).trimEachString();
-
-  if ( osToc.size() > 0 && currOStoc.size() > 0 && osToc[0] == "11"_XS8 && currOStoc[0] == "11"_XS8 ) {
-    if (osToc.size() == 1 ) return true;
-    if (osToc.size() == 2 ) {
-      if ( osToc[1].equalIC("x") ) return true;
-      if ( currOStoc.size() == 2 && osToc[1] == currOStoc[1] ) return true;
-    }
-  }
-  if (osToc.size() == 2) {
-    if (currOStoc.size() == 2) {
-      if ( osToc[0] == currOStoc[0] && osToc[1] == currOStoc[1]) {
-        ret = TRUE;
-      }
-    }
-  } else if (osToc.size() == 3) {
-    if (currOStoc.size() == 3) {
-      if ( osToc[0] == currOStoc[0]
-          && osToc[1] == currOStoc[1]
-          && osToc[2] == currOStoc[2]) {
-        ret = TRUE;
-      } else if ( osToc[0] == currOStoc[0]
-                 && osToc[1] == currOStoc[1]
-                 && osToc[2].equalIC("x") ) {
-        ret = TRUE;
-      }
-    } else if (currOStoc.size() == 2) {
-      if ( osToc[0] == currOStoc[0]
-          && osToc[1] ==  currOStoc[1] ) {
-        ret = TRUE;
-      } else if ( osToc[0] == currOStoc[0]
-                 && osToc[1] ==  currOStoc[1]
-                 && osToc[2].equalIC("x") == 0 ) {
-        ret = TRUE;
-      }
-    }
-  }
-  return ret;
-}
+//BOOLEAN IsOSValid(const XString8& MatchOS, const MacOsVersion& CurrOS)
+//{
+//  /* example for valid matches are:
+//   10.7, only 10.7 (10.7.1 will be skipped)
+//   10.10.2 only 10.10.2 (10.10.1 or 10.10.5 will be skipped)
+//   10.10.x (or 10.10.X), in this case is valid for all minor version of 10.10 (10.10.(0-9))
+//   */
+//
+//  BOOLEAN ret = FALSE;
+//
+//  if (MatchOS.isEmpty() || CurrOS.isEmpty()) {
+//    return TRUE; //undefined matched corresponds to old behavior
+//  }
+//
+////  osToc = GetStrArraySeparatedByChar(MatchOS, '.');
+//  XString8Array osToc = Split<XString8Array>(MatchOS, "."_XS8).trimEachString();
+//  XString8Array currOStoc = Split<XString8Array>(CurrOS, "."_XS8).trimEachString();
+//
+//  if ( osToc.size() > 0 && currOStoc.size() > 0 && osToc[0] == "11"_XS8 && currOStoc[0] == "11"_XS8 ) {
+//    if (osToc.size() == 1 ) return true;
+//    if (osToc.size() == 2 ) {
+//      if ( osToc[1].equalIC("x") ) return true;
+//      if ( currOStoc.size() == 2 && osToc[1] == currOStoc[1] ) return true;
+//    }
+//  }
+//  if (osToc.size() == 2) {
+//    if (currOStoc.size() == 2) {
+//      if ( osToc[0] == currOStoc[0] && osToc[1] == currOStoc[1]) {
+//        ret = TRUE;
+//      }
+//    }
+//  } else if (osToc.size() == 3) {
+//    if (currOStoc.size() == 3) {
+//      if ( osToc[0] == currOStoc[0]
+//          && osToc[1] == currOStoc[1]
+//          && osToc[2] == currOStoc[2]) {
+//        ret = TRUE;
+//      } else if ( osToc[0] == currOStoc[0]
+//                 && osToc[1] == currOStoc[1]
+//                 && osToc[2].equalIC("x") ) {
+//        ret = TRUE;
+//      }
+//    } else if (currOStoc.size() == 2) {
+//      if ( osToc[0] == currOStoc[0]
+//          && osToc[1] ==  currOStoc[1] ) {
+//        ret = TRUE;
+//      } else if ( osToc[0] == currOStoc[0]
+//                 && osToc[1] ==  currOStoc[1]
+//                 && osToc[2].equalIC("x") == 0 ) {
+//        ret = TRUE;
+//      }
+//    }
+//  }
+//  return ret;
+//}
 
 UINT8 CheckVolumeType(UINT8 VolumeType, const TagStruct* Prop)
 {
@@ -2233,18 +2262,18 @@ GetEarlyUserSettings (
 //  const TagDict*      DictPointer;
 //  const TagStruct*    Prop;
 //  const TagArray*     arrayProp;
-  void        *Value = NULL;
-  BOOLEAN     SpecialBootMode = FALSE;
+//  void        *Value = NULL;
+//  BOOLEAN     SpecialBootMode = FALSE;
 
-  {
-    UINTN       Size = 0;
-    //read aptiofixflag from nvram for special boot
-    Status = GetVariable2(L"aptiofixflag", &gEfiAppleBootGuid, &Value, &Size);
-    if (!EFI_ERROR(Status)) {
-      SpecialBootMode = TRUE;
-      FreePool(Value);
-    }
-  }
+//  {
+//    UINTN       Size = 0;
+//    //read aptiofixflag from nvram for special boot
+//    Status = GetVariable2(L"aptiofixflag", &gEfiAppleBootGuid, &Value, &Size);
+//    if (!EFI_ERROR(Status)) {
+//      SpecialBootMode = TRUE;
+//      FreePool(Value);
+//    }
+//  }
 
   gSettings.KextPatchesAllowed              = TRUE;
   gSettings.KernelAndKextPatches.KPAppleRTC = TRUE;
@@ -2259,35 +2288,35 @@ GetEarlyUserSettings (
     if (BootDict != NULL) {
       const TagStruct* Prop = BootDict->propertyForKey("Timeout");
       if (Prop != NULL) {
-        GlobalConfig.Timeout = (INT32)GetPropertyAsInteger(Prop, GlobalConfig.Timeout);
-		  DBG("timeout set to %lld\n", GlobalConfig.Timeout);
+        gSettings.Boot.Timeout = (INT32)GetPropertyAsInteger(Prop, gSettings.Boot.Timeout);
+		  DBG("timeout set to %lld\n", gSettings.Boot.Timeout);
       }
 
       Prop = BootDict->propertyForKey("SkipHibernateTimeout");
-      gSettings.SkipHibernateTimeout = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.SkipHibernateTimeout = IsPropertyNotNullAndTrue(Prop);
 
       //DisableCloverHotkeys
       Prop = BootDict->propertyForKey("DisableCloverHotkeys");
-      gSettings.DisableCloverHotkeys = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.DisableCloverHotkeys = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("Arguments");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-        gSettings.BootArgs = Prop->getString()->stringValue();
+        gSettings.Boot.BootArgs = Prop->getString()->stringValue();
       }
 
       // defaults if "DefaultVolume" is not present or is empty
-      gSettings.LastBootedVolume = FALSE;
-      //     gSettings.DefaultVolume    = NULL;
+      gSettings.Boot.LastBootedVolume = FALSE;
+      //     gSettings.Boot.DefaultVolume    = NULL;
 
       Prop = BootDict->propertyForKey("DefaultVolume");
       if (Prop != NULL) {
         if ( Prop->isString()  &&  Prop->getString()->stringValue().notEmpty() ) {
-          gSettings.DefaultVolume.setEmpty();
+          gSettings.Boot.DefaultVolume.setEmpty();
           // check for special value for remembering boot volume
           if (Prop->getString()->stringValue().equalIC("LastBootedVolume")) {
-            gSettings.LastBootedVolume = TRUE;
+            gSettings.Boot.LastBootedVolume = TRUE;
           } else {
-            gSettings.DefaultVolume = Prop->getString()->stringValue();
+            gSettings.Boot.DefaultVolume = Prop->getString()->stringValue();
           }
         }
       }
@@ -2297,57 +2326,50 @@ GetEarlyUserSettings (
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : property not string in DefaultLoader\n");
         }else{
-	        gSettings.DefaultLoader = Prop->getString()->stringValue();
+	        gSettings.Boot.DefaultLoader = Prop->getString()->stringValue();
 	      }
       }
 
       Prop = BootDict->propertyForKey("Debug");
       if ( Prop ) {
         if ( Prop->isString() ) {
-          if ( Prop->getString()->stringValue().equalIC("true") ) GlobalConfig.DebugLog = true;
-          else if ( Prop->getString()->stringValue().equalIC("false") ) GlobalConfig.DebugLog = false;
-          else if ( Prop->getString()->stringValue().equalIC("scratch") ) {
-            GlobalConfig.DebugLog = true;
-            GlobalConfig.ScratchDebugLogAtStart = true;
-          }
+          if ( Prop->getString()->stringValue().equalIC("true") ) gSettings.Boot.DebugLog = true;
+          else if ( Prop->getString()->stringValue().equalIC("false") ) gSettings.Boot.DebugLog = false;
           else MsgLog("MALFORMED config.plist : property Boot/Debug must be true, false, or scratch\n");
         }else if ( Prop->isBool() ) {
-          GlobalConfig.DebugLog = Prop->getBool()->boolValue();
+          gSettings.Boot.DebugLog = Prop->getBool()->boolValue();
         }else{
-          MsgLog("MALFORMED config.plist : property Boot/Debug must be a string (true, false, or scratch) or <true/> or <false/>\n");
+          MsgLog("MALFORMED config.plist : property Boot/Debug must be a string (true, false) or <true/> or <false/>\n");
         }
       }
 
-      Prop = BootDict->propertyForKey("EmptyDebugLogAtStart");
-      GlobalConfig.ScratchDebugLogAtStart = IsPropertyNotNullAndTrue(Prop);
-
       Prop = BootDict->propertyForKey("Fast");
-      GlobalConfig.FastBoot       = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.FastBoot       = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("NoEarlyProgress");
-      GlobalConfig.NoEarlyProgress = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.NoEarlyProgress = IsPropertyNotNullAndTrue(Prop);
 
-      if (SpecialBootMode) {
-        GlobalConfig.FastBoot       = TRUE;
-        DBG("Fast option enabled\n");
-      }
+//      if (SpecialBootMode) {
+//        GlobalConfig.isFastBoot()       = TRUE;
+//        DBG("Fast option enabled\n");
+//      }
 
       Prop = BootDict->propertyForKey("NeverHibernate");
-      GlobalConfig.NeverHibernate = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.NeverHibernate = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("StrictHibernate");
-      GlobalConfig.StrictHibernate = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.StrictHibernate = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("RtcHibernateAware");
-      GlobalConfig.RtcHibernateAware = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.RtcHibernateAware = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("HibernationFixup");
       if (Prop) {
-        GlobalConfig.HibernationFixup = IsPropertyNotNullAndTrue(Prop); //it will be set automatically
+        gSettings.Boot.HibernationFixup = IsPropertyNotNullAndTrue(Prop); //it will be set automatically
       }
 
       Prop = BootDict->propertyForKey("SignatureFixup");
-      GlobalConfig.SignatureFixup = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.SignatureFixup = IsPropertyNotNullAndTrue(Prop);
 
       //      Prop = GetProperty(DictPointer, "GetLegacyLanAddress");
       //      GetLegacyLanAddress = IsPropertyTrue(Prop);
@@ -2357,11 +2379,11 @@ GetEarlyUserSettings (
       if (Prop != NULL) {
         if ( Prop->isFalse() ) {
           // Only disable setup mode, we want always secure boot
-          gSettings.SecureBootSetupMode = 0;
-        } else if ( Prop->isTrue()  &&  !gSettings.SecureBoot ) {
+          gSettings.Boot.SecureBootSetupMode = 0;
+        } else if ( Prop->isTrue()  &&  !gSettings.Boot.SecureBoot ) {
           // This mode will force boot policy even when no secure boot or it is disabled
-          gSettings.SecureBootSetupMode = 1;
-          gSettings.SecureBoot          = 1;
+          gSettings.Boot.SecureBootSetupMode = 1;
+          gSettings.Boot.SecureBoot          = 1;
         }
       }
       // Secure boot policy
@@ -2369,25 +2391,25 @@ GetEarlyUserSettings (
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
         if ((Prop->getString()->stringValue()[0] == 'D') || (Prop->getString()->stringValue()[0] == 'd')) {
           // Deny all images
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_DENY;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_DENY;
         } else if ((Prop->getString()->stringValue()[0] == 'A') || (Prop->getString()->stringValue()[0] == 'a')) {
           // Allow all images
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_ALLOW;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_ALLOW;
         } else if ((Prop->getString()->stringValue()[0] == 'Q') || (Prop->getString()->stringValue()[0] == 'q')) {
           // Query user
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_QUERY;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_QUERY;
         } else if ((Prop->getString()->stringValue()[0] == 'I') || (Prop->getString()->stringValue()[0] == 'i')) {
           // Insert
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_INSERT;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_INSERT;
         } else if ((Prop->getString()->stringValue()[0] == 'W') || (Prop->getString()->stringValue()[0] == 'w')) {
           // White list
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_WHITELIST;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_WHITELIST;
         } else if ((Prop->getString()->stringValue()[0] == 'B') || (Prop->getString()->stringValue()[0] == 'b')) {
           // Black list
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_BLACKLIST;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_BLACKLIST;
         } else if ((Prop->getString()->stringValue()[0] == 'U') || (Prop->getString()->stringValue()[0] == 'u')) {
           // User policy
-          gSettings.SecureBootPolicy = SECURE_BOOT_POLICY_USER;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_USER;
         }
       }
       // Secure boot white list
@@ -2396,9 +2418,9 @@ GetEarlyUserSettings (
         INTN   i;
         INTN   Count = arrayProp->arrayContent().size();
         if (Count > 0) {
-          gSettings.SecureBootWhiteListCount = 0;
-          gSettings.SecureBootWhiteList = (__typeof__(gSettings.SecureBootWhiteList))AllocateZeroPool(Count * sizeof(CHAR16 *));
-          if (gSettings.SecureBootWhiteList) {
+          gSettings.Boot.SecureBootWhiteListCount = 0;
+          gSettings.Boot.SecureBootWhiteList = (__typeof__(gSettings.Boot.SecureBootWhiteList))AllocateZeroPool(Count * sizeof(CHAR16 *));
+          if (gSettings.Boot.SecureBootWhiteList) {
             for (i = 0; i < Count; i++) {
               const TagStruct* prop2 = &arrayProp->arrayContent()[i];
               if ( !prop2->isString() ) {
@@ -2406,7 +2428,7 @@ GetEarlyUserSettings (
                 continue;
               }
               if ( prop2->getString()->stringValue().notEmpty() ) {
-                gSettings.SecureBootWhiteList[gSettings.SecureBootWhiteListCount++] = SWPrintf("%s", prop2->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
+                gSettings.Boot.SecureBootWhiteList[gSettings.Boot.SecureBootWhiteListCount++] = SWPrintf("%s", prop2->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
               }
             }
           }
@@ -2418,9 +2440,9 @@ GetEarlyUserSettings (
         INTN   i;
         INTN   Count = arrayProp->arrayContent().size();
         if (Count > 0) {
-          gSettings.SecureBootBlackListCount = 0;
-          gSettings.SecureBootBlackList = (__typeof__(gSettings.SecureBootBlackList))AllocateZeroPool(Count * sizeof(CHAR16 *));
-          if (gSettings.SecureBootBlackList) {
+          gSettings.Boot.SecureBootBlackListCount = 0;
+          gSettings.Boot.SecureBootBlackList = (__typeof__(gSettings.Boot.SecureBootBlackList))AllocateZeroPool(Count * sizeof(CHAR16 *));
+          if (gSettings.Boot.SecureBootBlackList) {
             for (i = 0; i < Count; i++) {
               const TagStruct* prop2 = &arrayProp->arrayContent()[i];
               if ( !prop2->isString() ) {
@@ -2428,7 +2450,7 @@ GetEarlyUserSettings (
                 continue;
               }
               if ( prop2->getString()->stringValue().notEmpty() ) {
-                gSettings.SecureBootBlackList[gSettings.SecureBootBlackListCount++] = SWPrintf("%s", prop2->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
+                gSettings.Boot.SecureBootBlackList[gSettings.Boot.SecureBootBlackListCount++] = SWPrintf("%s", prop2->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
               }
             }
           }
@@ -2438,23 +2460,23 @@ GetEarlyUserSettings (
       // XMP memory profiles
       Prop = BootDict->propertyForKey("XMPDetection");
       if (Prop != NULL) {
-        gSettings.XMPDetection = 0;
+        gSettings.Boot.XMPDetection = 0;
         if ( Prop->isFalse() ) {
-          gSettings.XMPDetection = -1;
+          gSettings.Boot.XMPDetection = -1;
         } else if ( Prop->isString() ) {
           if ((Prop->getString()->stringValue()[0] == 'n') ||
               (Prop->getString()->stringValue()[0] == 'N') ||
               (Prop->getString()->stringValue()[0] == '-')) {
-            gSettings.XMPDetection = -1;
+            gSettings.Boot.XMPDetection = -1;
           } else {
-            gSettings.XMPDetection = (INT8)AsciiStrDecimalToUintn(Prop->getString()->stringValue().c_str());
+            gSettings.Boot.XMPDetection = (INT8)AsciiStrDecimalToUintn(Prop->getString()->stringValue().c_str());
           }
         } else if (Prop->isInt64()) {
-          gSettings.XMPDetection = (INT8)Prop->getInt64()->intValue();
+          gSettings.Boot.XMPDetection = (INT8)Prop->getInt64()->intValue();
         }
         // Check that the setting value is sane
-        if ((gSettings.XMPDetection < -1) || (gSettings.XMPDetection > 2)) {
-          gSettings.XMPDetection   = -1;
+        if ((gSettings.Boot.XMPDetection < -1) || (gSettings.Boot.XMPDetection > 2)) {
+          gSettings.Boot.XMPDetection   = -1;
         }
       }
 
@@ -2464,65 +2486,65 @@ GetEarlyUserSettings (
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : Prop property not string in Legacy\n");
         }else{
-          gSettings.LegacyBoot = Prop->getString()->stringValue();
+          gSettings.Boot.LegacyBoot = Prop->getString()->stringValue();
         }
       } else if (gFirmwareClover) {
         // default for CLOVER EFI boot
-        gSettings.LegacyBoot = "PBR"_XS8;
+        gSettings.Boot.LegacyBoot = "PBR"_XS8;
       } else {
         // default for UEFI boot
-        gSettings.LegacyBoot = "LegacyBiosDefault"_XS8;
+        gSettings.Boot.LegacyBoot = "LegacyBiosDefault"_XS8;
       }
 
       // Entry for LegacyBiosDefault
       Prop = BootDict->propertyForKey("LegacyBiosDefaultEntry");
       if (Prop != NULL) {
-        gSettings.LegacyBiosDefaultEntry = (UINT16)GetPropertyAsInteger(Prop, 0); // disabled by default
+        gSettings.Boot.LegacyBiosDefaultEntry = (UINT16)GetPropertyAsInteger(Prop, 0); // disabled by default
       }
 
       // Whether or not to draw boot screen
       Prop = BootDict->propertyForKey("CustomLogo");
       if (Prop != NULL) {
         if (IsPropertyNotNullAndTrue(Prop)) {
-          gSettings.CustomBoot   = CUSTOM_BOOT_APPLE;
+          gSettings.Boot.CustomBoot   = CUSTOM_BOOT_APPLE;
         } else if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
           if (Prop->getString()->stringValue().equalIC("Apple")) {
-            gSettings.CustomBoot = CUSTOM_BOOT_APPLE;
+            gSettings.Boot.CustomBoot = CUSTOM_BOOT_APPLE;
           } else if (Prop->getString()->stringValue().equalIC("Alternate")) {
-            gSettings.CustomBoot = CUSTOM_BOOT_ALT_APPLE;
+            gSettings.Boot.CustomBoot = CUSTOM_BOOT_ALT_APPLE;
           } else if (Prop->getString()->stringValue().equalIC("Theme")) {
-            gSettings.CustomBoot = CUSTOM_BOOT_THEME;
+            gSettings.Boot.CustomBoot = CUSTOM_BOOT_THEME;
           } else {
             XStringW customLogo = XStringW() = Prop->getString()->stringValue();
-            gSettings.CustomBoot = CUSTOM_BOOT_USER;
-            if (gSettings.CustomLogo != NULL) {
-              delete gSettings.CustomLogo;
+            gSettings.Boot.CustomBoot = CUSTOM_BOOT_USER;
+            if (gSettings.Boot.CustomLogo != NULL) {
+              delete gSettings.Boot.CustomLogo;
             }
-            gSettings.CustomLogo = new XImage;
-            gSettings.CustomLogo->LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
-            if (gSettings.CustomLogo->isEmpty()) {
+            gSettings.Boot.CustomLogo = new XImage;
+            gSettings.Boot.CustomLogo->LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
+            if (gSettings.Boot.CustomLogo->isEmpty()) {
               DBG("Custom boot logo not found at path `%ls`!\n", customLogo.wc_str());
-              gSettings.CustomBoot = CUSTOM_BOOT_DISABLED;
+              gSettings.Boot.CustomBoot = CUSTOM_BOOT_DISABLED;
             }
           }
         } else if ( Prop->isData()  && Prop->getData()->dataLenValue() > 0 ) {
-          gSettings.CustomBoot = CUSTOM_BOOT_USER;
-          if (gSettings.CustomLogo != NULL) {
-            delete gSettings.CustomLogo;
+          gSettings.Boot.CustomBoot = CUSTOM_BOOT_USER;
+          if (gSettings.Boot.CustomLogo != NULL) {
+            delete gSettings.Boot.CustomLogo;
           }
-          gSettings.CustomLogo = new XImage;
-          gSettings.CustomLogo->FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
-          if (gSettings.CustomLogo->isEmpty()) {
+          gSettings.Boot.CustomLogo = new XImage;
+          gSettings.Boot.CustomLogo->FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
+          if (gSettings.Boot.CustomLogo->isEmpty()) {
             DBG("Custom boot logo not decoded from data!\n"/*, Prop->getString()->stringValue().c_str()*/);
-            gSettings.CustomBoot = CUSTOM_BOOT_DISABLED;
+            gSettings.Boot.CustomBoot = CUSTOM_BOOT_DISABLED;
           }
         } else {
-          gSettings.CustomBoot = CUSTOM_BOOT_USER_DISABLED;
+          gSettings.Boot.CustomBoot = CUSTOM_BOOT_USER_DISABLED;
         }
       } else {
-        gSettings.CustomBoot   = CUSTOM_BOOT_DISABLED;
+        gSettings.Boot.CustomBoot   = CUSTOM_BOOT_DISABLED;
       }
-      DBG("Custom boot %s (0x%llX)\n", CustomBootModeToStr(gSettings.CustomBoot), (uintptr_t)gSettings.CustomLogo);
+      DBG("Custom boot %s (0x%llX)\n", CustomBootModeToStr(gSettings.Boot.CustomBoot), (uintptr_t)gSettings.Boot.CustomLogo);
     }
 
     //*** SYSTEM ***
@@ -2562,11 +2584,11 @@ GetEarlyUserSettings (
     const TagDict* GUIDict = CfgDict->dictPropertyForKey("GUI");
     if (GUIDict != NULL) {
       const TagStruct* Prop = GUIDict->propertyForKey("Timezone");
-      GlobalConfig.Timezone = (INT32)GetPropertyAsInteger(Prop, GlobalConfig.Timezone);
+      gSettings.GUI.Timezone = (INT32)GetPropertyAsInteger(Prop, gSettings.GUI.Timezone);
       //initialize Daylight when we know timezone
       EFI_TIME          Now;
       gRT->GetTime(&Now, NULL);
-      INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
+      INT32 NowHour = Now.Hour + gSettings.GUI.Timezone;
       if (NowHour <  0 ) NowHour += 24;
       if (NowHour >= 24 ) NowHour -= 24;
       ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
@@ -2574,12 +2596,12 @@ GetEarlyUserSettings (
       Prop = GUIDict->propertyForKey("Theme");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
         ThemeX.Theme.takeValueFrom(Prop->getString()->stringValue());
-        GlobalConfig.Theme.takeValueFrom(Prop->getString()->stringValue());
-        DBG("Default theme: %ls\n", GlobalConfig.Theme.wc_str());
+        gSettings.GUI.Theme.takeValueFrom(Prop->getString()->stringValue());
+        DBG("Default theme: %ls\n", gSettings.GUI.Theme.wc_str());
         OldChosenTheme = 0xFFFF; //default for embedded
         for (UINTN i = 0; i < ThemeNameArray.size(); i++) {
           //now comparison is case sensitive
-          if ( GlobalConfig.Theme.equalIC(ThemeNameArray[i]) ) {
+          if ( gSettings.GUI.Theme.equalIC(ThemeNameArray[i]) ) {
             OldChosenTheme = i;
             break;
           }
@@ -2604,16 +2626,16 @@ GetEarlyUserSettings (
 
       // CustomIcons
       Prop = GUIDict->propertyForKey("CustomIcons");
-      GlobalConfig.CustomIcons = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.CustomIcons = IsPropertyNotNullAndTrue(Prop);
       Prop = GUIDict->propertyForKey("TextOnly");
-      GlobalConfig.TextOnly = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.TextOnly = IsPropertyNotNullAndTrue(Prop);
       Prop = GUIDict->propertyForKey("ShowOptimus");
-      GlobalConfig.ShowOptimus = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.ShowOptimus = IsPropertyNotNullAndTrue(Prop);
 
       Prop = GUIDict->propertyForKey("ScreenResolution");
       if (Prop != NULL) {
         if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-          GlobalConfig.ScreenResolution.takeValueFrom(Prop->getString()->stringValue());
+          gSettings.GUI.ScreenResolution.takeValueFrom(Prop->getString()->stringValue());
         }
       }
 
@@ -2623,20 +2645,20 @@ GetEarlyUserSettings (
       Prop = GUIDict->propertyForKey("ConsoleMode");
       if (Prop != NULL) {
         if (Prop->isInt64()) {
-          GlobalConfig.ConsoleMode = Prop->getInt64()->intValue();
+          gSettings.GUI.ConsoleMode = Prop->getInt64()->intValue();
         } else if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
           if ( Prop->getString()->stringValue().contains("Max") ) {
-            GlobalConfig.ConsoleMode = -1;
+            gSettings.GUI.ConsoleMode = -1;
             DBG("ConsoleMode will be set to highest mode\n");
           } else if ( Prop->getString()->stringValue().contains("Min") ) {
-            GlobalConfig.ConsoleMode = -2;
+            gSettings.GUI.ConsoleMode = -2;
             DBG("ConsoleMode will be set to lowest mode\n");
           } else {
-            GlobalConfig.ConsoleMode = (INT32)AsciiStrDecimalToUintn(Prop->getString()->stringValue());
+            gSettings.GUI.ConsoleMode = (INT32)AsciiStrDecimalToUintn(Prop->getString()->stringValue());
           }
         }
-        if (GlobalConfig.ConsoleMode > 0) {
-          DBG("ConsoleMode will be set to mode #%lld\n", GlobalConfig.ConsoleMode);
+        if (gSettings.GUI.ConsoleMode > 0) {
+          DBG("ConsoleMode will be set to mode #%lld\n", gSettings.GUI.ConsoleMode);
         }
       }
 
@@ -2645,16 +2667,16 @@ GetEarlyUserSettings (
         gSettings.Language = Prop->getString()->stringValue();
         if ( Prop->getString()->stringValue().contains("en") ) {
           gLanguage = english;
-          GlobalConfig.Codepage = 0xC0;
-          GlobalConfig.CodepageSize = 0;
+          gSettings.GUI.Codepage = 0xC0;
+          gSettings.GUI.CodepageSize = 0;
         } else if ( Prop->getString()->stringValue().contains("ru")) {
           gLanguage = russian;
-          GlobalConfig.Codepage = 0x410;
-          GlobalConfig.CodepageSize = 0x40;
+          gSettings.GUI.Codepage = 0x410;
+          gSettings.GUI.CodepageSize = 0x40;
         } else if ( Prop->getString()->stringValue().contains("ua")) {
           gLanguage = ukrainian;
-          GlobalConfig.Codepage = 0x400;
-          GlobalConfig.CodepageSize = 0x60;
+          gSettings.GUI.Codepage = 0x400;
+          gSettings.GUI.CodepageSize = 0x60;
         } else if ( Prop->getString()->stringValue().contains("fr")) {
           gLanguage = french; //default is extended latin
         } else if ( Prop->getString()->stringValue().contains("it")) {
@@ -2679,14 +2701,14 @@ GetEarlyUserSettings (
           gLanguage = indonesian;
         } else if ( Prop->getString()->stringValue().contains("zh_CN")) {
           gLanguage = chinese;
-          GlobalConfig.Codepage = 0x3400;
-          GlobalConfig.CodepageSize = 0x19C0;
+          gSettings.GUI.Codepage = 0x3400;
+          gSettings.GUI.CodepageSize = 0x19C0;
         } else if ( Prop->getString()->stringValue().contains("ro")) {
           gLanguage = romanian;
         } else if ( Prop->getString()->stringValue().contains("ko")) {
           gLanguage = korean;
-          GlobalConfig.Codepage = 0x1100;
-          GlobalConfig.CodepageSize = 0x100;
+          gSettings.GUI.Codepage = 0x1100;
+          gSettings.GUI.CodepageSize = 0x100;
         }
       }
 
@@ -2747,7 +2769,7 @@ GetEarlyUserSettings (
         if (IsPropertyNotNullAndFalse(Prop)) {
           gSettings.DisableEntryScan = TRUE;
           gSettings.DisableToolScan  = TRUE;
-          GlobalConfig.NoLegacy      = TRUE;
+          gSettings.GUI.NoLegacy      = TRUE;
         } else if (Prop->isDict()) {
           const TagStruct* prop2 = Prop->getDict()->propertyForKey("Entries");
           if (IsPropertyNotNullAndFalse(prop2)) {
@@ -2762,12 +2784,12 @@ GetEarlyUserSettings (
           prop2 = Prop->getDict()->propertyForKey("Legacy");
           if (prop2 != NULL) {
             if (prop2->isFalse()) {
-              GlobalConfig.NoLegacy = TRUE;
+              gSettings.GUI.NoLegacy = TRUE;
             } else if ((prop2->isString()) && prop2->getString()->stringValue().notEmpty() ) {
               if ((prop2->getString()->stringValue()[0] == 'N') || (prop2->getString()->stringValue()[0] == 'n')) {
-                GlobalConfig.NoLegacy = TRUE;
+                gSettings.GUI.NoLegacy = TRUE;
               } else if ((prop2->getString()->stringValue()[0] == 'F') || (prop2->getString()->stringValue()[0] == 'f')) {
-                GlobalConfig.LegacyFirst = TRUE;
+                gSettings.GUI.LegacyFirst = TRUE;
                }
             }
           }
@@ -2878,17 +2900,17 @@ GetEarlyUserSettings (
 
             if (VBiosPatch->Find == NULL || FindSize == 0) {
               Valid = FALSE;
-				DBG("PatchVBiosBytes[%lld]: missing Find data\n", i);
+              DBG("PatchVBiosBytes[%lld]: missing Find data\n", i);
             }
 
             if (VBiosPatch->Replace == NULL || ReplaceSize == 0) {
               Valid = FALSE;
-				DBG("PatchVBiosBytes[%lld]: missing Replace data\n", i);
+              DBG("PatchVBiosBytes[%lld]: missing Replace data\n", i);
             }
 
             if (FindSize != ReplaceSize) {
               Valid = FALSE;
-				DBG("PatchVBiosBytes[%lld]: Find and Replace data are not the same size\n", i);
+              DBG("PatchVBiosBytes[%lld]: Find and Replace data are not the same size\n", i);
             }
 
             if (Valid) {
@@ -3359,6 +3381,7 @@ void InitKextList()
     return;  //don't scan again
   }
 //  KextsPath = SWPrintf("%ls\\kexts", OEMPath.wc_str());
+  DbgHeader("InitKextList");
 
   if ( selfOem.isKextsDirFound() ) {
     // Iterate over kexts directory
@@ -3878,8 +3901,8 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
   ThemeX.Init();
   
   //initialize Daylight when we know timezone
-  if (GlobalConfig.Timezone != 0xFF) { // 0xFF:default=timezone not set
-    INT32 NowHour = Now.Hour + GlobalConfig.Timezone;
+  if (gSettings.GUI.Timezone != 0xFF) { // 0xFF:default=timezone not set
+    INT32 NowHour = Now.Hour + gSettings.GUI.Timezone;
     if (NowHour <  0 ) NowHour += 24;
     if (NowHour >= 24 ) NowHour -= 24;
     ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
@@ -3927,7 +3950,7 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
   ThemeX.GetThemeTagSettings(NULL);
 
   if (ThemeNameArray.size() > 0  &&
-      (GlobalConfig.Theme.isEmpty() || StriCmp(GlobalConfig.Theme.wc_str(), L"embedded") != 0)) {
+      (gSettings.GUI.Theme.isEmpty() || StriCmp(gSettings.GUI.Theme.wc_str(), L"embedded") != 0)) {
     // Try special theme first
       XStringW TestTheme;
  //   if (Time != NULL) {
@@ -3942,7 +3965,7 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
         if (ThemeDict != NULL) {
           DBG("special theme %ls found and %ls parsed\n", TestTheme.wc_str(), CONFIG_THEME_FILENAME);
 //          ThemeX.Theme.takeValueFrom(TestTheme);
-          GlobalConfig.Theme = TestTheme;
+          gSettings.GUI.Theme = TestTheme;
 
         } else { // special theme not loaded
           DBG("special theme %ls not found, skipping\n", TestTheme.wc_str()/*, CONFIG_THEME_FILENAME*/);
@@ -3968,10 +3991,10 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
           if (ThemeDict != NULL) {
             DBG("theme %s defined in NVRAM found and %ls parsed\n", ChosenTheme, CONFIG_THEME_FILENAME);
 //            ThemeX.Theme.takeValueFrom(TestTheme);
-            GlobalConfig.Theme = TestTheme;
+            gSettings.GUI.Theme = TestTheme;
           } else { // theme from nvram not loaded
-            if (GlobalConfig.Theme.notEmpty()) {
-              DBG("theme %s chosen from nvram is absent, using theme defined in config: %ls\n", ChosenTheme, GlobalConfig.Theme.wc_str());
+            if (gSettings.GUI.Theme.notEmpty()) {
+              DBG("theme %s chosen from nvram is absent, using theme defined in config: %ls\n", ChosenTheme, gSettings.GUI.Theme.wc_str());
             } else {
               DBG("theme %s chosen from nvram is absent, get first theme\n", ChosenTheme);
             }
@@ -3984,18 +4007,18 @@ InitTheme(BOOLEAN UseThemeDefinedInNVRam)
     }
     // Try to get theme from settings
     if (ThemeDict == NULL) {
-      if (GlobalConfig.Theme.isEmpty()) {
+      if (gSettings.GUI.Theme.isEmpty()) {
         DBG("no default theme, get random theme %ls\n", ThemeNameArray[Rnd].wc_str());
         ThemeDict = ThemeX.LoadTheme(XStringW(ThemeNameArray[Rnd]));
       } else {
-        if (StriCmp(GlobalConfig.Theme.wc_str(), L"random") == 0) {
+        if (StriCmp(gSettings.GUI.Theme.wc_str(), L"random") == 0) {
           ThemeDict = ThemeX.LoadTheme(XStringW(ThemeNameArray[Rnd]));
         } else {
-          ThemeDict = ThemeX.LoadTheme(GlobalConfig.Theme);
+          ThemeDict = ThemeX.LoadTheme(gSettings.GUI.Theme);
           if (ThemeDict == NULL) {
-            DBG("GlobalConfig: %ls not found, get embedded theme\n", GlobalConfig.Theme.wc_str());
+            DBG("GlobalConfig: %ls not found, get embedded theme\n", gSettings.GUI.Theme.wc_str());
           } else {
-            DBG("chosen theme %ls\n", GlobalConfig.Theme.wc_str());
+            DBG("chosen theme %ls\n", gSettings.GUI.Theme.wc_str());
           }
         }
       }
@@ -4027,7 +4050,7 @@ finish:
     Status = StartupSoundPlay(&ThemeX.getThemeDir(), NULL);
   } else { // theme loaded successfully
     ThemeX.embedded = false;
-    ThemeX.Theme.takeValueFrom(GlobalConfig.Theme); //XStringW from CHAR16*)
+    ThemeX.Theme.takeValueFrom(gSettings.GUI.Theme); //XStringW from CHAR16*)
     // read theme settings
     if (!ThemeX.TypeSVG) {
       const TagDict* DictPointer = ThemeDict->dictPropertyForKey("Theme");
@@ -4418,7 +4441,7 @@ ParseSMBIOSSettings(
     if ( !Prop->isString() ) {
       MsgLog("ATTENTION : property not string in SmUUID\n");
     }else{
-      if (IsValidGuidAsciiString(Prop->getString()->stringValue())) {
+      if (IsValidGuidString(Prop->getString()->stringValue())) {
         gSettings.SmUUID = Prop->getString()->stringValue();
       } else {
         DBG("Error: invalid SmUUID '%s' - should be in the format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX\n", Prop->getString()->stringValue().c_str());
@@ -5065,8 +5088,8 @@ GetUserSettings(const TagDict* CfgDict)
     if (BootDict != NULL) {
 
       const TagStruct* Prop = BootDict->propertyForKey("Arguments");
-      if ( Prop != NULL  &&  Prop->isString()  &&  Prop->getString()->stringValue().notEmpty()  &&  !gSettings.BootArgs.contains(Prop->getString()->stringValue()) ) {
-        gSettings.BootArgs = Prop->getString()->stringValue();
+      if ( Prop != NULL  &&  Prop->isString()  &&  Prop->getString()->stringValue().notEmpty()  &&  !gSettings.Boot.BootArgs.contains(Prop->getString()->stringValue()) ) {
+        gSettings.Boot.BootArgs = Prop->getString()->stringValue();
         //gBootArgsChanged = TRUE;
         //gBootChanged = TRUE;
       }
@@ -5895,9 +5918,9 @@ GetUserSettings(const TagDict* CfgDict)
             }
             Prop2 = SlotsDict->propertyForKey("Name");
             if (Prop2 && (Prop2->isString()) && Prop2->getString()->stringValue().notEmpty()) {
-				snprintf (SlotDevice->SlotName, 31, "%s", Prop2->getString()->stringValue().c_str());
+              snprintf (SlotDevice->SlotName, 31, "%s", Prop2->getString()->stringValue().c_str());
             } else {
-				snprintf (SlotDevice->SlotName, 31, "PCI Slot %lld", DeviceN);
+              snprintf (SlotDevice->SlotName, 31, "PCI Slot %lld", DeviceN);
             }
 
             DBG(" - %s\n", SlotDevice->SlotName);
@@ -6070,7 +6093,7 @@ GetUserSettings(const TagDict* CfgDict)
               MsgLog("ATTENTION : property not string in Block/Guid\n");
             }else{
               if( Prop2->getString()->stringValue().notEmpty() ) {
-                if (IsValidGuidAsciiString(Prop2->getString()->stringValue())) {
+                if (IsValidGuidString(Prop2->getString()->stringValue())) {
                   StrToGuidLE(Prop2->getString()->stringValue(), &RtVariable.VarGuid);
                 }else{
                  DBG("Error: invalid GUID for RT var '%s' - should be in the format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX\n", Prop->getString()->stringValue().c_str());
@@ -6125,7 +6148,7 @@ GetUserSettings(const TagDict* CfgDict)
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : property not string in SystemParameters/CustomUUID\n");
         }else{
-          if (IsValidGuidAsciiString(Prop->getString()->stringValue())) {
+          if (IsValidGuidString(Prop->getString()->stringValue())) {
           gSettings.CustomUuid = Prop->getString()->stringValue();
             // if CustomUUID specified, then default for InjectSystemID=FALSE
             // to stay compatibile with previous Clover behaviour
@@ -6225,13 +6248,13 @@ GetUserSettings(const TagDict* CfgDict)
       //DBG("\n ConfigName: %ls n", gSettings.ConfigName);
     }
     if (gThemeChanged) {
-      GlobalConfig.Theme.setEmpty();
+      gSettings.GUI.Theme.setEmpty();
       const TagDict* GUIDict = CfgDict->dictPropertyForKey("GUI");
       if (GUIDict != NULL) {
         const TagStruct* Prop = GUIDict->propertyForKey("Theme");
         if ((Prop != NULL) && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-          GlobalConfig.Theme.takeValueFrom(Prop->getString()->stringValue());
-          DBG("Theme from new config: %ls\n", GlobalConfig.Theme.wc_str());
+          gSettings.GUI.Theme.takeValueFrom(Prop->getString()->stringValue());
+          DBG("Theme from new config: %ls\n", gSettings.GUI.Theme.wc_str());
         }
       }
     }
@@ -6260,9 +6283,10 @@ static CONST CHAR8 *SearchString(
   return NULL;
 }
 */
-XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
+MacOsVersion GetOSVersion(int LoaderType, const XStringW& APFSTargetUUID, const REFIT_VOLUME* Volume, XString8* BuildVersionPtr)
 {
   XString8   OSVersion;
+  XString8   BuildVersion;
   EFI_STATUS Status      = EFI_NOT_FOUND;
   CHAR8*     PlistBuffer = NULL;
   UINTN      PlistLen;
@@ -6270,25 +6294,25 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
   const TagDict*     DictPointer = NULL;
   const TagStruct*     Prop        = NULL;
 
-  if (!Entry || !Entry->Volume) {
+  if ( !Volume ) {
     return NullXString8;
   }
 
-  if (OSTYPE_IS_OSX(Entry->LoaderType))
+  if (OSTYPE_IS_OSX(LoaderType))
   {
   	XString8 uuidPrefix;
-    if ( Entry->APFSTargetUUID.notEmpty() ) uuidPrefix = S8Printf("\\%ls", Entry->APFSTargetUUID.wc_str());
+    if ( APFSTargetUUID.notEmpty() ) uuidPrefix = S8Printf("\\%ls", APFSTargetUUID.wc_str());
 
   	XStringW plist = SWPrintf("%s\\System\\Library\\CoreServices\\SystemVersion.plist", uuidPrefix.c_str());
-		if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+		if ( !FileExists(Volume->RootDir, plist) ) {
 			plist = SWPrintf("%s\\System\\Library\\CoreServices\\ServerVersion.plist", uuidPrefix.c_str());
-			if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+			if ( !FileExists(Volume->RootDir, plist) ) {
 				plist.setEmpty();
     	}
     }
 
     if ( plist.notEmpty() ) { // found macOS System
-      Status = egLoadFile(Entry->Volume->RootDir, plist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
+      Status = egLoadFile(Volume->RootDir, plist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
       if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
         Prop = Dict->propertyForKey("ProductVersion");
         if ( Prop != NULL ) {
@@ -6306,7 +6330,7 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
             MsgLog("ATTENTION : property not string in ProductBuildVersion\n");
           }else{
             if( Prop->getString()->stringValue().notEmpty() ) {
-              Entry->BuildVersion = Prop->getString()->stringValue();
+              BuildVersion = Prop->getString()->stringValue();
             }
           }
         }
@@ -6315,24 +6339,34 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
     }
   }
 
-  if (OSTYPE_IS_OSX_INSTALLER (Entry->LoaderType)) {
+  if (OSTYPE_IS_OSX_INSTALLER (LoaderType)) {
     // Detect exact version for 2nd stage Installer (thanks to dmazar for this idea)
     // This should work for most installer cases. Rest cases will be read from boot.efi before booting.
     // Reworked by Sherlocks. 2018.04.12
 
     // 1st stage - 1
     // Check for plist - createinstallmedia/BaseSystem/InstallDVD/InstallESD
-    CONST CHAR16 *InstallerPlist = L"\\.IABootFilesSystemVersion.plist"; // 10.9 - 10.13.3
-    if (!FileExists (Entry->Volume->RootDir, InstallerPlist) && FileExists (Entry->Volume->RootDir, L"\\System\\Library\\CoreServices\\boot.efi") &&
-        ((FileExists (Entry->Volume->RootDir, L"\\BaseSystem.dmg") && FileExists (Entry->Volume->RootDir, L"\\mach_kernel")) || // 10.7/10.8
-         FileExists (Entry->Volume->RootDir, L"\\System\\Installation\\CDIS\\Mac OS X Installer.app") || // 10.6/10.7
-         FileExists (Entry->Volume->RootDir, L"\\System\\Installation\\CDIS\\OS X Installer.app") || // 10.8 - 10.11
-         FileExists (Entry->Volume->RootDir, L"\\System\\Installation\\CDIS\\macOS Installer.app") || // 10.12+
-         FileExists (Entry->Volume->RootDir, L"\\.IAPhysicalMedia"))) { // 10.13.4+
-      InstallerPlist = L"\\System\\Library\\CoreServices\\SystemVersion.plist";
+
+    XStringW InstallerPlist;
+
+    if ( APFSTargetUUID.notEmpty() ) {
+      InstallerPlist = SWPrintf("%ls\\System\\Library\\CoreServices\\SystemVersion.plist", APFSTargetUUID.wc_str());
+      if ( !FileExists(Volume->RootDir, InstallerPlist) ) InstallerPlist.setEmpty();
     }
-    if (FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-      Status = egLoadFile(Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
+
+    if ( InstallerPlist.isEmpty() ) {
+      InstallerPlist = SWPrintf("\\.IABootFilesSystemVersion.plist"); // 10.9 - 10.13.3
+      if (!FileExists(Volume->RootDir, InstallerPlist) && FileExists (Volume->RootDir, L"\\System\\Library\\CoreServices\\boot.efi") &&
+          ((FileExists(Volume->RootDir, L"\\BaseSystem.dmg") && FileExists (Volume->RootDir, L"\\mach_kernel")) || // 10.7/10.8
+           FileExists(Volume->RootDir, L"\\System\\Installation\\CDIS\\Mac OS X Installer.app") || // 10.6/10.7
+           FileExists(Volume->RootDir, L"\\System\\Installation\\CDIS\\OS X Installer.app") || // 10.8 - 10.11
+           FileExists(Volume->RootDir, L"\\System\\Installation\\CDIS\\macOS Installer.app") || // 10.12+
+           FileExists(Volume->RootDir, L"\\.IAPhysicalMedia"))) { // 10.13.4+
+        InstallerPlist = SWPrintf("\\System\\Library\\CoreServices\\SystemVersion.plist");
+      }
+    }
+    if (FileExists (Volume->RootDir, InstallerPlist)) {
+      Status = egLoadFile(Volume->RootDir, InstallerPlist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
       if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
         Prop = Dict->propertyForKey("ProductVersion");
         if ( Prop != NULL ) {
@@ -6350,7 +6384,7 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
             MsgLog("ATTENTION : property not string in ProductBuildVersion\n");
           }else{
             if( Prop->getString()->stringValue().notEmpty() ) {
-              Entry->BuildVersion = Prop->getString()->stringValue();
+              BuildVersion = Prop->getString()->stringValue();
             }
           }
         }
@@ -6358,20 +6392,20 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
       }
     }
 
-    if ( OSVersion.isEmpty() )
-    {
-      if ( FileExists(Entry->Volume->RootDir, SWPrintf("\\%ls\\com.apple.installer\\BridgeVersion.plist", Entry->APFSTargetUUID.wc_str()).wc_str()) ) {
-        OSVersion = "11.0"_XS8;
-        // TODO sa far, is there is a BridgeVersion.plist, it's version 11.0. Has to be improved with next releases.
-      }
-    }
+//    if ( OSVersion.isEmpty() )
+//    {
+//      if ( FileExists(Volume->RootDir, SWPrintf("\\%ls\\com.apple.installer\\BridgeVersion.plist", APFSTargetUUID.wc_str()).wc_str()) ) {
+//        OSVersion = "11.0"_XS8;
+//        // TODO so far, is there is a BridgeVersion.plist, it's version 11.0. Has to be improved with next releases.
+//      }
+//    }
 
     // 1st stage - 2
     // Check for plist - createinstallmedia/NetInstall
     if (OSVersion.isEmpty()) {
-      InstallerPlist = L"\\.IABootFiles\\com.apple.Boot.plist"; // 10.9 - ...
-      if (FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-        Status = egLoadFile(Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
+      InstallerPlist = SWPrintf("\\.IABootFiles\\com.apple.Boot.plist"); // 10.9 - ...
+      if (FileExists (Volume->RootDir, InstallerPlist)) {
+        Status = egLoadFile(Volume->RootDir, InstallerPlist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
         if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
           Prop = Dict->propertyForKey("Kernel Flags");
           if ( Prop != NULL ) {
@@ -6379,7 +6413,7 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
               MsgLog("ATTENTION : property not string in Kernel Flags\n");
             }else{
               if ( Prop->getString()->stringValue().contains("Install%20macOS%20BigSur") || Prop->getString()->stringValue().contains("Install%20macOS%2011.0")) {
-                OSVersion = "11.0"_XS8;
+                OSVersion = "11"_XS8;
               } else if ( Prop->getString()->stringValue().contains("Install%20macOS%2010.16")) {
                 OSVersion = "10.16"_XS8;
               } else if ( Prop->getString()->stringValue().contains("Install%20macOS%20Catalina") || Prop->getString()->stringValue().contains("Install%20macOS%2010.15")) {
@@ -6410,27 +6444,27 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
     // 2nd stage - 1
     // Check for plist - AppStore/createinstallmedia/startosinstall/Fusion Drive
     if (OSVersion.isEmpty()) {
-      InstallerPlist = L"\\macOS Install Data\\Locked Files\\Boot Files\\SystemVersion.plist"; // 10.12.4+
-      if (!FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-        InstallerPlist = L"\\macOS Install Data\\InstallInfo.plist"; // 10.12+
-        if (!FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-          InstallerPlist = L"\\com.apple.boot.R\\SystemVersion.plist"; // 10.12+
-          if (!FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-            InstallerPlist = L"\\com.apple.boot.P\\SystemVersion.plist"; // 10.12+
-            if (!FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-              InstallerPlist = L"\\com.apple.boot.S\\SystemVersion.plist"; // 10.12+
-              if (!FileExists (Entry->Volume->RootDir, InstallerPlist) &&
-                  (FileExists (Entry->Volume->RootDir, L"\\com.apple.boot.R\\System\\Library\\PrelinkedKernels\\prelinkedkernel") ||
-                   FileExists (Entry->Volume->RootDir, L"\\com.apple.boot.P\\System\\Library\\PrelinkedKernels\\prelinkedkernel") ||
-                   FileExists (Entry->Volume->RootDir, L"\\com.apple.boot.S\\System\\Library\\PrelinkedKernels\\prelinkedkernel"))) {
-                InstallerPlist = L"\\System\\Library\\CoreServices\\SystemVersion.plist"; // 10.11
+      InstallerPlist = SWPrintf("\\macOS Install Data\\Locked Files\\Boot Files\\SystemVersion.plist"); // 10.12.4+
+      if (!FileExists (Volume->RootDir, InstallerPlist)) {
+        InstallerPlist = SWPrintf("\\macOS Install Data\\InstallInfo.plist"); // 10.12+
+        if (!FileExists (Volume->RootDir, InstallerPlist)) {
+          InstallerPlist = SWPrintf("\\com.apple.boot.R\\SystemVersion.plist)"); // 10.12+
+          if (!FileExists (Volume->RootDir, InstallerPlist)) {
+            InstallerPlist = SWPrintf("\\com.apple.boot.P\\SystemVersion.plist"); // 10.12+
+            if (!FileExists (Volume->RootDir, InstallerPlist)) {
+              InstallerPlist = SWPrintf("\\com.apple.boot.S\\SystemVersion.plist"); // 10.12+
+              if (!FileExists (Volume->RootDir, InstallerPlist) &&
+                  (FileExists (Volume->RootDir, L"\\com.apple.boot.R\\System\\Library\\PrelinkedKernels\\prelinkedkernel") ||
+                   FileExists (Volume->RootDir, L"\\com.apple.boot.P\\System\\Library\\PrelinkedKernels\\prelinkedkernel") ||
+                   FileExists (Volume->RootDir, L"\\com.apple.boot.S\\System\\Library\\PrelinkedKernels\\prelinkedkernel"))) {
+                InstallerPlist = SWPrintf("\\System\\Library\\CoreServices\\SystemVersion.plist"); // 10.11
               }
             }
           }
         }
       }
-      if (FileExists (Entry->Volume->RootDir, InstallerPlist)) {
-        Status = egLoadFile(Entry->Volume->RootDir, InstallerPlist, (UINT8 **)&PlistBuffer, &PlistLen);
+      if (FileExists (Volume->RootDir, InstallerPlist)) {
+        Status = egLoadFile(Volume->RootDir, InstallerPlist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
         if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
           Prop = Dict->propertyForKey("ProductVersion");
           if ( Prop != NULL ) {
@@ -6448,7 +6482,7 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
               MsgLog("ATTENTION : property not string in ProductBuildVersion\n");
             }else{
               if( Prop->getString()->stringValue().notEmpty() ) {
-                Entry->BuildVersion = Prop->getString()->stringValue();
+                BuildVersion = Prop->getString()->stringValue();
               }
             }
           }
@@ -6482,14 +6516,14 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
       UINTN  fileLen = 0;
       XStringW InstallerLog;
       InstallerLog = L"\\Mac OS X Install Data\\ia.log"_XSW; // 10.7
-      if (!FileExists (Entry->Volume->RootDir, InstallerLog)) {
+      if (!FileExists (Volume->RootDir, InstallerLog)) {
         InstallerLog = L"\\OS X Install Data\\ia.log"_XSW; // 10.8 - 10.11
-        if (!FileExists (Entry->Volume->RootDir, InstallerLog)) {
+        if (!FileExists (Volume->RootDir, InstallerLog)) {
           InstallerLog = L"\\macOS Install Data\\ia.log"_XSW; // 10.12+
         }
       }
-      if (FileExists (Entry->Volume->RootDir, InstallerLog)) {
-        Status = egLoadFile(Entry->Volume->RootDir, InstallerLog.wc_str(), (UINT8 **)&fileBuffer, &fileLen);
+      if (FileExists (Volume->RootDir, InstallerLog)) {
+        Status = egLoadFile(Volume->RootDir, InstallerLog.wc_str(), (UINT8 **)&fileBuffer, &fileLen);
         if (!EFI_ERROR(Status)) {
           XString8 targetString;
           targetString.strncpy(fileBuffer, fileLen);
@@ -6498,34 +6532,34 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
           if (s[31] == ' ') {
             OSVersion.S8Printf("%c%c.%c\n", s[27], s[28], s[30]);
             if (s[38] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c\n", s[33], s[34], s[35], s[36], s[37]);
+              BuildVersion.S8Printf("%c%c%c%c%c\n", s[33], s[34], s[35], s[36], s[37]);
             } else if (s[39] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[33], s[34], s[35], s[36], s[37], s[38]);
+              BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[33], s[34], s[35], s[36], s[37], s[38]);
             }
           } else if (s[31] == '.') {
             OSVersion.S8Printf("%c%c.%c.%c\n", s[27], s[28], s[30], s[32]);
             if (s[40] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c\n", s[35], s[36], s[37], s[38], s[39]);
+              BuildVersion.S8Printf("%c%c%c%c%c\n", s[35], s[36], s[37], s[38], s[39]);
             } else if (s[41] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[35], s[36], s[37], s[38], s[39], s[40]);
+              BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[35], s[36], s[37], s[38], s[39], s[40]);
             }
           } else if (s[32] == ' ') {
             OSVersion.S8Printf("%c%c.%c%c\n", s[27], s[28], s[30], s[31]);
             if (s[39] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c\n", s[34], s[35], s[36], s[37], s[38]);
+              BuildVersion.S8Printf("%c%c%c%c%c\n", s[34], s[35], s[36], s[37], s[38]);
             } else if (s[40] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[34], s[35], s[36], s[37], s[38], s[39]);
+              BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[34], s[35], s[36], s[37], s[38], s[39]);
             } else if (s[41] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c%c%c\n", s[34], s[35], s[36], s[37], s[38], s[39], s[40]);
+              BuildVersion.S8Printf("%c%c%c%c%c%c%c\n", s[34], s[35], s[36], s[37], s[38], s[39], s[40]);
             }
           } else if (s[32] == '.') {
             OSVersion.S8Printf("%c%c.%c%c.%c\n", s[27], s[28], s[30], s[31], s[33]);
             if (s[41] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c\n", s[36], s[37], s[38], s[39], s[40]);
+              BuildVersion.S8Printf("%c%c%c%c%c\n", s[36], s[37], s[38], s[39], s[40]);
             } else if (s[42] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[36], s[37], s[38], s[39], s[40], s[41]);
+              BuildVersion.S8Printf("%c%c%c%c%c%c\n", s[36], s[37], s[38], s[39], s[40], s[41]);
             } else if (s[43] == ')') {
-              Entry->BuildVersion.S8Printf("%c%c%c%c%c%c%c\n", s[36], s[37], s[38], s[39], s[40], s[41], s[42]);
+              BuildVersion.S8Printf("%c%c%c%c%c%c%c\n", s[36], s[37], s[38], s[39], s[40], s[41], s[42]);
             }
           }
           FreePool(fileBuffer);
@@ -6538,13 +6572,13 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
     if ( OSVersion.isEmpty() )
     {
 			XStringW plist = L"\\macOS Install Data\\Locked Files\\Boot Files\\SystemVersion.plist"_XSW;
-			if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+			if ( !FileExists(Volume->RootDir, plist) ) {
 				plist.setEmpty();
 			}
 
       if ( plist.notEmpty() ) { // found macOS System
 
-        Status = egLoadFile(Entry->Volume->RootDir, plist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
+        Status = egLoadFile(Volume->RootDir, plist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
         if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
           Prop = Dict->propertyForKey("ProductVersion");
           if ( Prop != NULL ) {
@@ -6559,7 +6593,7 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
             if ( !Prop->isString() ) {
               MsgLog("ATTENTION : property not string in ProductBuildVersion\n");
             }else{
-              Entry->BuildVersion = Prop->getString()->stringValue();
+              BuildVersion = Prop->getString()->stringValue();
             }
           }
         }
@@ -6568,19 +6602,19 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
     }
   }
 
-  if (OSTYPE_IS_OSX_RECOVERY (Entry->LoaderType)) {
+  if (OSTYPE_IS_OSX_RECOVERY (LoaderType)) {
 
   	XString8 uuidPrefix;
-    if ( Entry->APFSTargetUUID.notEmpty() ) uuidPrefix = S8Printf("\\%ls", Entry->APFSTargetUUID.wc_str());
+    if ( APFSTargetUUID.notEmpty() ) uuidPrefix = S8Printf("\\%ls", APFSTargetUUID.wc_str());
 
   	XStringW plist = SWPrintf("%s\\SystemVersion.plist", uuidPrefix.c_str());
-		if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+		if ( !FileExists(Volume->RootDir, plist) ) {
 			plist = SWPrintf("%s\\ServerVersion.plist", uuidPrefix.c_str());
-			if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+			if ( !FileExists(Volume->RootDir, plist) ) {
         plist = L"\\com.apple.recovery.boot\\SystemVersion.plist"_XSW;
-        if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+        if ( !FileExists(Volume->RootDir, plist) ) {
           plist = L"\\com.apple.recovery.boot\\ServerVersion.plist"_XSW;
-          if ( !FileExists(Entry->Volume->RootDir, plist) ) {
+          if ( !FileExists(Volume->RootDir, plist) ) {
 					  plist.setEmpty();
 					}
 				}
@@ -6589,7 +6623,7 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
 
     // Detect exact version for OS X Recovery
     if ( plist.notEmpty() ) { // found macOS System
-      Status = egLoadFile(Entry->Volume->RootDir, plist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
+      Status = egLoadFile(Volume->RootDir, plist.wc_str(), (UINT8 **)&PlistBuffer, &PlistLen);
       if (!EFI_ERROR(Status) && PlistBuffer != NULL && ParseXML(PlistBuffer, &Dict, 0) == EFI_SUCCESS) {
         Prop = Dict->propertyForKey("ProductVersion");
         if ( Prop != NULL ) {
@@ -6604,12 +6638,12 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
           if ( !Prop->isString() ) {
             MsgLog("ATTENTION : property not string in ProductBuildVersion\n");
           }else{
-            Entry->BuildVersion = Prop->getString()->stringValue();
+            BuildVersion = Prop->getString()->stringValue();
           }
         }
       }
       Dict->FreeTag();
-    } else if (FileExists (Entry->Volume->RootDir, L"\\com.apple.recovery.boot\\boot.efi")) {
+    } else if (FileExists (Volume->RootDir, L"\\com.apple.recovery.boot\\boot.efi")) {
       // Special case - com.apple.recovery.boot/boot.efi exists but SystemVersion.plist doesn't --> 10.9 recovery
       OSVersion = "10.9"_XS8;
     }
@@ -6618,57 +6652,62 @@ XString8 GetOSVersion(IN LOADER_ENTRY *Entry)
   if (PlistBuffer != NULL) {
     FreePool(PlistBuffer);
   }
-
+  (*BuildVersionPtr).stealValueFrom(&BuildVersion);
   return OSVersion;
 }
 
 //constexpr XStringW iconMac = L"mac"_XSW;
 CONST XStringW
-GetOSIconName (const XString8& OSVersion)
+GetOSIconName (const MacOsVersion& OSVersion)
 {
   XStringW OSIconName;
   if (OSVersion.isEmpty()) {
     OSIconName = L"mac"_XSW;
-  } else if (OSVersion.contains("10.16") ||
-             (OSVersion.contains("11.0")  != 0)) {
+  } else if ( (OSVersion.elementAt(0) == 10 && OSVersion.elementAt(1) == 16 ) ||
+              (OSVersion.elementAt(0) == 11 /*&& OSVersion.elementAt(1) == 0*/ )
+            ) {
     // Big Sur
     OSIconName = L"bigsur,mac"_XSW;
-  } else if (OSVersion.contains("10.15") != 0) {
-    // Catalina
-    OSIconName = L"cata,mac"_XSW;
-  } else if (OSVersion.contains("10.14") != 0) {
-    // Mojave
-    OSIconName = L"moja,mac"_XSW;
-  } else if (OSVersion.contains("10.13") != 0) {
-    // High Sierra
-    OSIconName = L"hsierra,mac"_XSW;
-  } else if (OSVersion.contains("10.12") != 0) {
-    // Sierra
-    OSIconName = L"sierra,mac"_XSW;
-  } else if (OSVersion.contains("10.11") != 0) {
-    // El Capitan
-    OSIconName = L"cap,mac"_XSW;
-  } else if (OSVersion.contains("10.10") != 0) {
-    // Yosemite
-    OSIconName = L"yos,mac"_XSW;
-  } else if (OSVersion.contains("10.9") != 0) {
-    // Mavericks
-    OSIconName = L"mav,mac"_XSW;
-  } else if (OSVersion.contains("10.8") != 0) {
-    // Mountain Lion
-    OSIconName = L"cougar,mac"_XSW;
-  } else if (OSVersion.contains("10.7") != 0) {
-    // Lion
-    OSIconName = L"lion,mac"_XSW;
-  } else if (OSVersion.contains("10.6") != 0) {
-    // Snow Leopard
-    OSIconName = L"snow,mac"_XSW;
-  } else if (OSVersion.contains("10.5") != 0) {
-    // Leopard
-    OSIconName = L"leo,mac"_XSW;
-  } else if (OSVersion.contains("10.4") != 0) {
-    // Tiger
-    OSIconName = L"tiger,mac"_XSW;
+  }else if ( OSVersion.elementAt(0) == 10 ) {
+    if ( OSVersion.elementAt(1) == 15 ) {
+      // Catalina
+      OSIconName = L"cata,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 14 ) {
+      // Mojave
+      OSIconName = L"moja,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 13 ) {
+      // High Sierra
+      OSIconName = L"hsierra,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 12 ) {
+      // Sierra
+      OSIconName = L"sierra,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 11 ) {
+      // El Capitan
+      OSIconName = L"cap,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 10 ) {
+      // Yosemite
+      OSIconName = L"yos,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 9 ) {
+      // Mavericks
+      OSIconName = L"mav,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 8 ) {
+      // Mountain Lion
+      OSIconName = L"cougar,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 7 ) {
+      // Lion
+      OSIconName = L"lion,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 6 ) {
+      // Snow Leopard
+      OSIconName = L"snow,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 5 ) {
+      // Leopard
+      OSIconName = L"leo,mac"_XSW;
+    } else if ( OSVersion.elementAt(1) == 4 ) {
+      // Tiger
+      OSIconName = L"tiger,mac"_XSW;
+    } else {
+      OSIconName = L"mac"_XSW;
+    }
   } else {
     OSIconName = L"mac"_XSW;
   }
@@ -6968,7 +7007,7 @@ GetDevices ()
                                              NULL) //NULL: get from generic lists
                           );
 
-				  DBG(" - GFX: Model=%s family %hX (%s)\n", gfx->Model, gfx->Family, CardFamily);
+            DBG(" - GFX: Model=%s family %hX (%s)\n", gfx->Model, gfx->Family, CardFamily);
               gfx->Ports                  = 0;
 
               SlotDevice                  = &SlotDevices[1];
@@ -7868,7 +7907,7 @@ SetDevices (LOADER_ENTRY *Entry)
                   (Pci.Hdr.ClassCode[1] == PCI_CLASS_MEDIA_AUDIO))) {
                    // HDMI injection inside
           if (gSettings.HDAInjection ) {
-            TmpDirty    = setup_hda_devprop (PciIo, &PCIdevice, Entry->OSVersion);
+            TmpDirty    = setup_hda_devprop (PciIo, &PCIdevice, Entry->macOSVersion);
             StringDirty |= TmpDirty;
           }
           if (gSettings.ResetHDA) {
@@ -8139,25 +8178,25 @@ XStringW GetOtherKextsDir (BOOLEAN On)
 
 //dmazar
 // Jief 2020-10: this is only called by SetFSInjection(). SetFSInjection() doesn't check for return value emptiness.
-XStringW GetOSVersionKextsDir(const XString8& OSVersion)
+XStringW GetOSVersionKextsDir(const MacOsVersion& OSVersion)
 {
-  XString8 FixedVersion;
-  CHAR8  *DotPtr;
+//  XString8 FixedVersion;
+//  CHAR8  *DotPtr;
 
   if ( !selfOem.isKextsDirFound() ) return NullXStringW;
 
-  if (OSVersion.notEmpty()) {
-    FixedVersion.strncpy(OSVersion.c_str(), 5);
-    //    DBG("%s\n", FixedVersion);
-    // OSVersion may contain minor version too (can be 10.x or 10.x.y)
-    if ((DotPtr = AsciiStrStr (FixedVersion.c_str(), ".")) != NULL) {
-      DotPtr = AsciiStrStr (DotPtr+1, "."); // second dot
-    }
-
-    if (DotPtr != NULL) {
-      *DotPtr = 0;
-    }
-  }
+//  if (OSVersion.notEmpty()) {
+//    FixedVersion.strncpy(OSVersion.c_str(), 5);
+//    //    DBG("%s\n", FixedVersion);
+//    // OSVersion may contain minor version too (can be 10.x or 10.x.y)
+//    if ((DotPtr = AsciiStrStr (FixedVersion.c_str(), ".")) != NULL) {
+//      DotPtr = AsciiStrStr (DotPtr+1, "."); // second dot
+//    }
+//
+//    if (DotPtr != NULL) {
+//      *DotPtr = 0;
+//    }
+//  }
 
   //MsgLog ("OS=%ls\n", OSTypeStr);
 
@@ -8165,7 +8204,7 @@ XStringW GetOSVersionKextsDir(const XString8& OSVersion)
   // note: we are just checking for existance of particular folder, not checking if it is empty or not
   // check OEM subfolders: version specific or default to Other
   // Jief : NOTE selfOem.getKextsFullPath() return a path under OEM if exists, or in Clover if not.
-  XStringW SrcDir = SWPrintf("%ls\\%s", selfOem.getKextsFullPath().wc_str(), FixedVersion.c_str());
+  XStringW SrcDir = SWPrintf("%ls\\%s", selfOem.getKextsFullPath().wc_str(), OSVersion.asString(2).c_str());
   if (FileExists (&self.getSelfVolumeRootDir(), SrcDir)) return SrcDir;
   return NullXStringW;
 }
@@ -8287,7 +8326,7 @@ EFI_STATUS LOADER_ENTRY::SetFSInjection()
     //InjectKextsFromDir(Status, GetOtherKextsDir());
     InjectKextsFromDir(Status, SrcDir.wc_str());
 
-    SrcDir = GetOSVersionKextsDir(OSVersion);
+    SrcDir = GetOSVersionKextsDir(macOSVersion);
     Status = FSInject->Install(
                                 Volume->DeviceHandle,
                                 L"\\System\\Library\\Extensions",
@@ -8397,7 +8436,7 @@ checkOffset(CpuType);
   xb.cat(SetTable132);
   xb.cat(TrustSMBIOS);
   xb.cat(InjectMemoryTables);
-  xb.cat(XMPDetection);
+  xb.cat(Boot.XMPDetection);
   xb.cat(UseARTFreq);
   // SMBIOS TYPE133
   xb.ncat(&pad18, sizeof(pad18));
@@ -8409,7 +8448,7 @@ checkOffset(CpuType);
   // OS parameters
   WriteOldFixLengthString(Language, 16);
 checkOffset(BootArgs);
-  WriteOldFixLengthString(BootArgs, 256);
+  WriteOldFixLengthString(Boot.BootArgs, 256);
   xb.memsetAtPos(xb.size(), 0, 1);
 checkOffset(CustomUuid);
   WriteOldFixLengthString(XStringW(CustomUuid), 40);
@@ -8419,8 +8458,8 @@ checkOffset(DefaultVolume);
   xb.cat(uintptr_t(0)); //DefaultLoader was CHAR16*
 //Boot
 checkOffset(LastBootedVolume);
-  xb.cat(LastBootedVolume);
-  xb.cat(SkipHibernateTimeout);
+  xb.cat(Boot.LastBootedVolume);
+  xb.cat(Boot.SkipHibernateTimeout);
 //Monitor
   xb.cat(IntelMaxBacklight);
   xb.ncat(&pad21, sizeof(pad21));
@@ -8537,15 +8576,15 @@ checkOffset(GraphicsInjector);
 
   // Secure boot white/black list
 checkOffset(SecureBootWhiteListCount);
-  xb.cat(SecureBootWhiteListCount);
-  xb.cat(SecureBootBlackListCount);
-  xb.cat(SecureBootWhiteList);
-  xb.cat(SecureBootBlackList);
+  xb.cat(Boot.SecureBootWhiteListCount);
+  xb.cat(Boot.SecureBootBlackListCount);
+  xb.cat(Boot.SecureBootWhiteList);
+  xb.cat(Boot.SecureBootBlackList);
 
   // Secure boot
-  xb.cat(SecureBoot);
-  xb.cat(SecureBootSetupMode);
-  xb.cat(SecureBootPolicy);
+  xb.cat(Boot.SecureBoot);
+  xb.cat(Boot.SecureBootSetupMode);
+  xb.cat(Boot.SecureBootPolicy);
 
   // HDA
   xb.cat(HDAInjection);
@@ -8565,8 +8604,8 @@ checkOffset(SecureBootWhiteListCount);
 
   // LegacyBoot
 checkOffset(LegacyBoot);
-  WriteOldFixLengthString(LegacyBoot, 32);
-  xb.cat(LegacyBiosDefaultEntry);
+  WriteOldFixLengthString(Boot.LegacyBoot, 32);
+  xb.cat(Boot.LegacyBiosDefaultEntry);
 
   //SkyLake
   xb.cat(HWP);
@@ -8595,9 +8634,9 @@ checkOffset(LegacyBoot);
 
 //  UINT8                   pad7[6]);
 checkOffset(CustomBoot);
-  xb.cat(CustomBoot);
+  xb.cat(Boot.CustomBoot);
   xb.ncat(&pad29, sizeof(pad29));
-  xb.cat(CustomLogo);
+  xb.cat(Boot.CustomLogo);
   xb.cat(RefCLK);
 
   // SysVariables
@@ -8611,7 +8650,7 @@ checkOffset(CsrActiveConfig);
   xb.cat(CsrActiveConfig);
   xb.cat(BooterConfig);
   WriteOldFixLengthString(BooterCfgStr, 64);
-  xb.cat(DisableCloverHotkeys);
+  xb.cat(Boot.DisableCloverHotkeys);
   xb.cat(NeverDoRecovery);
 
   // Multi-config

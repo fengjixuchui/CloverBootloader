@@ -35,6 +35,7 @@
  */
 
 #include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
+#include "../include/OsType.h"
 #include "lib.h"
 #include "screen.h"
 #include "../Platform/guid.h"
@@ -762,7 +763,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
    DBG("HD path is not found\n"); //master volume!
    }*/
   
-  //  if (GlobalConfig.FastBoot) {
+  //  if (GlobalConfig.isFastBoot()) {
   //    return EFI_SUCCESS;
   //  }
   
@@ -888,7 +889,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
 			  //DBG("Skip dot entries: %ls\n", DirEntry->FileName);
         continue;
 		  }
-		  if ( IsValidGuidAsciiString(LStringW(DirEntry->FileName)) ) {
+		  if ( IsValidGuidString(LStringW(DirEntry->FileName)) ) {
 			  Volume->ApfsTargetUUIDArray.Add(DirEntry->FileName);
 		  }
 		}
@@ -1053,7 +1054,7 @@ void ScanVolumes(void)
     if (Volume->BlockIO != NULL && Volume->WholeDiskBlockIO != NULL &&
         Volume->BlockIO == Volume->WholeDiskBlockIO && Volume->BlockIOOffset == 0 &&
         Volume->MbrPartitionTable != NULL) {
-		DBG("        Volume %llu has MBR\n", VolumeIndex);
+      DBG("        Volume %llu has MBR\n", VolumeIndex);
       MbrTable = Volume->MbrPartitionTable;
       for (PartitionIndex = 0; PartitionIndex < 4; PartitionIndex++) {
         if (IS_EXTENDED_PART_TYPE(MbrTable[PartitionIndex].Type)) {
@@ -1145,7 +1146,7 @@ void ReinitVolumes(void)
   EFI_STATUS              Status;
   REFIT_VOLUME            *Volume;
   UINTN                   VolumeIndex;
-  UINTN           VolumesFound = 0;
+  UINTN                   VolumesFound = 0;
   const EFI_DEVICE_PATH  *RemainingDevicePath;
   EFI_HANDLE              DeviceHandle, WholeDiskHandle;
   
