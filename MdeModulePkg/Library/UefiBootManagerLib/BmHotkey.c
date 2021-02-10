@@ -21,7 +21,7 @@ UINTN                        mBmHotkeySupportCount    = 0;
 //
 // Set OptionNumber as unassigned value to indicate the option isn't initialized
 //
-EFI_BOOT_MANAGER_LOAD_OPTION mBmHotkeyBootOption      = { LoadOptionNumberUnassigned };
+EFI_BOOT_MANAGER_LOAD_OPTION mBmHotkeyBootOption      = { LoadOptionNumberUnassigned, 0, 0, 0, NULL, NULL, 0, {0}, 0, NULL, 0 };
 
 EFI_BOOT_MANAGER_KEY_OPTION  *mBmContinueKeyOption    = NULL;
 VOID                         *mBmTxtInExRegistration  = NULL;
@@ -121,7 +121,7 @@ BmIsKeyOptionVariable (
   *OptionNumber = 0;
   for (Index = 3; Index < 7; Index++) {
     Uint = BmCharToUint (Name[Index]);
-    if (Uint == -1) {
+    if (Uint == (UINTN)-1 ) { // BmCharToUint returns (UINTN)-1
       return FALSE;
     } else {
       *OptionNumber = (UINT16) Uint + *OptionNumber * 0x10;

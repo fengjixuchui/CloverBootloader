@@ -14,6 +14,21 @@
 #include <printf_lite-conf.h>
 #include "../../Include/Library/printf_lite.h"
 
+#ifdef snprintf
+  /*
+   * snprintf is broken with short wchar and cannot print UTF-16 string (%ls).
+   * but it works for all UTF8. We use it to generate labels. So we can use the original version.
+   * printf is never redefined by printf_lite, so we can use the original version
+   */
+  #undef snprintf
+  // blank line to avoid clang warning : "No newline at end of file"
+  extern "C" int (snprintf)(char* buf, size_t len, const char *__restrict format, ...);
+#endif
+
+//#ifdef printf
+//#warning ifdef printf
+//#endif
+
 static int nbTestFailed = 0;
 #ifdef DISPLAY_ONLY_FAILED
 static bool displayOnlyFailed = true;
@@ -107,7 +122,7 @@ static int testWPrintf(const char* label, const wchar_t*  expectResult, int expe
 #define Test1arg(expectResult,format,c) \
 { \
 	/* char label[1024]; // Visual studio generates __chkstk if declared here */\
-	snprintf(label, sizeof(label), F("Test sprintf(" PRIF ", " PRIF ")"), F(#format), F(#c)); \
+	  snprintf(label, sizeof(label), F("Test sprintf(" PRIF ", " PRIF ")"), F(#format), F(#c)); \
     testPrintf(label,expectResult,(int)strlen(expectResult),format,c); \
     snprintf(label, sizeof(label), F("Test swprintf(" PRIF ", " PRIF ")"), F(#format), F(#c)); \
     testWPrintf(label,L##expectResult,(int)wcslen(L##expectResult),format,c); \
@@ -212,20 +227,21 @@ int printf_lite_tests(void)
 
 
 	// Check %s with width specifier
-    Test1arg(F("|a|"), F("|%.4s|"), "a");
-    Test1arg(F("|aa|"), F("|%.4s|"), "aa");
-    Test1arg(F("|aaa|"), F("|%.4s|"), "aaa");
-    Test1arg(F("|aaaa|"), F("|%.4s|"), "aaaa");
-    Test1arg(F("|aaaa|"), F("|%.4s|"), "aaaaa");
-    Test1arg(F("|aaaa|"), F("|%.4s|"), "aaaaaa");
+  // 2020-10 Doesn't work yet.
+//    Test1arg(F("|a|"), F("|%4s|"), "a");
+//    Test1arg(F("|aa|"), F("|%4s|"), "aa");
+//    Test1arg(F("|aaa|"), F("|%4s|"), "aaa");
+//    Test1arg(F("|aaaa|"), F("|%4s|"), "aaaa");
+//    Test1arg(F("|aaaa|"), F("|%4s|"), "aaaaa");
+//    Test1arg(F("|aaaa|"), F("|%4s|"), "aaaaaa");
 	
-	// Check %ls with width specifier
-    Test1arg(F("|a|"), F("|%.4ls|"), L"a");
-    Test1arg(F("|aa|"), F("|%.4ls|"), L"aa");
-    Test1arg(F("|aaa|"), F("|%.4ls|"), L"aaa");
-    Test1arg(F("|aaaa|"), F("|%.4ls|"), L"aaaa");
-    Test1arg(F("|aaaa|"), F("|%.4ls|"), L"aaaaa");
-    Test1arg(F("|aaaa|"), F("|%.4ls|"), L"aaaaaa");
+  // Check %s with precision specifier
+    Test1arg(F("|a|"), F("|%.2s|"), "a");
+    Test1arg(F("|aa|"), F("|%.2s|"), "aa");
+    Test1arg(F("|aa|"), F("|%.2s|"), "aaa");
+    Test1arg(F("|aa|"), F("|%.2s|"), "aaaa");
+    Test1arg(F("|aa|"), F("|%.2s|"), "aaaaa");
+    Test1arg(F("|aa|"), F("|%.2s|"), "aaaaaa");
 
 
     // These must always works. It also test that integer type are well defined
@@ -252,6 +268,7 @@ int printf_lite_tests(void)
     Test1arg(F("12.987654"), F("%lf"), 12.987654);
 
     // Test rounding
+    Test1arg(F("10.499900"), F("%1lf"), 10.4999); // no precision specifier means 6
     Test1arg(F("10"), F("%1.0lf"), 10.4999);
     Test1arg(F("11"), F("%1.0lf"), 10.5001);
     Test1arg(F("10.5"), F("%1.1lf"), 10.5499);
@@ -568,6 +585,7 @@ int test_printf_with_callback_timestamp()
     nbTestFailed += 1;
   }
   
+#if PRINTF_EMIT_CR_SUPPORT == 1
   test_printf_with_callback_timestamp_buf[0] = 0;
   printf_with_callback_timestamp_emitcr("Hello %s\n", test_printf_transmitS8Printf, nullptr, &printfNewline, 1, 1, "world");
   for ( i=0 ; i<sizeof(test_printf_with_callback_timestamp_buf) ; i++ ) {
@@ -591,5 +609,7 @@ int test_printf_with_callback_timestamp()
   if ( strcmp(&test_printf_with_callback_timestamp_buf[i], "Hello world\r\n") != 0) {
     nbTestFailed += 1;
   }
+#endif
+
   return 0;
 }

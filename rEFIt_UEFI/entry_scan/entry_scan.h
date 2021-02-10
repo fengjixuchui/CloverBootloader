@@ -33,7 +33,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "../gui/menu_items/menu_items.h"
 
 extern REFIT_MENU_ITEM_RETURN MenuEntryReturn;
@@ -72,7 +71,6 @@ void ScanTool(void);
 void AddCustomTool(void);
 
 // locked graphics
-CONST CHAR8 *CustomBootModeToStr(IN UINT8 Mode);
 EFI_STATUS LockBootScreen(void);
 EFI_STATUS UnlockBootScreen(void);
 

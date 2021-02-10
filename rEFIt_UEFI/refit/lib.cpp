@@ -35,15 +35,20 @@
  */
 
 #include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
-#include "../include/OsType.h"
+#include <Efi.h>
+#include "../include/OSTypes.h"
 #include "lib.h"
 #include "screen.h"
+#include "../Platform/BootLog.h"
 #include "../Platform/guid.h"
 #include "../Platform/APFS.h"
 #include "../refit/lib.h"
 #include "../Platform/Settings.h"
-#include "Self.h"
-#include "SelfOem.h"
+#include "../Platform/Self.h"
+#include "../Platform/SelfOem.h"
+#include "../Platform/Volumes.h"
+#include "../libeg/XTheme.h"
+
 #include "../include/OC.h"
 
 #ifndef DEBUG_ALL
@@ -60,23 +65,11 @@
 
 // variables
 
-XTheme ThemeX;
 
 //XStringW         ThemePath;
-BOOLEAN          gThemeChanged = FALSE;
 //BOOLEAN          gBootArgsChanged = FALSE;
-BOOLEAN          gBootChanged = FALSE;
 BOOLEAN          gThemeOptionsChanged = FALSE;
 
-
-REFIT_VOLUME     *SelfVolume = NULL;
-//REFIT_VOLUME     **Volumes = NULL;
-//UINTN            VolumesCount = 0;
-VolumesArrayClass Volumes;
-
-//REFIT_VOLUME* VolumesArrayClass::getApfsPartitionWithUUID(const XString8& ApfsContainerUUID, const XString8& APFSTargetUUID)
-//{
-//}
 
 //
 // Unicode collation protocol interface
@@ -1250,6 +1243,11 @@ BOOLEAN FileExists(const EFI_FILE& Root, const XStringW& RelativePath)
   return FileExists(&Root, RelativePath.wc_str());
 }
 
+EFI_DEVICE_PATH_PROTOCOL* FileDevicePath(IN EFI_HANDLE Device, IN CONST XStringW& FileName)
+{
+  return FileDevicePath(Device, FileName.wc_str());
+}
+
 BOOLEAN DeleteFile(const EFI_FILE *Root, IN CONST CHAR16 *RelativePath)
 {
   EFI_STATUS  Status;
@@ -1622,18 +1620,6 @@ BOOLEAN DumpVariable(CHAR16* Name, EFI_GUID* Guid, INTN DevicePathAt)
     return TRUE;
   }
   return FALSE;
-}
-
-void DbgHeader(CONST CHAR8 *str)
-{
-  CHAR8 strLog[50];
-  INTN len;
-	UINTN end = snprintf(strLog, 50, "=== [ %s ] ", str);
-  len = 50 - end;
-
-  SetMem(&strLog[end], len , '=');
-  strLog[49] = '\0';
-  DebugLog (1, "%s\n", strLog);
 }
 
 // EOF

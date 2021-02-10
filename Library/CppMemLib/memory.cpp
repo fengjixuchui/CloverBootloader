@@ -7,6 +7,7 @@
 
 extern "C" {
 
+#include <Uefi/UefiBaseType.h>
 #include <Library/BaseMemoryLib.h>
 
 /*
@@ -34,6 +35,15 @@ void* memcpy(void* dst, const void* src, UINTN count)
   return dst;
 }
 
+#if defined(__clang__)
+
+
+void __bzero(void *dst, UINTN n)
+{
+  SetMem(dst, n, (UINT8)(0));
+}
+
+#endif
 
 
 } // extern "C"

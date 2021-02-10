@@ -3,10 +3,15 @@
  * 2010 mojodojo, 2012 slice
  */
 
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "StateGenerator.h"
 #include "cpu.h"
 #include "smbios.h"
 #include "AcpiPatcher.h"
+
+extern "C" {
+#include <IndustryStandard/CpuId.h> // for CPUID_FEATURE_MSR
+}
 
 CONST UINT8 pss_ssdt_header[] =
 {
@@ -122,10 +127,10 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
         case CPU_MODEL_IVY_BRIDGE:
           Aplf = 8;
           break;
-	    case CPU_MODEL_IVY_BRIDGE_E5:
-		  Aplf = 4;
-		  break;
-		default:
+	      case CPU_MODEL_IVY_BRIDGE_E5:
+          Aplf = 4;
+          break;
+        default:
           Aplf = 0;
           break;
       }
@@ -267,7 +272,9 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
           case CPU_MODEL_COMETLAKE_S:
           case CPU_MODEL_COMETLAKE_Y:
           case CPU_MODEL_COMETLAKE_U:
-          {
+        case CPU_MODEL_TIGERLAKE_C:
+        case CPU_MODEL_TIGERLAKE_D:
+         {
             maximum.Control.Control = RShiftU64(AsmReadMsr64(MSR_PLATFORM_INFO), 8) & 0xff;
             if (gSettings.MaxMultiplier) {
               DBG("Using custom MaxMultiplier %d instead of automatic %d\n",
@@ -333,7 +340,9 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
                     (gCPUStructure.Model == CPU_MODEL_ICELAKE_C) ||
                     (gCPUStructure.Model == CPU_MODEL_ICELAKE_D) ||
                     (gCPUStructure.Model == CPU_MODEL_ICELAKE) ||
-                    (gCPUStructure.Model == CPU_MODEL_COMETLAKE_S) ||
+                    (gCPUStructure.Model == CPU_MODEL_TIGERLAKE_C) ||
+                    (gCPUStructure.Model == CPU_MODEL_TIGERLAKE_D) ||
+                   (gCPUStructure.Model == CPU_MODEL_COMETLAKE_S) ||
                     (gCPUStructure.Model == CPU_MODEL_COMETLAKE_Y) ||
                     (gCPUStructure.Model == CPU_MODEL_COMETLAKE_U)) {
                     j = i << 8;

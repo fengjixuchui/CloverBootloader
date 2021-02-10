@@ -45,7 +45,12 @@ DISK_IO_PRIVATE_DATA        gDiskIoPrivateDataTemplate = {
     DiskIo2ReadDiskEx,
     DiskIo2WriteDiskEx,
     DiskIo2FlushDiskEx
-  }
+  },
+  NULL,
+  NULL,
+  NULL,
+  { 0, 0, 0 },
+  { NULL, NULL, },
 };
 
 /**

@@ -10,6 +10,8 @@
 
 #include "platformdata.h"
 #include <IndustryStandard/CpuId.h>
+#include <Register/Intel/ArchitecturalMsr.h>
+#include <IndustryStandard/ProcessorInfo.h>
 
 #define CPU_MODEL_PENTIUM_M     0x09
 #define CPU_MODEL_DOTHAN        0x0D
@@ -43,33 +45,36 @@
 //#define CPU_MODEL_HASWELL_H    0x??  // Haswell H
 #define CPU_MODEL_HASWELL_ULT   0x45  /* Haswell ULT */
 #define CPU_MODEL_CRYSTALWELL   0x46  /* Haswell ULX CPUID_MODEL_CRYSTALWELL */
-#define CPU_MODEL_BROADWELL_HQ  0x47  /* E3-1200 v4 */
+#define CPU_MODEL_BROADWELL_HQ  0x47  /* E3-1200 v4 5th */
 #define CPU_MODEL_MERRIFIELD    0x4A  /* Tangier */
 #define CPU_MODEL_AIRMONT       0x4C  /* CherryTrail / Braswell */
 #define CPU_MODEL_AVOTON        0x4D  /* Avaton/Rangely */
 #define CPU_MODEL_SKYLAKE_U     0x4E  /* Skylake Mobile */
-#define CPU_MODEL_BROADWELL_E5  0x4F  /* Xeon E5-2695 */
+#define CPU_MODEL_BROADWELL_E5  0x4F  /* Xeon E5-2695 5th */
 #define CPU_MODEL_SKYLAKE_S     0x55  /* Skylake Server, Cooper Lake */
-#define CPU_MODEL_BROADWELL_DE  0x56  /* Xeon BroadWell */
+#define CPU_MODEL_BROADWELL_DE  0x56  /* Xeon BroadWell 5th */
 #define CPU_MODEL_KNIGHT        0x57  /* Knights Landing */
 #define CPU_MODEL_MOOREFIELD    0x5A  /* Annidale */
 #define CPU_MODEL_GOLDMONT      0x5C  /* Apollo Lake */
 #define CPU_MODEL_ATOM_X3       0x5D  /* Silvermont */
 #define CPU_MODEL_SKYLAKE_D     0x5E  /* Skylake Desktop */
 #define CPU_MODEL_DENVERTON     0x5F  /* Goldmont Microserver */
-#define CPU_MODEL_CANNONLAKE    0x66
+#define CPU_MODEL_CANNONLAKE    0x66  /* 8h generation Cannon Lake */
 #define CPU_MODEL_ICELAKE_A     0x6A  /* Xeon Ice Lake */
 #define CPU_MODEL_ICELAKE_C     0x6C  /* Xeon Ice Lake */
 #define CPU_MODEL_ATOM_GM       0x7A  /* Goldmont Plus */
-#define CPU_MODEL_ICELAKE_D     0x7D
-#define CPU_MODEL_ICELAKE       0x7E
+#define CPU_MODEL_ICELAKE_D     0x7D  /* 10h Ice Lake */
+#define CPU_MODEL_ICELAKE       0x7E  /* 10h Ice Lake */
 #define CPU_MODEL_XEON_MILL     0x85  /* Knights Mill */
 #define CPU_MODEL_ATOM_TM       0x86  /* Tremont */
-#define CPU_MODEL_KABYLAKE1     0x8E  /* Kabylake Mobile */
-#define CPU_MODEL_KABYLAKE2     0x9E  /* Kabylake Dektop, CoffeeLake */
+#define CPU_MODEL_TIGERLAKE_C   0x8C  /* 11h generation Tiger Lake */
+#define CPU_MODEL_TIGERLAKE_D   0x8D  /* 11h generation Tiger Lake */
+#define CPU_MODEL_KABYLAKE1     0x8E  /* 7h Kabylake Mobile */
+#define CPU_MODEL_KABYLAKE2     0x9E  /* 7h CoffeeLake */
+#undef CPU_MODEL_COMETLAKE_S // Jief : mistake in ProcessorInfo.h ?
 #define CPU_MODEL_COMETLAKE_S   0x9F  /* desktop Comet Lake */
-#define CPU_MODEL_COMETLAKE_Y   0xA5  /* aka 10th generation Amber Lake Y */
-#define CPU_MODEL_COMETLAKE_U   0xA6
+#define CPU_MODEL_COMETLAKE_Y   0xA5  /* 10h Comet Lake */
+#define CPU_MODEL_COMETLAKE_U   0xA6  /* 10h Comet Lake */
 
 #define CPU_VENDOR_INTEL        0x756E6547
 #define CPU_VENDOR_AMD          0x68747541
@@ -179,11 +184,11 @@ const char CPU_STRING_UNKNOWN[] = "Unknown CPU Type";
 #define CPUID_MWAIT_BREAK  _Bit(1)  /* interrupts are break events     */
 
 /* Known MSR registers */
-#define MSR_IA32_PLATFORM_ID        0x0017
+//#define MSR_IA32_PLATFORM_ID        0x0017
 //#define IA32_APIC_BASE              0x001B  /* used also for AMD */
-#define MSR_CORE_THREAD_COUNT       0x0035   /* limited use - not for Penryn or older  */
-#define IA32_TSC_ADJUST             0x003B
-#define MSR_IA32_BIOS_SIGN_ID       0x008B   /* microcode version */
+//#define MSR_CORE_THREAD_COUNT       0x0035   /* limited use - not for Penryn or older  */
+//#define IA32_TSC_ADJUST             0x003B
+//#define MSR_IA32_BIOS_SIGN_ID       0x008B   /* microcode version */
 #define MSR_FSB_FREQ                0x00CD   /* limited use - not for i7            */
 /*
 •  101B: 100 MHz (FSB 400)
@@ -201,22 +206,26 @@ const char CPU_STRING_UNKNOWN[] = "Unknown CPU Type";
 //Low Frequency Mode. LFM is Pn in the P-state table. It can be read at MSR CEh [47:40].
 //Minimum Frequency Mode. MFM is the minimum ratio supported by the processor and can be read from MSR CEh [55:48].
 #define MSR_PKG_CST_CONFIG_CONTROL  0x00E2   /* sandy and up */
-#define MSR_PMG_IO_CAPTURE_BASE     0x00E4  /* sandy and up */
+//#define MSR_PMG_IO_CAPTURE_BASE     0x00E4  /* sandy and up */
 #define IA32_MPERF                  0x00E7   /* TSC in C0 only */
 #define IA32_APERF                  0x00E8   /* actual clocks in C0 */
-#define MSR_IA32_EXT_CONFIG         0x00EE   /* limited use - not for i7            */
-#define MSR_FLEX_RATIO              0x0194   /* limited use - not for Penryn or older      */
+//#define MSR_IA32_EXT_CONFIG         0x00EE   /* limited use - not for i7            */
+//#define MSR_FLEX_RATIO              0x0194   /* limited use - not for Penryn or older      */
                                              //see no value on most CPUs
-#define MSR_IA32_PERF_STATUS        0x0198
-#define MSR_IA32_PERF_CONTROL       0x0199
-#define MSR_IA32_CLOCK_MODULATION   0x019A
+//#define MSR_IA32_PERF_STATUS        0x0198
+//#define MSR_IA32_PERF_CONTROL       0x0199
+//#define MSR_IA32_CLOCK_MODULATION   0x019A
 #define MSR_THERMAL_STATUS          0x019C
-#define MSR_IA32_MISC_ENABLE        0x01A0
+//#define MSR_IA32_MISC_ENABLE        0x01A0
 #define MSR_THERMAL_TARGET          0x01A2   /* TjMax limited use - not for Penryn or older      */
 #define MSR_TURBO_RATIO_LIMIT       0x01AD   /* limited use - not for Penryn or older      */
+//#define MSR_MISC_PWR_MGMT           0x01AA   /* EIST Hardware Coordination Disable (R/W) */
+/* defined for Goldmont, Nehalem, Sandy and up
+ * bit0=1 == disable
+ * bit1=1 == enable MSR 1B0
+ */
 
-
-#define IA32_ENERGY_PERF_BIAS       0x01B0
+#define IA32_ENERGY_PERF_BIAS       0x01B0  /* 0=fast 15=low energy If CPUID.6H:ECX[3] = 1 */
 //MSR 000001B0                                      0000-0000-0000-0005
 #define MSR_PACKAGE_THERM_STATUS    0x01B1
 //MSR 000001B1                                      0000-0000-8838-0000
@@ -270,8 +279,8 @@ const char CPU_STRING_UNKNOWN[] = "Unknown CPU Type";
 
 //Skylake
 #define BASE_ART_CLOCK_SOURCE   24000000ULL  /* 24Mhz */
-#define MSR_IA32_PM_ENABLE          0x770
-#define MSR_IA32_HWP_REQUEST        0x774
+//#define MSR_IA32_PM_ENABLE          0x770
+//#define MSR_IA32_HWP_REQUEST        0x774
 
 //AMD
 #define K8_FIDVID_STATUS            0xC0010042

@@ -9,7 +9,7 @@
 #define PLATFORM_PLATFORMDATA_H_
 
 
-
+#include "../cpp_foundation/XString.h"
 
 typedef enum {
 
@@ -166,5 +166,7 @@ MACHINE_TYPES GetModelFromString (
 void
 GetDefaultSettings(void);
 
+void
+GetDefaultCpuSettings(void);
 
 #endif /* PLATFORM_PLATFORMDATA_H_ */

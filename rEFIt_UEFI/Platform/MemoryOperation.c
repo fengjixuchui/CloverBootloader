@@ -4,12 +4,12 @@
  */
 
 #include "MemoryOperation.h"
-#include <BootLog.h>
+#include "BootLog.h"
 
 #include <Library/BaseMemoryLib.h>
 
 #ifndef DEBUG_MEMORYOPERATION
-# ifdef UNIT_TESTS
+# ifdef UNIT_TESTS_MACOS
 #   define DEBUG_MEMORYOPERATION 0
 # else
 #   define DEBUG_MEMORYOPERATION 1

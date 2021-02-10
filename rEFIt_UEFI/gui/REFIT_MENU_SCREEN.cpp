@@ -34,6 +34,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Platform.h>
+#include "../Platform/BasicIO.h"
 #include "../libeg/libegint.h"   //this includes platform.h
 //#include "../include/scroll_images.h"
 
@@ -41,7 +43,7 @@
 
 #include "../libeg/nanosvg.h"
 #include "../libeg/FloatLib.h"
-#include "HdaCodecDump.h"
+#include "../Platform/HdaCodecDump.h"
 #include "REFIT_MENU_SCREEN.h"
 //#include "screen.h"
 #include "../cpp_foundation/XString.h"
@@ -53,7 +55,9 @@
 #include "../Platform/Nvram.h"
 #include "../refit/screen.h"
 #include "../Platform/Events.h"
-#include "Self.h"
+#include "../Platform/Self.h"
+#include "../Platform/Volumes.h"
+#include "../include/OSFlags.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_MENU 1
@@ -1019,7 +1023,7 @@ UINTN REFIT_MENU_SCREEN::RunGenericMenu(IN MENU_STYLE_FUNC StyleFunc, IN OUT INT
       case SCAN_F9:
         SetNextScreenMode(1);
         egGetScreenSize(&UGAWidth, &UGAHeight); //before init theme
-        gThemeChanged = TRUE;
+        GlobalConfig.gThemeChanged = TRUE;
         MenuExit = MENU_EXIT_ESCAPE; //to redraw screen
         break;
       case SCAN_F10:
@@ -2034,12 +2038,12 @@ void REFIT_MENU_SCREEN::DrawMainMenuEntry(REFIT_ABSTRACT_MENU_ENTRY *Entry, BOOL
   INTN CompWidth = (Entry->Row == 0) ? ThemeX.row0TileSize : ThemeX.row1TileSize;
   INTN CompHeight = CompWidth;
 
-  float fScale;
-  if (ThemeX.TypeSVG) {
-    fScale = (selected ? 1.f : -1.f);
-  } else {
-    fScale = ((Entry->Row == 0) ? (ThemeX.MainEntriesSize/128.f * (selected ? 1.f : -1.f)): 1.f) ;
-  }
+//  float fScale;
+//  if (ThemeX.TypeSVG) {
+//    fScale = (selected ? 1.f : -1.f);
+//  } else {
+//    fScale = ((Entry->Row == 0) ? (ThemeX.MainEntriesSize/128.f * (selected ? 1.f : -1.f)): 1.f) ;
+//  }
 
   if (Entry->Row == 0) {
     BadgeIcon = Entry->getBadgeImage();
@@ -2826,4 +2830,43 @@ EFI_STATUS REFIT_MENU_SCREEN::CheckMouseEvent()
     mPointer.ClearEvent();
   }
   return Status;
+}
+
+
+//Screen.UpdateAnime(); called from Menu cycle wait for event
+
+// object XCinema Cinema is a part of Theme
+// object FILM* FilmC is a part or current Screen. Must be initialized from Cinema somewhere on Screen init
+// assumed one Film per screen
+void REFIT_MENU_SCREEN::UpdateFilm()
+{
+  if (FilmC == nullptr || !FilmC->AnimeRun) {
+//    DBG("no anime -> run=%d\n", FilmC->AnimeRun?1:0);
+    return;
+  }
+  // here we propose each screen has own link to a Film
+  INT64      Now = AsmReadTsc();
+
+  if (FilmC->LastDraw == 0) {
+    DBG("=== Update Film ===\n");
+    DBG("FilmX=%lld\n", FilmC->FilmX);
+    DBG("ID=%lld\n", FilmC->GetIndex());
+    DBG("RunOnce=%d\n", FilmC->RunOnce?1:0);
+    DBG("NumFrames=%lld\n", FilmC->NumFrames);
+    DBG("FrameTime=%lld\n", FilmC->FrameTime);
+    DBG("Path=%ls\n", FilmC->Path.wc_str());
+    DBG("LastFrame=%lld\n\n", FilmC->LastFrameID());
+  }
+
+  if (TimeDiff(FilmC->LastDraw, Now) < (UINTN)FilmC->FrameTime) return;
+
+  XImage Frame = FilmC->GetImage(); //take current image
+  if (!Frame.isEmpty()) {
+    Frame.DrawOnBack(FilmC->FilmPlace.XPos, FilmC->FilmPlace.YPos, ThemeX.Background);
+  }
+  FilmC->Advance(); //next frame no matter if previous was not found
+  if (FilmC->Finished()) { //first loop finished
+    FilmC->AnimeRun = !FilmC->RunOnce; //will stop anime if it set as RunOnce
+  }
+  FilmC->LastDraw = Now;
 }

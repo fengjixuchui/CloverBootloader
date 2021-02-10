@@ -488,6 +488,7 @@ MainBuildScript() {
         fi
 
         # to force recreation of the Conf folder. You can sill use a custom CONF_PATH if you don't want recreation.
+        echo recreate Conf folder
         rm -rf "$CLOVERROOT"/Conf
         mkdir "$CLOVERROOT"/Conf
 
@@ -822,7 +823,7 @@ MainPostBuildScript() {
 #    fi
 
 
-    binArray=( FSInject DataHubDxe SMCHelper AudioDxe )
+    binArray=( FSInject SMCHelper AudioDxe )
     for efi in "${binArray[@]}"
     do
       copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers/$DRIVERS_UEFI/$efi.efi

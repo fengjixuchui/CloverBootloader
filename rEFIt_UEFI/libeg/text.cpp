@@ -39,12 +39,13 @@ extern "C" {
 #include <Protocol/GraphicsOutput.h>
 }
 
+#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
 #include "libegint.h"
 #include "nanosvg.h"
 #include "VectorGraphics.h"
 #include "XTheme.h"
 #include "../Platform/Settings.h"
-#include "Self.h"
+#include "../Platform/Self.h"
 
 //#include "egemb_font.h"
 //#define FONT_CELL_WIDTH (7)

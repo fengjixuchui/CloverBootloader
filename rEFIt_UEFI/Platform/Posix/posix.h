@@ -15,9 +15,10 @@
 #include "stdarg.h"
 #include "stdlib.h"
 #include "string.h"
+#include "strings.h"
 #include "wchar.h"
 #include "abort.h"
-
+#include "posix_additions.h"
 //
 // Macros that directly map functions to BaseLib, BaseMemoryLib, and DebugLib functions
 // originally from OpensslLib

@@ -8,7 +8,13 @@
 #ifndef PLATFORM_SELF_H_
 #define PLATFORM_SELF_H_
 
-#include <Platform.h>
+#include "../cpp_foundation/XString.h"
+extern "C" {
+#include <Uefi/UefiSpec.h>
+#include <Protocol/LoadedImage.h>
+#include <Protocol/DevicePath.h>
+#include <Protocol/SimpleFileSystem.h>
+}
 
 class Self
 {

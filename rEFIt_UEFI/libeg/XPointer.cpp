@@ -7,8 +7,8 @@
 #include "XPointer.h"
 #include "libegint.h"   //this includes platform.h 
 #include "../refit/screen.h"
-#include "../refit/menu.h"
 #include "../Platform/Settings.h"
+#include "../libeg/XTheme.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_MOUSE 0
@@ -124,7 +124,7 @@ void XPointer::KillMouse()
   SimplePointerProtocol = NULL;
 }
 
-void XPointer::UpdatePointer(bool daylight)
+void XPointer::UpdatePointer(bool isDaylight) // cannot be called daylight because of a global var on macOS
 {
   UINT64                    Now;
   EFI_STATUS                Status;
@@ -133,7 +133,7 @@ void XPointer::UpdatePointer(bool daylight)
   INTN                      ScreenRelX;
   INTN                      ScreenRelY;
   
-  night = !daylight;
+  night = !isDaylight;
 
   //  Now = gRT->GetTime(&Now, NULL);
   Now = AsmReadTsc();
