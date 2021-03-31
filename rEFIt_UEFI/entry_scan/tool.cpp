@@ -40,6 +40,7 @@
 #include "../libeg/XImage.h"
 #include "../refit/lib.h"
 #include "../gui/REFIT_MENU_SCREEN.h"
+#include "../gui/REFIT_MAINMENU_SCREEN.h"
 #include "../Platform/Self.h"
 #include "../Platform/Volumes.h"
 #include "../libeg/XTheme.h"
@@ -90,9 +91,6 @@ STATIC BOOLEAN AddToolEntry(IN CONST XStringW& LoaderPath, IN CONST CHAR16 *Full
   }
   // Allocate the entry
   Entry = new REFIT_MENU_ENTRY_LOADER_TOOL();
-  if (Entry == NULL) {
-    return FALSE;
-  }
 
   if (FullTitle) {
     Entry->Title.takeValueFrom(FullTitle);
@@ -240,30 +238,29 @@ void AddCustomTool(void)
 {
   UINTN             VolumeIndex;
   REFIT_VOLUME      *Volume;
-  CUSTOM_TOOL_ENTRY *Custom;
   XIcon             Image;
-  UINTN              i = 0;
 
 //  DBG("Custom tool start\n");
   DbgHeader("AddCustomTool");
   // Traverse the custom entries
-  for (Custom = gSettings.CustomTool; Custom; ++i, Custom = Custom->Next) {
-    if (OSFLAG_ISSET(Custom->Flags, OSFLAG_DISABLED)) {
-		DBG("Custom tool %llu skipped because it is disabled.\n", i);
+  for (size_t i = 0 ; i < GlobalConfig.CustomToolsEntries.size(); ++i) {
+    CUSTOM_TOOL_ENTRY& Custom = GlobalConfig.CustomToolsEntries[i];
+    if (OSFLAG_ISSET(Custom.getFlags(), OSFLAG_DISABLED)) {
+		DBG("Custom tool %zu skipped because it is disabled.\n", i);
       continue;
     }
-//    if (!gSettings.ShowHiddenEntries && OSFLAG_ISSET(Custom->Flags, OSFLAG_HIDDEN)) {
+//    if (!gSettings.ShowHiddenEntries && OSFLAG_ISSET(Custom.Flags, OSFLAG_HIDDEN)) {
 //		DBG("Custom tool %llu skipped because it is hidden.\n", i);
 //      continue;
 //    }
 
-    if (Custom->Volume.notEmpty()) {
-		DBG("Custom tool %llu matching \"%ls\" ...\n", i, Custom->Volume);
+    if (Custom.settings.Volume.notEmpty()) {
+		DBG("Custom tool %zu matching \"%ls\" ...\n", i, Custom.settings.Volume.wc_str());
     }
     for (VolumeIndex = 0; VolumeIndex < Volumes.size(); ++VolumeIndex) {
       Volume = &Volumes[VolumeIndex];
 
-      DBG("   Checking volume \"%ls\" (%ls) ... ", Volume->VolName, Volume->DevicePathString);
+      DBG("   Checking volume \"%ls\" (%ls) ... ", Volume->VolName.wc_str(), Volume->DevicePathString.wc_str());
 
       // Skip Whole Disc Boot
       if (Volume->RootDir == NULL) {
@@ -278,8 +275,8 @@ void AddCustomTool(void)
         continue;
       }
 
-      if (Custom->VolumeType != 0) {
-        if (((1ull<<Volume->DiskKind) & Custom->VolumeType) == 0) {
+      if (Custom.settings.VolumeType != 0) {
+        if (((1ull<<Volume->DiskKind) & Custom.settings.VolumeType) == 0) {
           DBG("skipped because media is ignored\n");
           continue;
         }
@@ -291,30 +288,30 @@ void AddCustomTool(void)
       }
 
       // Check for exact volume matches
-      if (Custom->Volume.notEmpty()) {
-        if ((StrStr(Volume->DevicePathString.wc_str(), Custom->Volume.wc_str()) == NULL) &&
-            ((Volume->VolName.isEmpty()) || (StrStr(Volume->VolName.wc_str(), Custom->Volume.wc_str()) == NULL))) {
+      if (Custom.settings.Volume.notEmpty()) {
+        if ((StrStr(Volume->DevicePathString.wc_str(), Custom.settings.Volume.wc_str()) == NULL) &&
+            ((Volume->VolName.isEmpty()) || (StrStr(Volume->VolName.wc_str(), Custom.settings.Volume.wc_str()) == NULL))) {
           DBG("skipped\n");
           continue;
         }
       }
       // Check the tool exists on the volume
-      if (!FileExists(Volume->RootDir, Custom->Path)) {
-        DBG("skipped because path does not exist\n");
+      if (!FileExists(Volume->RootDir, Custom.settings.Path)) {
+        DBG("skipped because path '%ls' does not exist\n", Custom.settings.Path.wc_str());
         continue;
       }
       // Change to custom image if needed
-      Image = Custom->Image;
-      if (Image.isEmpty() && Custom->ImagePath.notEmpty()) {
-        Image.LoadXImage(&ThemeX.getThemeDir(), Custom->ImagePath);
-      }
-      if (Image.isEmpty()) {
-        AddToolEntry(Custom->Path, Custom->FullTitle.wc_str(), Custom->Title.wc_str(), Volume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), Custom->Hotkey, Custom->LoadOptions);
-      } else {
-      // Create a legacy entry for this volume
-        AddToolEntry(Custom->Path, Custom->FullTitle.wc_str(), Custom->Title.wc_str(), Volume, Image, Custom->Hotkey, Custom->LoadOptions);
+      Image = Custom.Image;
+      if (Image.isEmpty() && Custom.settings.ImagePath.notEmpty()) {
+        Image.LoadXImage(&ThemeX.getThemeDir(), Custom.settings.ImagePath);
       }
       DBG("match!\n");
+      if (Image.isEmpty()) {
+        AddToolEntry(Custom.settings.Path, Custom.settings.FullTitle.wc_str(), Custom.settings.Title.wc_str(), Volume, ThemeX.GetIcon(BUILTIN_ICON_TOOL_SHELL), Custom.settings.Hotkey, Custom.getLoadOptions());
+      } else {
+      // Create a legacy entry for this volume
+        AddToolEntry(Custom.settings.Path, Custom.settings.FullTitle.wc_str(), Custom.settings.Title.wc_str(), Volume, Image, Custom.settings.Hotkey, Custom.getLoadOptions());
+      }
 //      break; // break scan volumes, continue scan entries -- why?
     }
   }

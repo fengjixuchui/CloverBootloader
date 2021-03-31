@@ -1400,38 +1400,38 @@ void GetDefaultSettings()
   //default values will be overritten by config.plist
   //use explicitly settings TRUE or FALSE (Yes or No)
 
-  gSettings.InjectIntel          = (gGraphics[0].Vendor == Intel) || (gGraphics[1].Vendor == Intel);
+  gSettings.Graphics.InjectAsDict.InjectIntel          = (gGraphics[0].Vendor == Intel) || (gGraphics[1].Vendor == Intel);
 
-  gSettings.InjectATI            = (((gGraphics[0].Vendor == Ati) && ((gGraphics[0].DeviceID & 0xF000) != 0x6000)) ||
+  gSettings.Graphics.InjectAsDict.InjectATI            = (((gGraphics[0].Vendor == Ati) && ((gGraphics[0].DeviceID & 0xF000) != 0x6000)) ||
                                     ((gGraphics[1].Vendor == Ati) && ((gGraphics[1].DeviceID & 0xF000) != 0x6000)));
 
-  gSettings.InjectNVidia         = (((gGraphics[0].Vendor == Nvidia) && (gGraphics[0].Family < 0xE0)) ||
+  gSettings.Graphics.InjectAsDict.InjectNVidia         = (((gGraphics[0].Vendor == Nvidia) && (gGraphics[0].Family < 0xE0)) ||
                                     ((gGraphics[1].Vendor == Nvidia) && (gGraphics[1].Family < 0xE0)));
 
-  gSettings.GraphicsInjector     = gSettings.InjectATI || gSettings.InjectNVidia;
-  CopyMem(gSettings.NVCAP, default_NVCAP, 20); 
-  CopyMem(gSettings.Dcfg, default_dcfg_0, 4);
-  CopyMem(&gSettings.Dcfg[4], default_dcfg_1, 4);
-  //gSettings.CustomEDID           = NULL; //no sense to assign 0 as the structure is zeroed
-  gSettings.DualLink             = 0xA; // A(auto): DualLink auto-detection
-  gSettings.HDAInjection         = FALSE;
-  //gSettings.HDALayoutId          = 0;
-  gSettings.USBInjection         = TRUE; // enabled by default to have the same behavior as before
+//  gSettings.GraphicsInjector     = gSettings.InjectATI || gSettings.InjectNVidia;
+  CopyMem(gSettings.Graphics.NVCAP, default_NVCAP, 20); 
+  CopyMem(gSettings.Graphics.Dcfg, default_dcfg_0, 4);
+  CopyMem(&gSettings.Graphics.Dcfg[4], default_dcfg_1, 4);
+  //gSettings.Graphics.EDID.CustomEDID           = NULL; //no sense to assign 0 as the structure is zeroed
+  gSettings.Graphics.DualLink             = 0xA; // A(auto): DualLink auto-detection
+  gSettings.Devices.Audio.HDAInjection         = FALSE;
+  //gSettings.Devices.Audio.HDALayoutId          = 0;
+  gSettings.Devices.USB.USBInjection         = TRUE; // enabled by default to have the same behavior as before
   gSettings.ACPI.DSDT.DsdtName   = L"DSDT.aml"_XSW;
-  gSettings.BacklightLevel       = 0xFFFF; //0x0503; -- the value from MBA52
-  gSettings.BacklightLevelConfig = FALSE;
+  gSettings.SystemParameters.BacklightLevel       = 0xFFFF; //0x0503; -- the value from MBA52
+  gSettings.SystemParameters.BacklightLevelConfig = FALSE;
   gSettings.TrustSMBIOS          = TRUE;
 
-  gSettings.SmUUID = nullGuid;
+  gSettings.SmUUID = nullGuidAsString;
   gSettings.DefaultBackgroundColor = 0x80000000; //the value to delete the variable
-  gSettings.RtROM.setEmpty();
-  gSettings.CsrActiveConfig      = 0xFFFF;
-  gSettings.BooterConfig         = 0;
-//  MemSet(gSettings.BooterCfgStr, 64, 0);
-//  AsciiStrCpyS(gSettings.BooterCfgStr, 64, "log=0");
+  GlobalConfig.RtROM.setEmpty();
+  gSettings.RtVariables.CsrActiveConfig      = 0xFFFF;
+  gSettings.RtVariables.BooterConfig         = 0;
+//  MemSet(gSettings.RtVariables.BooterCfgStr, 64, 0);
+//  AsciiStrCpyS(gSettings.RtVariables.BooterCfgStr, 64, "log=0");
   CHAR8 *OldCfgStr = (__typeof__(OldCfgStr))GetNvramVariable(L"bootercfg", &gEfiAppleBootGuid, NULL, NULL);
   if (OldCfgStr) {
-    gSettings.BooterCfgStr.takeValueFrom(OldCfgStr);
+    gSettings.RtVariables.BooterCfgStr.takeValueFrom(OldCfgStr);
     FreePool(OldCfgStr);
   }
   gSettings.Boot.DisableCloverHotkeys = FALSE;
@@ -1446,7 +1446,7 @@ void GetDefaultCpuSettings()
   MACHINE_TYPES  Model;
   //UINT64         msr = 0;
   Model             = GetDefaultModel();
-  gSettings.CpuType  = GetAdvancedCpuType();
+  gSettings.CPU.CpuType  = GetAdvancedCpuType();
   SetDMISettingsForModel(Model, TRUE);
   
   if (gCPUStructure.Model >= CPU_MODEL_IVY_BRIDGE) {
@@ -1458,7 +1458,7 @@ void GetDefaultCpuSettings()
     gSettings.ACPI.SSDT.Generate.GeneratePluginType = gSettings.ACPI.SSDT.Generate.GeneratePStates;
     //  gSettings.ACPI.SSDT.EnableISS          = FALSE;
     //  gSettings.ACPI.SSDT.EnableC2           = TRUE;
-    gSettings.ACPI.SSDT.EnableC6           = TRUE;
+    gSettings.ACPI.SSDT._EnableC6           = TRUE;
     gSettings.ACPI.SSDT.PluginType         = 1;
     
     if (gCPUStructure.Model == CPU_MODEL_IVY_BRIDGE) {
@@ -1466,12 +1466,12 @@ void GetDefaultCpuSettings()
     }
     //  gSettings.ACPI.SSDT.DoubleFirstState   = FALSE;
     //gSettings.ACPI.SSDT.DropSSDT           = TRUE;    //why drop all???
-    gSettings.ACPI.SSDT.C3Latency          = 0x00FA;
+    gSettings.ACPI.SSDT._C3Latency          = 0x00FA;
   }
-  gSettings.Turbo                = gCPUStructure.Turbo;
-  gSettings.SavingMode           = 0xFF;  //means not set
+//  gSettings.CPU.Turbo                = gCPUStructure.Turbo;
+  gSettings.CPU.SavingMode           = 0xFF;  //means not set
   
   if (gCPUStructure.Model >= CPU_MODEL_SKYLAKE_D) {
-    gSettings.UseARTFreq = true;
+    gSettings.CPU.UseARTFreq = true;
   }
 }

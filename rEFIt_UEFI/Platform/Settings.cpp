@@ -9,6 +9,7 @@
 #include "../include/OSFlags.h"
 #include "../include/OSTypes.h"
 #include "../include/BootTypes.h"
+#include "../include/QuirksCodes.h"
 #include "../entry_scan/loader.h"
 #include "../Platform/BootLog.h"
 #include "../entry_scan/secureboot.h"
@@ -31,6 +32,7 @@
 #include "Edid.h"
 #include "hda.h"
 #include "../../Version.h"
+#include "../entry_scan/bootscreen.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_SET 1
@@ -66,14 +68,13 @@ INTN LayoutBannerOffset = 64;
 INTN LayoutTextOffset = 0;
 INTN LayoutButtonOffset = 0;
 
-ACPI_PATCHED_AML                *ACPIPatchedAML = NULL;
+XObjArray<ACPI_PATCHED_AML>     ACPIPatchedAML;
 //SYSVARIABLES                    *SysVariables;
 CHAR16                          *IconFormat = NULL;
 
 TagDict*                          gConfigDict[NUM_OF_CONFIGS] = {NULL, NULL, NULL};
 
 SETTINGS_DATA                   gSettings;
-LANGUAGES                       gLanguage;
 GFX_PROPERTIES                  gGraphics[4]; //no more then 4 graphics cards
 HDA_PROPERTIES                  gAudios[4]; //no more then 4 Audio Controllers
 //SLOT_DEVICE                     Arpt;
@@ -92,7 +93,6 @@ CHAR16                          *ConfigsList[20];
 UINTN                           DsdtsNum = 0;
 CHAR16                          *DsdtsList[20];
 XObjArray<HDA_OUTPUTS>          AudioList;
-XObjArray<RT_VARIABLES>         BlockRtVariableArray;
 
 // firmware
 BOOLEAN                         gFirmwareClover             = FALSE;
@@ -101,12 +101,11 @@ UINT16                          gBacklightLevel;
 //BOOLEAN                         defDSM;
 //UINT16                          dropDSM;
 
-BOOLEAN                         GetLegacyLanAddress;
 BOOLEAN                         ResumeFromCoreStorage;
-BOOLEAN                         gRemapSmBiosIsRequire;
+//BOOLEAN                         gRemapSmBiosIsRequire;
 
 // QPI
-BOOLEAN                         SetTable132                 = FALSE;
+//BOOLEAN                         SetTable132                 = FALSE;
 
 //EG_PIXEL SelectionBackgroundPixel = { 0xef, 0xef, 0xef, 0xff }; //define in lib.h
 const INTN BCSMargin = 11;
@@ -186,6 +185,108 @@ CONST CHAR8* AudioOutputNames[] = {
   "HDMI",
   "Other"
 };
+
+const XString8 defaultInstallTitle = "Install macOS"_XS8;
+const XString8 defaultRecoveryTitle = "Recovery"_XS8;
+const XStringW defaultRecoveryImagePath = L"mac"_XSW;
+const XStringW defaultRecoveryDriveImagePath = L"mac"_XSW;
+
+CUSTOM_LOADER_ENTRY::CUSTOM_LOADER_ENTRY(const CUSTOM_LOADER_ENTRY_SETTINGS& _settings) : settings(_settings)
+{
+  if ( settings.ImageData.notEmpty() ) {
+    if ( !EFI_ERROR(Image.Image.FromPNG(settings.ImageData.data(), settings.ImageData.size())) ) {
+      Image.setFilled();
+    }
+  }
+  if ( settings.DriveImageData.notEmpty() ) {
+    if ( !EFI_ERROR(DriveImage.Image.FromPNG(settings.DriveImageData.data(), settings.DriveImageData.size())) ) {
+      DriveImage.setFilled();
+    }
+  }
+
+  if ( settings.CustomLogoTypeSettings == CUSTOM_BOOT_USER  &&  settings.CustomLogoAsXString8.notEmpty() ) {
+    CustomLogoImage.LoadXImage(&self.getSelfVolumeRootDir(), settings.CustomLogoAsXString8);
+    if (CustomLogoImage.isEmpty()) {
+      DBG("Custom boot logo not found at path '%s'!\n", settings.CustomLogoAsXString8.c_str());
+      CustomLogoType = CUSTOM_BOOT_DISABLED;
+    }
+  } else if ( settings.CustomLogoTypeSettings == CUSTOM_BOOT_USER  &&  settings.CustomLogoAsData.notEmpty() ) {
+    CustomLogoImage.FromPNG(settings.CustomLogoAsData.data(), settings.CustomLogoAsData.size());
+    if (CustomLogoImage.isEmpty()) {
+      DBG("Custom boot logo not decoded from data!\n");
+      CustomLogoType = CUSTOM_BOOT_DISABLED;
+    }
+  }
+  DBG("Sub entry custom boot %s (0x%llX)\n", CustomBootModeToStr(settings.CustomLogoTypeSettings), (uintptr_t)&CustomLogoImage);
+
+  for ( size_t idx = 0 ; idx < settings.SubEntriesSettings.size() ; ++idx ) {
+    const CUSTOM_LOADER_SUBENTRY_SETTINGS& CustomEntrySettings = settings.SubEntriesSettings[idx];
+    CUSTOM_LOADER_SUBENTRY* entry = new CUSTOM_LOADER_SUBENTRY(*this, CustomEntrySettings);
+    SubEntries.AddReference(entry, true);
+  }
+
+  KernelAndKextPatches = gSettings.KernelAndKextPatches; // Jief : why do we have a duplicated KernelAndKextPatches var inside CUSTOM_LOADER_ENTRY ?
+
+}
+
+XString8Array CUSTOM_LOADER_SUBENTRY::getLoadOptions() const
+{
+  if ( settings._Arguments.isDefined() ) return Split<XString8Array>(settings._Arguments.value(), " ");
+  XString8Array LoadOptions = parent.getLoadOptions();
+  LoadOptions.import(Split<XString8Array>(settings._AddArguments, " "));
+  if (LoadOptions.isEmpty() && OSTYPE_IS_WINDOWS(parent.settings.Type)) {
+    LoadOptions.Add("-s");
+    LoadOptions.Add("-h");
+  }
+
+  return LoadOptions;
+}
+
+UINT8 CUSTOM_LOADER_SUBENTRY::getFlags(bool NoCachesDefault) const
+{
+  UINT8 Flags = parent.getFlags(NoCachesDefault);
+  if ( settings._Arguments.isDefined() ) Flags = OSFLAG_SET(Flags, OSFLAG_NODEFAULTARGS);
+  if ( settings._NoCaches.isDefined() ) {
+    if ( settings._NoCaches.value() ) Flags = OSFLAG_SET(Flags, OSFLAG_NOCACHES);
+    else  Flags = OSFLAG_UNSET(Flags, OSFLAG_NOCACHES);
+  }
+  return Flags;
+}
+
+XString8Array CUSTOM_LOADER_ENTRY::getLoadOptions() const
+{
+  if ( settings.Arguments.isDefined() ) return Split<XString8Array>(settings.Arguments.value(), " ");
+  XString8Array LoadOptions;
+  LoadOptions.import(Split<XString8Array>(settings.AddArguments, " "));
+  if (LoadOptions.isEmpty() && OSTYPE_IS_WINDOWS(settings.Type)) {
+    LoadOptions.Add("-s");
+    LoadOptions.Add("-h");
+  }
+
+  return LoadOptions;
+}
+const XString8& CUSTOM_LOADER_SUBENTRY::getTitle() const {
+  if ( settings._Title.isDefined() ) return settings._Title.value();
+  if ( settings._FullTitle.isDefined() ) return NullXString8;
+  return parent.settings.dgetTitle();
+};
+const XString8& CUSTOM_LOADER_SUBENTRY::getFullTitle() const {
+  if ( settings._FullTitle.isDefined() ) return settings._FullTitle.value();
+  if ( settings._Title.isDefined() ) return NullXString8;
+  return parent.settings.FullTitle;
+};
+
+
+bool SETTINGS_DATA::GUIClass::getDarkEmbedded(bool isDaylight) const {
+  if ( EmbeddedThemeType.equalIC("Dark") ) return true;
+  if ( EmbeddedThemeType.equalIC("Daytime") ) return !isDaylight;
+  return false;
+}
+
+
+
+
+
 
 EFI_STATUS
 SaveSettings ();
@@ -482,9 +583,9 @@ static UINT8
        */
     } else if ( Prop->isString() ) {
       // assume data in hex encoded string property
-      UINT32 Len = (UINT32)Prop->getString()->stringValue().length() >> 1; // number of hex digits
+      size_t Len = (UINT32)Prop->getString()->stringValue().length() >> 1; // number of hex digits
       Data = (__typeof__(Data))AllocateZeroPool(Len); // 2 chars per byte, one more byte for odd number
-      Len  = hex2bin(Prop->getString()->stringValue().c_str(), Data, Len);
+      Len  = hex2bin(Prop->getString()->stringValue(), Data, Len);
 
       if (DataLen != NULL) *DataLen = Len;
       /*
@@ -559,130 +660,76 @@ LoadUserSettings (
   return Status;
 }
 
-STATIC BOOLEAN AddCustomLoaderEntry(IN CUSTOM_LOADER_ENTRY *Entry)
-{
-  if (Entry == NULL) {
-    return FALSE;
-  }
-  if (gSettings.CustomEntries) {
-    CUSTOM_LOADER_ENTRY *Entries = gSettings.CustomEntries;
+//STATIC BOOLEAN AddCustomLoaderEntry(IN CUSTOM_LOADER_ENTRY *Entry)
+//{
+//  if (Entry == NULL) return FALSE;
+//  gSettings.GUI.CustomEntries.AddReference(Entry, true);
+//  return TRUE;
+//}
 
-    while (Entries->Next != NULL) {
-      Entries = Entries->Next;
-    }
-    Entries->Next = Entry;
+//STATIC BOOLEAN AddCustomLegacyEntry (IN CUSTOM_LEGACY_ENTRY_SETTINGS *Entry)
+//{
+//  if (Entry == NULL) return FALSE;
+//  gSettings.GUI.CustomLegacy.AddReference(Entry, true);
+//  return TRUE;
+//}
+//STATIC
+//BOOLEAN
+//AddCustomToolEntry (
+//                    IN CUSTOM_TOOL_ENTRY *Entry
+//                    )
+//{
+//  if (Entry == NULL) return FALSE;
+//  gSettings.GUI.CustomTool.AddReference(Entry, true);
+//  return TRUE;
+//}
 
-  } else {
-    gSettings.CustomEntries = Entry;
-  }
+//STATIC
+//BOOLEAN
+//AddCustomSubEntry (
+//                   IN OUT  CUSTOM_LOADER_ENTRY *Entry,
+//                   IN      CUSTOM_LOADER_ENTRY *SubEntry)
+//{
+//  if ((Entry == NULL) || (SubEntry == NULL)) return FALSE;
+//  Entry->SubEntries.AddReference(Entry, true);
+//  return TRUE;
+//}
 
-  return TRUE;
-}
-
-STATIC BOOLEAN AddCustomLegacyEntry (IN CUSTOM_LEGACY_ENTRY *Entry)
-{
-  if (Entry == NULL) {
-    return FALSE;
-  }
-
-  if (gSettings.CustomLegacy != NULL) {
-    CUSTOM_LEGACY_ENTRY *Entries = gSettings.CustomLegacy;
-
-    while (Entries->Next != NULL) {
-      Entries = Entries->Next;
-    }
-
-    Entries->Next = Entry;
-  } else {
-    gSettings.CustomLegacy = Entry;
-  }
-  return TRUE;
-}
-STATIC
-BOOLEAN
-AddCustomToolEntry (
-                    IN CUSTOM_TOOL_ENTRY *Entry
-                    )
-{
-  if (Entry == NULL) {
-    return FALSE;
-  }
-
-  if (gSettings.CustomTool) {
-    CUSTOM_TOOL_ENTRY *Entries = gSettings.CustomTool;
-
-    while (Entries->Next != NULL) {
-      Entries = Entries->Next;
-    }
-
-    Entries->Next = Entry;
-  } else {
-    gSettings.CustomTool = Entry;
-  }
-  return TRUE;
-}
-
-STATIC
-BOOLEAN
-AddCustomSubEntry (
-                   IN OUT  CUSTOM_LOADER_ENTRY *Entry,
-                   IN      CUSTOM_LOADER_ENTRY *SubEntry)
-{
-  if ((Entry == NULL) || (SubEntry == NULL)) {
-    return FALSE;
-  }
-
-  if (Entry->SubEntries != NULL) {
-    CUSTOM_LOADER_ENTRY *Entries = Entry->SubEntries;
-
-    while (Entries->Next != NULL) {
-      Entries                    = Entries->Next;
-    }
-
-    Entries->Next                = SubEntry;
-  } else {
-    Entry->SubEntries            = SubEntry;
-  }
-
-  return TRUE;
-}
-
-
-STATIC
-CUSTOM_LOADER_ENTRY
-*DuplicateCustomEntry (
-                       IN CUSTOM_LOADER_ENTRY *Entry
-                       )
-{
-  if (Entry == NULL) {
-    return NULL;
-  }
-
-  CUSTOM_LOADER_ENTRY* DuplicateEntry = new CUSTOM_LOADER_ENTRY;
-  if (DuplicateEntry != NULL) {
-    DuplicateEntry->Volume           = Entry->Volume;
-    DuplicateEntry->Path             = Entry->Path;
-    DuplicateEntry->LoadOptions      = Entry->LoadOptions;
-    DuplicateEntry->FullTitle        = Entry->FullTitle;
-    DuplicateEntry->Title            = Entry->Title;
-    DuplicateEntry->ImagePath        = Entry->ImagePath;
-    DuplicateEntry->DriveImagePath   = Entry->DriveImagePath;
-    DuplicateEntry->BootBgColor      = Entry->BootBgColor;
-    DuplicateEntry->Image            = Entry->Image;
-    DuplicateEntry->DriveImage       = Entry->DriveImage;
-    DuplicateEntry->Hotkey           = Entry->Hotkey;
-    DuplicateEntry->Flags            = Entry->Flags;
-    DuplicateEntry->Type             = Entry->Type;
-    DuplicateEntry->VolumeType       = Entry->VolumeType;
-    DuplicateEntry->KernelScan       = Entry->KernelScan;
-    DuplicateEntry->CustomBoot       = Entry->CustomBoot;
-    DuplicateEntry->CustomLogo       = Entry->CustomLogo;
-//    CopyKernelAndKextPatches (&DuplicateEntry->KernelAndKextPatches, &Entry->KernelAndKextPatches);
-    DuplicateEntry->KernelAndKextPatches = Entry->KernelAndKextPatches;
-  }
-
-  return DuplicateEntry;
-}
+//
+//STATIC
+//CUSTOM_LOADER_SUBENTRY_SETTINGS
+//*DuplicateCustomEntryToSubEntry (
+//                       IN CUSTOM_LOADER_ENTRY_SETTINGS *Entry
+//                       )
+//{
+//  if (Entry == NULL) {
+//    return NULL;
+//  }
+//
+//  CUSTOM_LOADER_SUBENTRY_SETTINGS* DuplicateEntry = new CUSTOM_LOADER_SUBENTRY_SETTINGS;
+//  if (DuplicateEntry != NULL) {
+////    DuplicateEntry->Volume           = Entry->Volume;          //ok
+////    DuplicateEntry->Path             = Entry->Path;            //ok
+////    DuplicateEntry->LoadOptions      = Entry->LoadOptions;
+//    DuplicateEntry->FullTitle        = Entry->FullTitle;       //ok
+//    DuplicateEntry->Title            = Entry->Title;           //ok
+////    DuplicateEntry->ImagePath        = Entry->ImagePath;       //ok
+////    DuplicateEntry->BootBgColor      = Entry->BootBgColor;     //ok
+////    DuplicateEntry->Image            = Entry->Image;
+////    DuplicateEntry->Hotkey           = Entry->Hotkey;          //ok
+////    DuplicateEntry->Flags            = Entry->Flags;
+////    DuplicateEntry->Type             = Entry->Type;            //ok
+////    DuplicateEntry->VolumeType       = Entry->VolumeType;      //ok
+////    DuplicateEntry->KernelScan       = Entry->KernelScan;      //ok
+////    DuplicateEntry->CustomLogoType   = Entry->CustomLogoType;
+////    DuplicateEntry->CustomLogoAsXString8 = Entry->CustomLogoAsXString8;  //ok
+////    DuplicateEntry->CustomLogoAsData = Entry->CustomLogoAsData;          //ok
+////    DuplicateEntry->CustomLogoImage  = Entry->CustomLogoImage;
+////    DuplicateEntry->KernelAndKextPatches = Entry->KernelAndKextPatches;
+//  }
+//
+//  return DuplicateEntry;
+//}
 
 STATIC
 BOOLEAN
@@ -831,7 +878,7 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
 
   Prop = DictPointer->propertyForKey("KernelPm");
   if (Prop != NULL || GlobalConfig.gBootChanged) {
-    Patches->KPKernelPm = IsPropertyNotNullAndTrue(Prop);
+    Patches->_KPKernelPm = IsPropertyNotNullAndTrue(Prop);
   }
   
   Prop = DictPointer->propertyForKey("PanicNoKextDump");
@@ -841,13 +888,13 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
 
   Prop = DictPointer->propertyForKey("AppleIntelCPUPM");
   if (Prop != NULL || GlobalConfig.gBootChanged) {
-    Patches->KPAppleIntelCPUPM = IsPropertyNotNullAndTrue(Prop);
+    Patches->_KPAppleIntelCPUPM = IsPropertyNotNullAndTrue(Prop);
   }
- //anyway
-  if (GlobalConfig.NeedPMfix) {
-    Patches->KPKernelPm = TRUE;
-    Patches->KPAppleIntelCPUPM = TRUE;
-  }
+// //anyway
+//  if (GlobalConfig.NeedPMfix) {
+//    Patches->KPKernelPm = TRUE;
+//    Patches->KPAppleIntelCPUPM = TRUE;
+//  }
 
   Prop = DictPointer->propertyForKey("AppleRTC");
   if (Prop != NULL || GlobalConfig.gBootChanged) {
@@ -867,7 +914,7 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
   // but the major target is to make code clean
   Prop = DictPointer->propertyForKey("DellSMBIOSPatch");
   Patches->KPDELLSMBIOS = IsPropertyNotNullAndTrue(Prop); // default == FALSE
-  gRemapSmBiosIsRequire = Patches->KPDELLSMBIOS;
+//  gRemapSmBiosIsRequire = Patches->KPDELLSMBIOS;
 
   Prop = DictPointer->propertyForKey("FakeCPUID");
   if (Prop != NULL || GlobalConfig.gBootChanged) {
@@ -889,15 +936,13 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
 
     if (Patches->KPATIConnectorsData.isEmpty()
         || Patches->KPATIConnectorsPatch.isEmpty()
-        || Patches->KPATIConnectorsData.size() == 0
-        || Patches->KPATIConnectorsData.size() != i) {
+        || Patches->KPATIConnectorsData.size() != Patches->KPATIConnectorsPatch.size()) {
       // invalid params - no patching
       DBG("ATIConnectors patch: invalid parameters!\n");
 
       Patches->KPATIConnectorsController.setEmpty();
       Patches->KPATIConnectorsData.setEmpty();
       Patches->KPATIConnectorsPatch.setEmpty();
-      Patches->KPATIConnectorsController.setEmpty();
     }
   }
 
@@ -927,8 +972,8 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
           }
 
           if (strlen(p) > 1) {
-            Patches->ForceKexts.Add(p);
-            DBG(" - [%zu]: %ls\n", Patches->ForceKexts.size(), Patches->ForceKexts[Patches->ForceKexts.size()-1].wc_str());
+            Patches->ForceKextsToLoad.Add(p);
+            DBG(" - [%zu]: %ls\n", Patches->ForceKextsToLoad.size(), Patches->ForceKextsToLoad[Patches->ForceKextsToLoad.size()-1].wc_str());
           }
         }
       }
@@ -965,26 +1010,27 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
           continue;
         }
 
-        KEXT_PATCH* newPatchPtr = new KEXT_PATCH();
-        KEXT_PATCH& newPatch = *newPatchPtr;
+        KEXT_PATCH* newKextPatchPtr = new KEXT_PATCH();
+        KEXT_PATCH& newKextPatch = *newKextPatchPtr;
         
-        newPatch.Name = Dict->getString()->stringValue();
-        newPatch.Label.takeValueFrom(newPatch.Name);
+        newKextPatch.Name = Dict->getString()->stringValue();
+        newKextPatch.Label.takeValueFrom(newKextPatch.Name);
 
         Dict = Prop2->propertyForKey("Comment");
         if (Dict != NULL) {
-          newPatch.Label += " (";
-          newPatch.Label += Dict->getString()->stringValue();
-          newPatch.Label += ")";
+          newKextPatch.Label += " (";
+          newKextPatch.Label += Dict->getString()->stringValue();
+          newKextPatch.Label += ")";
 
         } else {
-          newPatch.Label += " (NoLabel)";
+          newKextPatch.Label += " (NoLabel)";
         }
-        DBG(" %s", newPatch.Label.c_str());
+        DBG(" %s", newKextPatch.Label.c_str());
 
      //   newPatch.MenuItem.BValue     = TRUE;
         Dict = Prop2->propertyForKey("Disabled");
-        newPatch.MenuItem.BValue = !IsPropertyNotNullAndTrue(Dict); //if absent then false, BValue = !Disabled
+        newKextPatch.Disabled = IsPropertyNotNullAndTrue(Dict); //if absent then false, BValue = !Disabled
+        newKextPatch.MenuItem.BValue = !IsPropertyNotNullAndTrue(Dict); //if absent then false, BValue = !Disabled
         
      //   if ((Dict != NULL) && IsPropertyNotNullAndTrue(Dict)) {
      //     newPatch.MenuItem.BValue     = FALSE;
@@ -992,22 +1038,22 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
         
         
         Dict = Prop2->propertyForKey("RangeFind");
-        newPatch.SearchLen = GetPropertyAsInteger(Dict, 0); //default 0 will be calculated later
+        newKextPatch.SearchLen = GetPropertyAsInteger(Dict, 0); //default 0 will be calculated later
 
         Dict = Prop2->propertyForKey("Skip");
-        newPatch.Skip = GetPropertyAsInteger(Dict, 0); //default 0 will be calculated later
+        newKextPatch.Skip = GetPropertyAsInteger(Dict, 0); //default 0 will be calculated later
 
         UINT8* TmpData = GetDataSetting(Prop2, "StartPattern", &FindLen);
         if (TmpData != NULL) {
-          newPatch.StartPattern.stealValueFrom(TmpData, FindLen);
+          newKextPatch.StartPattern.stealValueFrom(TmpData, FindLen);
         }
         
         TmpData    = GetDataSetting (Prop2, "MaskStart", &ReplaceLen);
         ReplaceLen = MIN(ReplaceLen, FindLen);
         if (FindLen != 0) {
-          newPatch.StartMask.memset(0xFF, FindLen);
+          newKextPatch.StartMask.memset(0xFF, FindLen);
           if (TmpData != NULL) {
-            newPatch.StartMask.ncpy(TmpData, ReplaceLen);
+            newKextPatch.StartMask.ncpy(TmpData, ReplaceLen);
           }
         }
         if (TmpData != NULL) {
@@ -1025,28 +1071,28 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
         Dict = Prop2->propertyForKey("Procedure");
         if ( Dict != NULL ) {
           if ( Dict->isString() ) {
-            newPatch.ProcedureName = Dict->getString()->stringValue();
+            newKextPatch.ProcedureName = Dict->getString()->stringValue();
           }else{
             MsgLog("ATTENTION : Procedure property not string in KextsToPatch\n");
           }
         }
 
 
-        newPatch.Data.stealValueFrom(TmpData, FindLen);
+        newKextPatch.Data.stealValueFrom(TmpData, FindLen);
         
         TmpData    = GetDataSetting (Prop2, "MaskFind", &MaskLen);
         MaskLen = (MaskLen > FindLen)? FindLen : MaskLen;
 
         if (TmpData == NULL || MaskLen == 0) {
         } else {
-          newPatch.MaskFind.memset(0xFF, FindLen);
-          newPatch.MaskFind.ncpy(TmpData, MaskLen);
+          newKextPatch.MaskFind.memset(0xFF, FindLen);
+          newKextPatch.MaskFind.ncpy(TmpData, MaskLen);
         }
         FreePool(TmpData);
         // take into account a possibility to set ReplaceLen < FindLen. In this case assumes MaskReplace = 0 for the rest of bytes 
-        newPatch.Patch.memset(0, FindLen);
+        newKextPatch.Patch.memset(0, FindLen);
         ReplaceLen = MIN(ReplaceLen, FindLen);
-        newPatch.Patch.ncpy(TmpPatch, ReplaceLen);
+        newKextPatch.Patch.ncpy(TmpPatch, ReplaceLen);
         FreePool(TmpPatch);
         
         MaskLen = 0;
@@ -1054,45 +1100,45 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
         MaskLen = MIN(ReplaceLen, MaskLen);
         if (TmpData == NULL || MaskLen == 0) {
         } else {
-          newPatch.MaskReplace.memset(0, FindLen);
-          newPatch.MaskReplace.ncpy(TmpData, MaskLen); //other bytes are zeros, means no replace
+          newKextPatch.MaskReplace.memset(0, FindLen);
+          newKextPatch.MaskReplace.ncpy(TmpData, MaskLen); //other bytes are zeros, means no replace
         }
         FreePool(TmpData);
         
-        newPatch.Count = 1;
+        newKextPatch.Count = 1;
         Dict = Prop2->propertyForKey("Count");
         if (Dict != NULL) {
-          newPatch.Count = GetPropertyAsInteger(Dict, 1);
+          newKextPatch.Count = GetPropertyAsInteger(Dict, 1);
         }
 
         // check enable/disabled patch (OS based) by Micky1979
         Dict = Prop2->propertyForKey("MatchOS");
         if ((Dict != NULL) && (Dict->isString())) {
-          newPatch.MatchOS = Dict->getString()->stringValue();
-          DBG(" :: MatchOS: %s", newPatch.MatchOS.c_str());
+          newKextPatch.MatchOS = Dict->getString()->stringValue();
+          DBG(" :: MatchOS: %s", newKextPatch.MatchOS.c_str());
         }
 
         Dict = Prop2->propertyForKey("MatchBuild");
         if ((Dict != NULL) && (Dict->isString())) {
-          newPatch.MatchBuild = Dict->getString()->stringValue();
-          DBG(" :: MatchBuild: %s", newPatch.MatchBuild.c_str());
+          newKextPatch.MatchBuild = Dict->getString()->stringValue();
+          DBG(" :: MatchBuild: %s", newKextPatch.MatchBuild.c_str());
         }
 
         // check if this is Info.plist patch or kext binary patch
         Dict = Prop2->propertyForKey("InfoPlistPatch");
-        newPatch.IsPlistPatch = IsPropertyNotNullAndTrue(Dict);
+        newKextPatch.IsPlistPatch = IsPropertyNotNullAndTrue(Dict);
 
-        if (newPatch.IsPlistPatch) {
+        if (newKextPatch.IsPlistPatch) {
           DBG(" :: PlistPatch");
         } else {
           DBG(" :: BinPatch");
         }
 
-        DBG(" :: data len: %zu\n", newPatch.Data.size());
-        if (!newPatch.MenuItem.BValue) {
-          DBG(" - patch disabled at config\n");
+        DBG(" :: data len: %zu\n", newKextPatch.Data.size());
+        if (!newKextPatch.MenuItem.BValue) {
+          DBG("        patch disabled at config\n");
         }
-        Patches->KextPatches.AddReference(newPatchPtr, true);
+        Patches->KextPatches.AddReference(newKextPatchPtr, true);
       }
     }
 
@@ -1123,8 +1169,8 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
 
         DBG(" - [%02lld]:", i);
 
-        KEXT_PATCH* newKernelPatchPtr = new KEXT_PATCH;
-        KEXT_PATCH& newKernelPatch = *newKernelPatchPtr;
+        KERNEL_PATCH* newKernelPatchPtr = new KERNEL_PATCH;
+        KERNEL_PATCH& newKernelPatch = *newKernelPatchPtr;
 
         newKernelPatch.Label = "NoLabel"_XS8;
         prop3 = Prop2->propertyForKey("Comment");
@@ -1140,6 +1186,7 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
         newKernelPatch.Name = "kernel"_XS8;
 
         prop3 = Prop2->propertyForKey("Disabled");
+        newKernelPatch.Disabled   = IsPropertyNotNullAndTrue(prop3);
         newKernelPatch.MenuItem.BValue   = !IsPropertyNotNullAndTrue(prop3);
         
         prop3 = Prop2->propertyForKey("RangeFind");
@@ -1255,8 +1302,8 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
 
         DBG(" - [%02lld]:", i);
 
-        KEXT_PATCH* newBootPatchPtr = new KEXT_PATCH;
-        KEXT_PATCH& newBootPatch = *newBootPatchPtr;
+        BOOT_PATCH* newBootPatchPtr = new BOOT_PATCH;
+        BOOT_PATCH& newBootPatch = *newBootPatchPtr;
 
         newBootPatch.Label = "NoLabel"_XS8;
         prop3 = Prop2->propertyForKey("Comment");
@@ -1272,6 +1319,7 @@ FillinKextPatches (IN OUT KERNEL_AND_KEXT_PATCHES *Patches,
         newBootPatch.Name = "boot.efi"_XS8;
 
         prop3 = Prop2->propertyForKey("Disabled");
+        newBootPatch.Disabled   = IsPropertyNotNullAndTrue(prop3);
         newBootPatch.MenuItem.BValue   = !IsPropertyNotNullAndTrue(prop3);
         newBootPatch.MenuItem.ItemType = BoolValue;
         
@@ -1463,41 +1511,350 @@ static UINT8 GetVolumeType(const TagDict* DictPointer)
 }
 
 
-static CONST CHAR8 *CustomBootModeStr[] = {
-   "CUSTOM_BOOT_DISABLED",
-   "CUSTOM_BOOT_USER_DISABLED",
-   "CUSTOM_BOOT_NONE",
-   "CUSTOM_BOOT_APPLE",
-   "CUSTOM_BOOT_ALT_APPLE",
-   "CUSTOM_BOOT_THEME",
-   "CUSTOM_BOOT_USER",
-};
-static CONST CHAR8 *CustomBootModeToStr(IN UINT8 Mode)
-{
-  if (Mode >= (sizeof(CustomBootModeStr) / sizeof(CustomBootModeStr[0]))) {
-    return CustomBootModeStr[0];
-  }
-  return CustomBootModeStr[Mode];
-}
 
-STATIC
 BOOLEAN
-FillinCustomEntry (
-                   IN OUT  CUSTOM_LOADER_ENTRY *Entry,
+FillinCustomSubEntry (
+                   UINT8 parentType,
+                   IN OUT  CUSTOM_LOADER_SUBENTRY_SETTINGS *Entry,
                    const TagDict* DictPointer,
                    IN      BOOLEAN SubEntry
                    )
 {
   const TagStruct* Prop;
 
-  if ((Entry == NULL) || (DictPointer == NULL)) {
-    return FALSE;
-  }
+  if ( Entry == NULL ) panic("Entry == NULL");
+  if ( DictPointer == NULL ) panic("DictPointer == NULL");
 
   Prop = DictPointer->propertyForKey("Disabled");
-  if (IsPropertyNotNullAndTrue(Prop)) {
-    return FALSE;
+  Entry->Disabled = IsPropertyNotNullAndTrue(Prop);
+
+//  Prop = DictPointer->propertyForKey("Volume");
+//  if (Prop != NULL && (Prop->isString())) {
+//    Entry->Volume = Prop->getString()->stringValue();
+//  }
+
+//  Prop = DictPointer->propertyForKey("Path");
+//  if (Prop != NULL && (Prop->isString())) {
+//    Entry->Path = Prop->getString()->stringValue();
+//  }
+
+//  Prop = DictPointer->propertyForKey("Settings");
+//  if (Prop != NULL && (Prop->isString())) {
+//    Entry->Settings = Prop->getString()->stringValue();
+//  }
+
+//  Prop = DictPointer->propertyForKey("CommonSettings");
+//  Entry->CommonSettings = IsPropertyNotNullAndTrue(Prop);
+
+
+  Prop = DictPointer->propertyForKey("AddArguments");
+  if (Prop != NULL && (Prop->isString())) {
+//    if (Entry->LoadOptions.notEmpty()) {
+//      Entry->Options.SPrintf("%s %s", Entry->Options.c_str(), Prop->getString()->stringValue());
+//    } else {
+//      Entry->Options.SPrintf("%s", Prop->getString()->stringValue());
+//    }
+    Entry->_AddArguments = Prop->getString()->stringValue();
+//    Entry->LoadOptions.import(Split<XString8Array>(Prop->getString()->stringValue(), " "));
+  } else {
+    Prop = DictPointer->propertyForKey("Arguments");
+    if (Prop != NULL && (Prop->isString())) {
+//      Entry->Options.SPrintf("%s", Prop->getString()->stringValue());
+      Entry->_Arguments = Prop->getString()->stringValue();
+//      Entry->LoadOptions = Split<XString8Array>(Prop->getString()->stringValue(), " ");
+//      Entry->Flags       = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
+    }
   }
+  Prop = DictPointer->propertyForKey("Title");
+  if (Prop != NULL && (Prop->isString())) {
+    Entry->_Title = Prop->getString()->stringValue();
+//    Entry->FullTitle.setEmpty(); // jief : erase the copy from the parent
+  }
+  Prop = DictPointer->propertyForKey("FullTitle");
+  if (Prop != NULL && (Prop->isString())) {
+    Entry->_FullTitle = Prop->getString()->stringValue();
+//    Entry->Title.setEmpty(); // jief : erase the copy from the parent. Could also be the previous settings, but Title is not used when FullTitle exists.
+  }
+
+//  Entry->ImageData.setEmpty();
+//  Prop = DictPointer->propertyForKey("Image");
+//  if (Prop != NULL) {
+//    Entry->ImagePath.setEmpty();
+//    Entry->Image.setEmpty();
+//    if (Prop->isString()) {
+//      Entry->ImagePath = SWPrintf("%s", Prop->getString()->stringValue().c_str());
+//    }
+//    // we can't load the file yet, as ThemeDir is not initialized
+//  } else {
+//    UINTN DataLen = 0;
+//    UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
+//    if (TmpData) {
+//      Entry->ImageData.stealValueFrom(TmpData, DataLen);
+//// TODO remove from settings
+//      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+//        Entry->Image.setFilled();
+//      }
+//    }
+//  }
+//
+//  Prop = DictPointer->propertyForKey("Hotkey");
+//  if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
+//    if ( Prop->getString()->stringValue()[0] < __WCHAR_MAX__ ) {
+//      Entry->Hotkey = (wchar_t)(Prop->getString()->stringValue()[0]);
+//    }
+//  }
+
+//  // Whether or not to draw boot screen
+//  Prop = DictPointer->propertyForKey("CustomLogo");
+//  if (Prop != NULL) {
+//    if (IsPropertyNotNullAndTrue(Prop)) {
+//      Entry->CustomLogoType    = CUSTOM_BOOT_APPLE;
+//    } else if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
+//      Entry->CustomLogoAsXString8 = Prop->getString()->stringValue();
+//      if (Prop->getString()->stringValue().equalIC("Apple")) {
+//        Entry->CustomLogoType  = CUSTOM_BOOT_APPLE;
+//      } else if (Prop->getString()->stringValue().equalIC("Alternate")) {
+//        Entry->CustomLogoType  = CUSTOM_BOOT_ALT_APPLE;
+//      } else if (Prop->getString()->stringValue().equalIC("Theme")) {
+//        Entry->CustomLogoType  = CUSTOM_BOOT_THEME;
+//      } else {
+//        XStringW customLogo = XStringW() = Prop->getString()->stringValue();
+//        Entry->CustomLogoType  = CUSTOM_BOOT_USER;
+//// TODO : remove reading of image from settings
+//        Entry->CustomLogoImage.LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
+//        if (Entry->CustomLogoImage.isEmpty()) {
+//          DBG("Custom boot logo not found at path `%ls`!\n", customLogo.wc_str());
+//          Entry->CustomLogoType = CUSTOM_BOOT_DISABLED;
+//        }
+//      }
+//    } else if ( Prop->isData() && Prop->getData()->dataLenValue() > 0 ) {
+//      Entry->CustomLogoType = CUSTOM_BOOT_USER;
+//      Entry->CustomLogoAsData = Prop->getData()->data();
+//// TODO : remove reading of image from settings
+//      Entry->CustomLogoImage.FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
+//      if (Entry->CustomLogoImage.isEmpty()) {
+//        DBG("Custom boot logo not decoded from data!\n"/*, Prop->getString()->stringValue().c_str()*/);
+//        Entry->CustomLogoType = CUSTOM_BOOT_DISABLED;
+//      }
+//    } else {
+//      Entry->CustomLogoType = CUSTOM_BOOT_USER_DISABLED;
+//    }
+//    DBG("Custom entry boot %s LogoWidth = (0x%lld)\n", CustomBootModeToStr(Entry->CustomLogoType), Entry->CustomLogoImage.GetWidth());
+//  } else {
+//    Entry->CustomLogoType = CUSTOM_BOOT_DISABLED;
+//  }
+
+//  Prop = DictPointer->propertyForKey("BootBgColor");
+//  if (Prop != NULL && Prop->isString()) {
+//    UINTN   Color;
+//    Color = AsciiStrHexToUintn(Prop->getString()->stringValue());
+//
+//    Entry->BootBgColor.Red = (Color >> 24) & 0xFF;
+//    Entry->BootBgColor.Green = (Color >> 16) & 0xFF;
+//    Entry->BootBgColor.Blue = (Color >> 8) & 0xFF;
+//    Entry->BootBgColor.Reserved = (Color >> 0) & 0xFF;
+//  }
+//
+//  // Hidden Property, Values:
+//  // - No (show the entry)
+//  // - Yes (hide the entry but can be show with F3)
+//  // - Always (always hide the entry)
+//  Prop = DictPointer->propertyForKey("Hidden");
+//  if (Prop != NULL) {
+//    if ((Prop->isString()) &&
+//        (Prop->getString()->stringValue().equalIC("Always"))) {
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+//    } else if (IsPropertyNotNullAndTrue(Prop)) {
+//      DBG("     hiding entry because Hidden flag is YES\n");
+//      Entry->Hidden = true;
+//    } else {
+//      Entry->Hidden = false;
+//    }
+//  }
+//
+//  Prop = DictPointer->propertyForKey("Type");
+//  if (Prop != NULL && (Prop->isString())) {
+//    if ((Prop->getString()->stringValue().equalIC("OSX")) ||
+//        (Prop->getString()->stringValue().equalIC("macOS"))) {
+//      Entry->Type = OSTYPE_OSX;
+//    } else if (Prop->getString()->stringValue().equalIC("OSXInstaller")) {
+//      Entry->Type = OSTYPE_OSX_INSTALLER;
+//    } else if (Prop->getString()->stringValue().equalIC("OSXRecovery")) {
+//      Entry->Type = OSTYPE_RECOVERY;
+//    } else if (Prop->getString()->stringValue().equalIC("Windows")) {
+//      Entry->Type = OSTYPE_WINEFI;
+//    } else if (Prop->getString()->stringValue().equalIC("Linux")) {
+//      Entry->Type = OSTYPE_LIN;
+//// TODO remove from here
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
+//    } else if (Prop->getString()->stringValue().equalIC("LinuxKernel")) {
+//      Entry->Type = OSTYPE_LINEFI;
+//    } else {
+//      DBG("** Warning: unknown custom entry Type '%s'\n", Prop->getString()->stringValue().c_str());
+//      Entry->Type = OSTYPE_OTHER;
+//    }
+//  } else {
+//    if (Entry->Type == 0 && Entry->Path.notEmpty()) {
+//      // Try to set Entry->type from Entry->Path
+//      Entry->Type = GetOSTypeFromPath(Entry->Path);
+//    }
+//  }
+
+//  Entry->VolumeType = GetVolumeType(DictPointer);
+
+//  if (Entry->LoadOptions.isEmpty() && OSTYPE_IS_WINDOWS(parentType)) {
+//    Entry->LoadOptions.Add("-s");
+//    Entry->LoadOptions.Add("-h");
+//  }
+  if (Entry->_Title.dgetValue().isEmpty()) {
+    if (OSTYPE_IS_OSX_RECOVERY(parentType)) {
+      Entry->_Title = "Recovery"_XS8;
+    } else if (OSTYPE_IS_OSX_INSTALLER(parentType)) {
+      Entry->_Title = "Install macOS"_XS8;
+    }
+  }
+//  if (Entry->Image.isEmpty() && (Entry->ImagePath.isEmpty())) {
+//    if (OSTYPE_IS_OSX_RECOVERY(parentType)) {
+//      Entry->ImagePath = L"mac"_XSW;
+//    }
+//  }
+  // OS Specific flags
+  if (OSTYPE_IS_OSX(parentType) || OSTYPE_IS_OSX_RECOVERY(parentType) || OSTYPE_IS_OSX_INSTALLER(parentType)) {
+
+    // InjectKexts default values
+//    Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_CHECKFAKESMC);
+    //  Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_WITHKEXTS);
+
+//    Prop = DictPointer->propertyForKey("InjectKexts");
+//    if (Prop != NULL) {
+//      if ( Prop->isTrueOrYes() ) {
+//        Entry->InjectKexts = 1;
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+//      } else if ( Prop->isFalseOrNn() ) {
+//        Entry->InjectKexts = 0;
+//        // nothing to do
+//      } else if ( Prop->isString() && Prop->getString()->stringValue().equalIC("Detect") ) {
+//        Entry->InjectKexts = 2;
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_CHECKFAKESMC);
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+//      } else {
+//        Entry->InjectKexts = -1;
+//        DBG("** Warning: unknown custom entry InjectKexts value '%s'\n", Prop->getString()->stringValue().c_str());
+//      }
+//    } else {
+//      Entry->InjectKexts = -1;
+//      // Use global settings
+//      if (gSettings.WithKexts) {
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+//      }
+//      if (gSettings.WithKextsIfNoFakeSMC) {
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_CHECKFAKESMC);
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+//      }
+//    }
+
+    // NoCaches default value
+//    Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_NOCACHES);
+
+    Prop = DictPointer->propertyForKey("NoCaches");
+    if (Prop != NULL) {
+      if (IsPropertyNotNullAndTrue(Prop)) {
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NOCACHES);
+          Entry->_NoCaches = true;
+      } else {
+        // Use global settings
+        if (gSettings.SystemParameters.NoCaches) {
+//          Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NOCACHES);
+          Entry->_NoCaches = false;
+        }
+      }
+    }
+
+//    // KernelAndKextPatches
+//    if (!SubEntry) { // CopyKernelAndKextPatches already in: DuplicateCustomEntry if SubEntry == TRUE
+//      //DBG("Copying global patch settings\n");
+////      CopyKernelAndKextPatches ((KERNEL_AND_KEXT_PATCHES *)(((UINTN)Entry) + OFFSET_OF(CUSTOM_LOADER_ENTRY, KernelAndKextPatches)),
+// //                               (KERNEL_AND_KEXT_PATCHES *)(((UINTN)&gSettings) + OFFSET_OF(SETTINGS_DATA, KernelAndKextPatches)));
+//
+////      CopyKernelAndKextPatches(&Entry->KernelAndKextPatches, &gSettings.KernelAndKextPatches);
+//      Entry->KernelAndKextPatches = gSettings.KernelAndKextPatches;
+//
+//      //#ifdef DUMP_KERNEL_KEXT_PATCHES
+//      //    DumpKernelAndKextPatches ((KERNEL_AND_KEXT_PATCHES *)(((UINTN)Entry) + OFFSET_OF(CUSTOM_LOADER_ENTRY, KernelAndKextPatches)));
+//      //#endif
+//
+//    }
+
+  }
+
+//  if (Entry->Type == OSTYPE_LINEFI) {
+//    Prop = DictPointer->propertyForKey("Kernel");
+//    if (Prop != NULL) {
+//      if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
+//        if ((Prop->getString()->stringValue()[0] == 'N') || (Prop->getString()->stringValue()[0] == 'n')) {
+//          Entry->KernelScan = KERNEL_SCAN_NEWEST;
+//        } else if ((Prop->getString()->stringValue()[0] == 'O') || (Prop->getString()->stringValue()[0] == 'o')) {
+//          Entry->KernelScan = KERNEL_SCAN_OLDEST;
+//        } else if ((Prop->getString()->stringValue()[0] == 'F') || (Prop->getString()->stringValue()[0] == 'f')) {
+//          Entry->KernelScan = KERNEL_SCAN_FIRST;
+//        } else if ((Prop->getString()->stringValue()[0] == 'L') || (Prop->getString()->stringValue()[0] == 'l')) {
+//          Entry->KernelScan = KERNEL_SCAN_LAST;
+//        } else if ((Prop->getString()->stringValue()[0] == 'M') || (Prop->getString()->stringValue()[0] == 'm')) {
+//          Entry->KernelScan = KERNEL_SCAN_MOSTRECENT;
+//        } else if ((Prop->getString()->stringValue()[0] == 'E') || (Prop->getString()->stringValue()[0] == 'e')) {
+//          Entry->KernelScan = KERNEL_SCAN_EARLIEST;
+//        }
+//      }
+//    }
+//  }
+
+//  /*
+//   * Sub entries
+//   * an array of dict OR a bool
+//  */
+//  Prop = DictPointer->propertyForKey("SubEntries");
+//  if (Prop != NULL) {
+//    if ( Prop->isBool() && Prop->getBool()->boolValue() ) {
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTMENU);
+//    } else if ( Prop->isArray() ) {
+//      CUSTOM_LOADER_SUBENTRY_SETTINGS *CustomSubEntry;
+//      INTN   i;
+//      INTN   Count = Prop->getArray()->arrayContent().size();
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTMENU);
+//      for (i = 0; i < Count; i++) {
+//        const TagDict* Dict = Prop->getArray()->dictElementAt(i, "SubEntries"_XS8);
+//        // Allocate a sub entry
+//        CustomSubEntry = DuplicateCustomSubEntry(Entry);
+//        if (CustomSubEntry) {
+//          if ( FillinCustomSubEntry(CustomSubEntry, Dict, TRUE) ) {
+//            Entry->SubEntriesSettings.AddReference(CustomSubEntry, true);
+//          }else{
+//            delete CustomSubEntry;
+//          }
+//        }
+//      }
+//    }else{
+//      MsgLog("MALFORMED PLIST : SubEntries must be a bool OR an array of dict");
+//    }
+//  }
+  return TRUE;
+}
+
+
+BOOLEAN
+FillinCustomEntry (
+                   IN OUT  CUSTOM_LOADER_ENTRY_SETTINGS *Entry,
+                   const TagDict* DictPointer,
+                   IN      BOOLEAN SubEntry
+                   )
+{
+  const TagStruct* Prop;
+
+  if ( Entry == NULL ) panic("Entry == NULL");
+  if ( DictPointer == NULL ) panic("DictPointer == NULL");
+
+  Prop = DictPointer->propertyForKey("Disabled");
+  Entry->Disabled = IsPropertyNotNullAndTrue(Prop);
 
   Prop = DictPointer->propertyForKey("Volume");
   if (Prop != NULL && (Prop->isString())) {
@@ -1525,59 +1882,65 @@ FillinCustomEntry (
 //    } else {
 //      Entry->Options.SPrintf("%s", Prop->getString()->stringValue());
 //    }
-  Entry->LoadOptions.import(Split<XString8Array>(Prop->getString()->stringValue(), " "));
+    Entry->AddArguments = Prop->getString()->stringValue();
+//    Entry->LoadOptions.import(Split<XString8Array>(Prop->getString()->stringValue(), " "));
   } else {
     Prop = DictPointer->propertyForKey("Arguments");
     if (Prop != NULL && (Prop->isString())) {
+      Entry->Arguments = Prop->getString()->stringValue();
 //      Entry->Options.SPrintf("%s", Prop->getString()->stringValue());
-      Entry->LoadOptions = Split<XString8Array>(Prop->getString()->stringValue(), " ");
-      Entry->Flags       = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
+//      Entry->LoadOptions = Split<XString8Array>(Prop->getString()->stringValue(), " ");
+//      Entry->Flags       = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
     }
   }
   Prop = DictPointer->propertyForKey("Title");
   if (Prop != NULL && (Prop->isString())) {
-    Entry->Title = Prop->getString()->stringValue();
+    Entry->m_Title = Prop->getString()->stringValue();
   }
   Prop = DictPointer->propertyForKey("FullTitle");
   if (Prop != NULL && (Prop->isString())) {
     Entry->FullTitle = Prop->getString()->stringValue();
   }
 
+  Entry->m_ImagePath.setEmpty();
+  Entry->ImageData.setEmpty();
   Prop = DictPointer->propertyForKey("Image");
   if (Prop != NULL) {
-    Entry->ImagePath.setEmpty();
-    Entry->Image.setEmpty();
+    Entry->m_ImagePath.setEmpty();
+//    Entry->Image.setEmpty();
     if (Prop->isString()) {
-      Entry->ImagePath = SWPrintf("%s", Prop->getString()->stringValue().c_str());
+      Entry->m_ImagePath = SWPrintf("%s", Prop->getString()->stringValue().c_str());
     }
     // we can't load the file yet, as ThemeDir is not initialized
   } else {
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
-        Entry->Image.setFilled();
-      }
-      FreePool(TmpData);
+      Entry->ImageData.stealValueFrom(TmpData, DataLen);
+//      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+//        Entry->Image.setFilled();
+//      }
     }
   }
 
+  Entry->m_DriveImagePath.setEmpty();
+  Entry->DriveImageData.setEmpty();
   Prop = DictPointer->propertyForKey("DriveImage");
   if (Prop != NULL) {
-    Entry->DriveImagePath.setEmpty();
-    Entry->DriveImage.setEmpty();
+//    Entry->DriveImage.setEmpty();
     if (Prop->isString()) {
-      Entry->DriveImagePath = SWPrintf("%s", Prop->getString()->stringValue().c_str());
+      Entry->m_DriveImagePath = SWPrintf("%s", Prop->getString()->stringValue().c_str());
     }
     // we can't load the file yet, as ThemeDir is not initialized
   } else {
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "DriveImageData", &DataLen);
     if (TmpData) {
-      if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
-        Entry->DriveImage.setFilled();
-      }
-      FreePool(TmpData);
+      Entry->DriveImageData.stealValueFrom(TmpData, DataLen);
+//      if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
+//        Entry->DriveImage.setFilled();
+//      }
+//      FreePool(TmpData);
     }
   }
 
@@ -1592,36 +1955,38 @@ FillinCustomEntry (
   Prop = DictPointer->propertyForKey("CustomLogo");
   if (Prop != NULL) {
     if (IsPropertyNotNullAndTrue(Prop)) {
-      Entry->CustomBoot    = CUSTOM_BOOT_APPLE;
+      Entry->CustomLogoTypeSettings    = CUSTOM_BOOT_APPLE;
     } else if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
+      Entry->CustomLogoAsXString8 = Prop->getString()->stringValue();
       if (Prop->getString()->stringValue().equalIC("Apple")) {
-        Entry->CustomBoot  = CUSTOM_BOOT_APPLE;
+        Entry->CustomLogoTypeSettings  = CUSTOM_BOOT_APPLE;
       } else if (Prop->getString()->stringValue().equalIC("Alternate")) {
-        Entry->CustomBoot  = CUSTOM_BOOT_ALT_APPLE;
+        Entry->CustomLogoTypeSettings  = CUSTOM_BOOT_ALT_APPLE;
       } else if (Prop->getString()->stringValue().equalIC("Theme")) {
-        Entry->CustomBoot  = CUSTOM_BOOT_THEME;
+        Entry->CustomLogoTypeSettings  = CUSTOM_BOOT_THEME;
       } else {
         XStringW customLogo = XStringW() = Prop->getString()->stringValue();
-        Entry->CustomBoot  = CUSTOM_BOOT_USER;
-        Entry->CustomLogo.LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
-        if (Entry->CustomLogo.isEmpty()) {
-          DBG("Custom boot logo not found at path `%ls`!\n", customLogo.wc_str());
-          Entry->CustomBoot = CUSTOM_BOOT_DISABLED;
-        }
+        Entry->CustomLogoTypeSettings  = CUSTOM_BOOT_USER;
+//        Entry->CustomLogoImage.LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
+//        if (Entry->CustomLogoImage.isEmpty()) {
+//          DBG("Custom boot logo not found at path `%ls`!\n", customLogo.wc_str());
+//          Entry->CustomLogoType = CUSTOM_BOOT_DISABLED;
+//        }
       }
     } else if ( Prop->isData() && Prop->getData()->dataLenValue() > 0 ) {
-      Entry->CustomBoot = CUSTOM_BOOT_USER;
-      Entry->CustomLogo.FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
-      if (Entry->CustomLogo.isEmpty()) {
-        DBG("Custom boot logo not decoded from data!\n"/*, Prop->getString()->stringValue().c_str()*/);
-        Entry->CustomBoot = CUSTOM_BOOT_DISABLED;
-      }
+      Entry->CustomLogoTypeSettings = CUSTOM_BOOT_USER;
+      Entry->CustomLogoAsData = Prop->getData()->data();
+//      Entry->CustomLogoImage.FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
+//      if (Entry->CustomLogoImage.isEmpty()) {
+//        DBG("Custom boot logo not decoded from data!\n"/*, Prop->getString()->stringValue().c_str()*/);
+//        Entry->CustomLogoType = CUSTOM_BOOT_DISABLED;
+//      }
     } else {
-      Entry->CustomBoot = CUSTOM_BOOT_USER_DISABLED;
+      Entry->CustomLogoTypeSettings = CUSTOM_BOOT_USER_DISABLED;
     }
-    DBG("Custom entry boot %s LogoWidth = (0x%lld)\n", CustomBootModeToStr(Entry->CustomBoot), Entry->CustomLogo.GetWidth());
+    DBG("Custom entry boot %s\n", CustomBootModeToStr(Entry->CustomLogoTypeSettings));
   } else {
-    Entry->CustomBoot = CUSTOM_BOOT_DISABLED;
+    Entry->CustomLogoTypeSettings = CUSTOM_BOOT_DISABLED;
   }
 
   Prop = DictPointer->propertyForKey("BootBgColor");
@@ -1639,16 +2004,17 @@ FillinCustomEntry (
   // - No (show the entry)
   // - Yes (hide the entry but can be show with F3)
   // - Always (always hide the entry)
+  Entry->AlwaysHidden = false;
+  Entry->Hidden = false;
   Prop = DictPointer->propertyForKey("Hidden");
   if (Prop != NULL) {
     if ((Prop->isString()) &&
         (Prop->getString()->stringValue().equalIC("Always"))) {
-      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+      Entry->AlwaysHidden = true;
     } else if (IsPropertyNotNullAndTrue(Prop)) {
       DBG("     hiding entry because Hidden flag is YES\n");
       Entry->Hidden = true;
-    } else {
-      Entry->Hidden = false;
     }
   }
 
@@ -1665,7 +2031,7 @@ FillinCustomEntry (
       Entry->Type = OSTYPE_WINEFI;
     } else if (Prop->getString()->stringValue().equalIC("Linux")) {
       Entry->Type = OSTYPE_LIN;
-      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTARGS);
     } else if (Prop->getString()->stringValue().equalIC("LinuxKernel")) {
       Entry->Type = OSTYPE_LINEFI;
     } else {
@@ -1681,68 +2047,74 @@ FillinCustomEntry (
 
   Entry->VolumeType = GetVolumeType(DictPointer);
 
-  if (Entry->LoadOptions.isEmpty() && OSTYPE_IS_WINDOWS(Entry->Type)) {
-    Entry->LoadOptions.Add("-s");
-    Entry->LoadOptions.Add("-h");
-  }
-  if (Entry->Title.isEmpty()) {
-    if (OSTYPE_IS_OSX_RECOVERY(Entry->Type)) {
-      Entry->Title = L"Recovery"_XSW;
-    } else if (OSTYPE_IS_OSX_INSTALLER(Entry->Type)) {
-      Entry->Title = L"Install macOS"_XSW;
-    }
-  }
-  if (Entry->Image.isEmpty() && (Entry->ImagePath.isEmpty())) {
-    if (OSTYPE_IS_OSX_RECOVERY(Entry->Type)) {
-      Entry->ImagePath = L"mac"_XSW;
-    }
-  }
-  if (Entry->DriveImage.isEmpty() && (Entry->DriveImagePath.isEmpty())) {
-    if (OSTYPE_IS_OSX_RECOVERY(Entry->Type)) {
-      Entry->DriveImagePath = L"recovery"_XSW;
-    }
-  }
+//  if (Entry->LoadOptions.isEmpty() && OSTYPE_IS_WINDOWS(Entry->Type)) {
+//    Entry->LoadOptions.Add("-s");
+//    Entry->LoadOptions.Add("-h");
+//  }
+//  if (Entry->Title.isEmpty()) {
+//    if (OSTYPE_IS_OSX_RECOVERY(Entry->Type)) {
+//      Entry->Title = L"Recovery"_XSW;
+//    } else if (OSTYPE_IS_OSX_INSTALLER(Entry->Type)) {
+//      Entry->Title = L"Install macOS"_XSW;
+//    }
+//  }
+//  if (Entry->Image.isEmpty() && (Entry->ImagePath.isEmpty())) {
+//    if (OSTYPE_IS_OSX_RECOVERY(Entry->Type)) {
+//      Entry->ImagePath = L"mac"_XSW;
+//    }
+//  }
+//  if (Entry->DriveImage.isEmpty() && (Entry->DriveImagePath.isEmpty())) {
+//    if (OSTYPE_IS_OSX_RECOVERY(Entry->Type)) {
+//      Entry->DriveImagePath = L"recovery"_XSW;
+//    }
+//  }
   // OS Specific flags
   if (OSTYPE_IS_OSX(Entry->Type) || OSTYPE_IS_OSX_RECOVERY(Entry->Type) || OSTYPE_IS_OSX_INSTALLER(Entry->Type)) {
 
     // InjectKexts default values
-    Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_CHECKFAKESMC);
+//    Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_CHECKFAKESMC);
     //  Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_WITHKEXTS);
 
     Prop = DictPointer->propertyForKey("InjectKexts");
     if (Prop != NULL) {
       if ( Prop->isTrueOrYes() ) {
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+        Entry->InjectKexts = 1;
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
       } else if ( Prop->isFalseOrNn() ) {
+        Entry->InjectKexts = 0;
         // nothing to do
       } else if ( Prop->isString() && Prop->getString()->stringValue().equalIC("Detect") ) {
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_CHECKFAKESMC);
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+        Entry->InjectKexts = 2;
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_CHECKFAKESMC);
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
       } else {
+        Entry->InjectKexts = -2;
         DBG("** Warning: unknown custom entry InjectKexts value '%s'\n", Prop->getString()->stringValue().c_str());
       }
     } else {
+      Entry->InjectKexts = -1;
       // Use global settings
-      if (gSettings.WithKexts) {
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+      if (gSettings.SystemParameters.WithKexts) {
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
       }
-      if (gSettings.WithKextsIfNoFakeSMC) {
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_CHECKFAKESMC);
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
+      if (gSettings.SystemParameters.WithKextsIfNoFakeSMC) {
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_CHECKFAKESMC);
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_WITHKEXTS);
       }
     }
 
     // NoCaches default value
-    Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_NOCACHES);
+//    Entry->Flags = OSFLAG_UNSET(Entry->Flags, OSFLAG_NOCACHES);
 
     Prop = DictPointer->propertyForKey("NoCaches");
     if (Prop != NULL) {
       if (IsPropertyNotNullAndTrue(Prop)) {
-        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NOCACHES);
+//        Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NOCACHES);
+        Entry->NoCaches = true;
       } else {
         // Use global settings
-        if (gSettings.NoCaches) {
-          Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NOCACHES);
+        if (gSettings.SystemParameters.NoCaches) {
+//          Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NOCACHES);
         }
       }
     }
@@ -1754,7 +2126,7 @@ FillinCustomEntry (
  //                               (KERNEL_AND_KEXT_PATCHES *)(((UINTN)&gSettings) + OFFSET_OF(SETTINGS_DATA, KernelAndKextPatches)));
 
 //      CopyKernelAndKextPatches(&Entry->KernelAndKextPatches, &gSettings.KernelAndKextPatches);
-      Entry->KernelAndKextPatches = gSettings.KernelAndKextPatches;
+//      Entry->KernelAndKextPatches = gSettings.KernelAndKextPatches;
 
       //#ifdef DUMP_KERNEL_KEXT_PATCHES
       //    DumpKernelAndKextPatches ((KERNEL_AND_KEXT_PATCHES *)(((UINTN)Entry) + OFFSET_OF(CUSTOM_LOADER_ENTRY, KernelAndKextPatches)));
@@ -1791,27 +2163,26 @@ FillinCustomEntry (
   */
   Prop = DictPointer->propertyForKey("SubEntries");
   if (Prop != NULL) {
-    if ( Prop->isBool() && Prop->getBool()->boolValue() ) {
+    /*if ( Prop->isBool() && Prop->getBool()->boolValue() ) {
       Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTMENU);
-    } else if ( Prop->isArray() ) {
-      CUSTOM_LOADER_ENTRY *CustomSubEntry;
-      INTN   i;
+    } else*/ if ( Prop->isArray() ) {
       INTN   Count = Prop->getArray()->arrayContent().size();
-      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTMENU);
-      for (i = 0; i < Count; i++) {
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_NODEFAULTMENU);
+      for (INTN i = 0; i < Count; i++) {
         const TagDict* Dict = Prop->getArray()->dictElementAt(i, "SubEntries"_XS8);
         // Allocate a sub entry
-        CustomSubEntry = DuplicateCustomEntry (Entry);
+//        CustomSubEntry = DuplicateCustomEntryToSubEntry(Entry);
+        CUSTOM_LOADER_SUBENTRY_SETTINGS* CustomSubEntry = new CUSTOM_LOADER_SUBENTRY_SETTINGS;
         if (CustomSubEntry) {
-          if (!FillinCustomEntry (CustomSubEntry, Dict, TRUE) || !AddCustomSubEntry (Entry, CustomSubEntry)) {
-            if (CustomSubEntry) {
-              FreePool(CustomSubEntry);
-            }
+          if ( FillinCustomSubEntry(Entry->Type, CustomSubEntry, Dict, TRUE) ) {
+            Entry->SubEntriesSettings.AddReference(CustomSubEntry, true);
+          }else{
+            delete CustomSubEntry;
           }
         }
       }
     }else{
-      MsgLog("MALFORMED PLIST : SubEntries must be a bool OR an array of dict");
+      MsgLog("MALFORMED PLIST : SubEntries must be an array of dict");
     }
   }
   return TRUE;
@@ -1819,7 +2190,7 @@ FillinCustomEntry (
 
 static BOOLEAN
 FillingCustomLegacy (
-                    IN OUT CUSTOM_LEGACY_ENTRY *Entry,
+                    IN OUT CUSTOM_LEGACY_ENTRY_SETTINGS *Entry,
                     const TagDict* DictPointer
                     )
 {
@@ -1830,7 +2201,7 @@ FillingCustomLegacy (
 
   Prop = DictPointer->propertyForKey("Disabled");
   if (IsPropertyNotNullAndTrue(Prop)) {
-    return FALSE;
+    Entry->Disabled = true;
   }
 
   Prop = DictPointer->propertyForKey("Volume");
@@ -1850,32 +2221,36 @@ FillingCustomLegacy (
   Prop = DictPointer->propertyForKey("Image");
   if (Prop != NULL) {
     if (Prop->isString()) {
-      Entry->Image.LoadXImage(&ThemeX.getThemeDir(), Prop->getString()->stringValue());
+      Entry->ImagePath = Prop->getString()->stringValue();
+//      Entry->Image.LoadXImage(&ThemeX.getThemeDir(), Prop->getString()->stringValue());
     }
   } else {
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
-        Entry->Image.setFilled();
-      }
-      FreePool(TmpData);
+      Entry->ImageData.stealValueFrom(TmpData, DataLen);
+//      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+//        Entry->Image.setFilled();
+//      }
+//      FreePool(TmpData);
     }
   }
 
   Prop = DictPointer->propertyForKey("DriveImage");
   if (Prop != NULL) {
     if (Prop->isString()) {
-      Entry->Image.LoadXImage(&ThemeX.getThemeDir(), Prop->getString()->stringValue());
+      Entry->DriveImagePath = Prop->getString()->stringValue();
+//      Entry->Image.LoadXImage(&ThemeX.getThemeDir(), Prop->getString()->stringValue());
     }
   } else {
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "DriveImageData", &DataLen);
     if (TmpData) {
-      if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
-        Entry->DriveImage.setFilled();
-      }
-      FreePool(TmpData);
+      Entry->DriveImageData.stealValueFrom(TmpData, DataLen);
+//      if (!EFI_ERROR(Entry->DriveImage.Image.FromPNG(TmpData, DataLen))) {
+//        Entry->DriveImage.setFilled();
+//      }
+//      FreePool(TmpData);
     }
   }
 
@@ -1894,7 +2269,8 @@ FillingCustomLegacy (
   if (Prop != NULL) {
     if ((Prop->isString()) &&
         (Prop->getString()->stringValue().equalIC("Always"))) {
-      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+      Entry->AlwaysHidden = true;
     } else if (IsPropertyNotNullAndTrue(Prop)) {
       DBG("     hiding entry because Hidden flag is YES\n");
       Entry->Hidden = true;
@@ -1919,7 +2295,7 @@ FillingCustomLegacy (
 }
 
 static BOOLEAN
-FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
+FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY_SETTINGS *Entry, const TagDict* DictPointer)
 {
   const TagStruct* Prop;
   if ((Entry == NULL) || (DictPointer == NULL)) {
@@ -1928,7 +2304,7 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
 
   Prop = DictPointer->propertyForKey("Disabled");
   if (IsPropertyNotNullAndTrue(Prop)) {
-    return FALSE;
+    Entry->Disabled = true;
   }
 
   Prop = DictPointer->propertyForKey("Volume");
@@ -1948,7 +2324,8 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
 //    } else {
 //      Entry->Options.SPrintf("%s", Prop->getString()->stringValue());
 //    }
-      Entry->LoadOptions = Split<XString8Array>(Prop->getString()->stringValue(), " ");
+//      Entry->LoadOptions = Split<XString8Array>(Prop->getString()->stringValue(), " ");
+    Entry->Arguments = Prop->getString()->stringValue();
   }
 
   Prop = DictPointer->propertyForKey("Title");
@@ -1967,15 +2344,16 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
     if (Prop->isString()) {
       Entry->ImagePath = Prop->getString()->stringValue();
     }
-    Entry->Image.LoadXImage(&ThemeX.getThemeDir(), Entry->ImagePath);
+//    Entry->Image.LoadXImage(&ThemeX.getThemeDir(), Entry->ImagePath);
   } else {
     UINTN DataLen = 0;
     UINT8 *TmpData = GetDataSetting (DictPointer, "ImageData", &DataLen);
     if (TmpData) {
-      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
-        Entry->Image.setFilled();
-      }
-      FreePool(TmpData);
+      Entry->ImageData.stealValueFrom(TmpData, DataLen);
+//      if (!EFI_ERROR(Entry->Image.Image.FromPNG(TmpData, DataLen))) {
+//        Entry->Image.setFilled();
+//      }
+//      FreePool(TmpData);
     }
   }
   Prop = DictPointer->propertyForKey("Hotkey");
@@ -1993,7 +2371,8 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
   if (Prop != NULL) {
     if ((Prop->isString()) &&
         (Prop->getString()->stringValue().equalIC("Always"))) {
-      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+//      Entry->Flags = OSFLAG_SET(Entry->Flags, OSFLAG_DISABLED);
+      Entry->AlwaysHidden = true;
     } else if (IsPropertyNotNullAndTrue(Prop)) {
       DBG("     hiding entry because Hidden flag is YES\n");
       Entry->Hidden = true;
@@ -2007,10 +2386,18 @@ FillingCustomTool (IN OUT CUSTOM_TOOL_ENTRY *Entry, const TagDict* DictPointer)
   return TRUE;
 }
 
+/*
+ * To ease copy/paste and text replacement from GetUserSettings, the parameter has the same name as the global
+ * and is passed by non-const reference.
+ * This temporary during the refactoring
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 // EDID reworked by Sherlocks
 static void
-GetEDIDSettings(const TagDict* DictPointer)
+GetEDIDSettings(const TagDict* DictPointer, SETTINGS_DATA& gSettings)
 {
+  #pragma GCC diagnostic pop
   const TagStruct* Prop;
   const TagDict* Dict;
   UINTN  j = 128;
@@ -2018,44 +2405,46 @@ GetEDIDSettings(const TagDict* DictPointer)
   Dict = DictPointer->dictPropertyForKey("EDID");
   if (Dict != NULL) {
     Prop = Dict->propertyForKey("Inject");
-    gSettings.InjectEDID = IsPropertyNotNullAndTrue(Prop); // default = false!
+    gSettings.Graphics.EDID.InjectEDID = IsPropertyNotNullAndTrue(Prop); // default = false!
 
-    if (gSettings.InjectEDID){
+    if (gSettings.Graphics.EDID.InjectEDID){
       //DBG("Inject EDID\n");
       Prop = Dict->propertyForKey("Custom");
       if (Prop != NULL) {
-        gSettings.CustomEDID   = GetDataSetting(Dict, "Custom", &j);
+        UINT8* Data = GetDataSetting(Dict, "Custom", &j);
+        gSettings.Graphics.EDID.CustomEDID.stealValueFrom(Data, j);
         if ((j % 128) != 0) {
           DBG(" Custom EDID has wrong length=%llu\n", j);
+          gSettings.Graphics.EDID.CustomEDID.setEmpty();
         } else {
           DBG(" Custom EDID is ok\n");
-          gSettings.CustomEDIDsize = (UINT16)j;
-          InitializeEdidOverride();
+//          gSettings.CustomEDIDsize = (UINT16)j;
+//          InitializeEdidOverride();
         }
       }
 
       Prop = Dict->propertyForKey("VendorID");
       if (Prop) {
-        gSettings.VendorEDID = (UINT16)GetPropertyAsInteger(Prop, gSettings.VendorEDID);
-        //DBG("  VendorID = 0x%04lx\n", gSettings.VendorEDID);
+        gSettings.Graphics.EDID.VendorEDID = (UINT16)GetPropertyAsInteger(Prop, gSettings.Graphics.EDID.VendorEDID);
+        //DBG("  VendorID = 0x%04lx\n", gSettings.Graphics.EDID.VendorEDID);
       }
 
       Prop = Dict->propertyForKey("ProductID");
       if (Prop) {
-        gSettings.ProductEDID = (UINT16)GetPropertyAsInteger(Prop, gSettings.ProductEDID);
-        //DBG("  ProductID = 0x%04lx\n", gSettings.ProductEDID);
+        gSettings.Graphics.EDID.ProductEDID = (UINT16)GetPropertyAsInteger(Prop, gSettings.Graphics.EDID.ProductEDID);
+        //DBG("  ProductID = 0x%04lx\n", gSettings.Graphics.EDID.ProductEDID);
       }
 
       Prop = Dict->propertyForKey("HorizontalSyncPulseWidth");
       if (Prop) {
-        gSettings.EdidFixHorizontalSyncPulseWidth = (UINT16)GetPropertyAsInteger(Prop, gSettings.EdidFixHorizontalSyncPulseWidth);
-        //DBG("  EdidFixHorizontalSyncPulseWidth = 0x%02lx\n", gSettings.EdidFixHorizontalSyncPulseWidth);
+        gSettings.Graphics.EDID.EdidFixHorizontalSyncPulseWidth = (UINT16)GetPropertyAsInteger(Prop, gSettings.Graphics.EDID.EdidFixHorizontalSyncPulseWidth);
+        //DBG("  EdidFixHorizontalSyncPulseWidth = 0x%02lx\n", gSettings.Graphics.EDID.EdidFixHorizontalSyncPulseWidth);
       }
 
       Prop = Dict->propertyForKey("VideoInputSignal");
       if (Prop) {
-        gSettings.EdidFixVideoInputSignal = (UINT8)GetPropertyAsInteger(Prop, gSettings.EdidFixVideoInputSignal);
-        //DBG("  EdidFixVideoInputSignal = 0x%02lx\n", gSettings.EdidFixVideoInputSignal);
+        gSettings.Graphics.EDID.EdidFixVideoInputSignal = (UINT8)GetPropertyAsInteger(Prop, gSettings.Graphics.EDID.EdidFixVideoInputSignal);
+        //DBG("  EdidFixVideoInputSignal = 0x%02lx\n", gSettings.Graphics.EDID.EdidFixVideoInputSignal);
       }
     } else {
       //DBG("Not Inject EDID\n");
@@ -2063,11 +2452,12 @@ GetEDIDSettings(const TagDict* DictPointer)
   }
 }
 
+// Jief : GetEarlyUserSettings is ready to disappear...
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
 EFI_STATUS GetEarlyUserSettings (
                       const TagDict* CfgDict,
-                      SETTINGS_DATA& settingsData
+                      SETTINGS_DATA& gSettings
                       )
 {
   #pragma GCC diagnostic pop
@@ -2091,10 +2481,10 @@ EFI_STATUS GetEarlyUserSettings (
 //    }
 //  }
 
-  settingsData.KextPatchesAllowed              = TRUE;
-  settingsData.KernelAndKextPatches.KPAppleRTC = TRUE;
-  settingsData.KernelAndKextPatches.KPDELLSMBIOS = FALSE; // default is false
-  settingsData.KernelPatchesAllowed            = TRUE;
+  gSettings.KextPatchesAllowed              = TRUE; // todo move to GlobalConfig
+  gSettings.KernelAndKextPatches.KPAppleRTC = TRUE;
+  gSettings.KernelAndKextPatches.KPDELLSMBIOS = FALSE; // default is false
+  gSettings.KernelPatchesAllowed            = TRUE; // todo move to GlobalConfig
 
   if (CfgDict != NULL) {
     //DBG("Loading early settings\n");
@@ -2104,35 +2494,35 @@ EFI_STATUS GetEarlyUserSettings (
     if (BootDict != NULL) {
       const TagStruct* Prop = BootDict->propertyForKey("Timeout");
       if (Prop != NULL) {
-        settingsData.Boot.Timeout = (INT32)GetPropertyAsInteger(Prop, settingsData.Boot.Timeout);
-        DBG("timeout set to %lld\n", settingsData.Boot.Timeout);
+        gSettings.Boot.Timeout = GetPropertyAsInteger(Prop, gSettings.Boot.Timeout);
+        DBG("timeout set to %lld\n", gSettings.Boot.Timeout);
       }
 
       Prop = BootDict->propertyForKey("SkipHibernateTimeout");
-      settingsData.Boot.SkipHibernateTimeout = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.SkipHibernateTimeout = IsPropertyNotNullAndTrue(Prop);
 
       //DisableCloverHotkeys
       Prop = BootDict->propertyForKey("DisableCloverHotkeys");
-      settingsData.Boot.DisableCloverHotkeys = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.DisableCloverHotkeys = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("Arguments");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-        settingsData.Boot.BootArgs = Prop->getString()->stringValue();
+        gSettings.Boot.BootArgs = Prop->getString()->stringValue();
       }
 
       // defaults if "DefaultVolume" is not present or is empty
-      settingsData.Boot.LastBootedVolume = FALSE;
+      gSettings.Boot.LastBootedVolume = FALSE;
       //     settingsData.Boot.DefaultVolume    = NULL;
 
       Prop = BootDict->propertyForKey("DefaultVolume");
       if (Prop != NULL) {
         if ( Prop->isString()  &&  Prop->getString()->stringValue().notEmpty() ) {
-          settingsData.Boot.DefaultVolume.setEmpty();
+          gSettings.Boot.DefaultVolume.setEmpty();
           // check for special value for remembering boot volume
           if (Prop->getString()->stringValue().equalIC("LastBootedVolume")) {
-            settingsData.Boot.LastBootedVolume = TRUE;
+            gSettings.Boot.LastBootedVolume = TRUE;
           } else {
-            settingsData.Boot.DefaultVolume = Prop->getString()->stringValue();
+            gSettings.Boot.DefaultVolume = Prop->getString()->stringValue();
           }
         }
       }
@@ -2142,28 +2532,28 @@ EFI_STATUS GetEarlyUserSettings (
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : property not string in DefaultLoader\n");
         }else{
-          settingsData.Boot.DefaultLoader = Prop->getString()->stringValue();
+          gSettings.Boot.DefaultLoader = Prop->getString()->stringValue();
         }
       }
 
       Prop = BootDict->propertyForKey("Debug");
       if ( Prop ) {
         if ( Prop->isString() ) {
-          if ( Prop->getString()->stringValue().equalIC("true") ) settingsData.Boot.DebugLog = true;
-          else if ( Prop->getString()->stringValue().equalIC("false") ) settingsData.Boot.DebugLog = false;
+          if ( Prop->getString()->stringValue().equalIC("true") ) gSettings.Boot.DebugLog = true;
+          else if ( Prop->getString()->stringValue().equalIC("false") ) gSettings.Boot.DebugLog = false;
           else MsgLog("MALFORMED config.plist : property Boot/Debug must be true, false, or scratch\n");
         }else if ( Prop->isBool() ) {
-          settingsData.Boot.DebugLog = Prop->getBool()->boolValue();
+          gSettings.Boot.DebugLog = Prop->getBool()->boolValue();
         }else{
           MsgLog("MALFORMED config.plist : property Boot/Debug must be a string (true, false) or <true/> or <false/>\n");
         }
       }
 
       Prop = BootDict->propertyForKey("Fast");
-      settingsData.Boot.FastBoot       = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.FastBoot       = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("NoEarlyProgress");
-      settingsData.Boot.NoEarlyProgress = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.NoEarlyProgress = IsPropertyNotNullAndTrue(Prop);
 
 //      if (SpecialBootMode) {
 //        GlobalConfig.isFastBoot()       = TRUE;
@@ -2171,21 +2561,21 @@ EFI_STATUS GetEarlyUserSettings (
 //      }
 
       Prop = BootDict->propertyForKey("NeverHibernate");
-      settingsData.Boot.NeverHibernate = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.NeverHibernate = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("StrictHibernate");
-      settingsData.Boot.StrictHibernate = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.StrictHibernate = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("RtcHibernateAware");
-      settingsData.Boot.RtcHibernateAware = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.RtcHibernateAware = IsPropertyNotNullAndTrue(Prop);
 
       Prop = BootDict->propertyForKey("HibernationFixup");
       if (Prop) {
-        settingsData.Boot.HibernationFixup = IsPropertyNotNullAndTrue(Prop); //it will be set automatically
+        gSettings.Boot.HibernationFixup = IsPropertyNotNullAndTrue(Prop); //it will be set automatically
       }
 
       Prop = BootDict->propertyForKey("SignatureFixup");
-      settingsData.Boot.SignatureFixup = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.SignatureFixup = IsPropertyNotNullAndTrue(Prop);
 
       //      Prop = GetProperty(DictPointer, "GetLegacyLanAddress");
       //      GetLegacyLanAddress = IsPropertyTrue(Prop);
@@ -2195,41 +2585,44 @@ EFI_STATUS GetEarlyUserSettings (
        *   it is true
        *   SecureBoot is already true.
        */
+      gSettings.Boot.SecureSetting = -1;
       Prop = BootDict->propertyForKey("Secure");
       if (Prop != NULL) {
-        if ( Prop->isFalse() ) {
-          // Only disable setup mode, we want always secure boot
-          settingsData.Boot.SecureBootSetupMode = 0;
-        } else if ( Prop->isTrue()  &&  !settingsData.Boot.SecureBoot ) {
-          // This mode will force boot policy even when no secure boot or it is disabled
-          settingsData.Boot.SecureBootSetupMode = 1;
-          settingsData.Boot.SecureBoot          = 1;
-        }
+        if ( Prop->isTrue() ) gSettings.Boot.SecureSetting = 1;
+        if ( Prop->isFalse() ) gSettings.Boot.SecureSetting = 0;
+//        if ( Prop->isFalse() ) {
+//          // Only disable setup mode, we want always secure boot
+//          settingsData.Boot.SecureBootSetupMode = 0;
+//        } else if ( Prop->isTrue()  &&  !settingsData.Boot.SecureBoot ) {
+//          // This mode will force boot policy even when no secure boot or it is disabled
+//          settingsData.Boot.SecureBootSetupMode = 1;
+//          settingsData.Boot.SecureBoot          = 1;
+//        }
       }
       // Secure boot policy
       Prop = BootDict->propertyForKey("Policy");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
         if ((Prop->getString()->stringValue()[0] == 'D') || (Prop->getString()->stringValue()[0] == 'd')) {
           // Deny all images
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_DENY;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_DENY;
         } else if ((Prop->getString()->stringValue()[0] == 'A') || (Prop->getString()->stringValue()[0] == 'a')) {
           // Allow all images
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_ALLOW;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_ALLOW;
         } else if ((Prop->getString()->stringValue()[0] == 'Q') || (Prop->getString()->stringValue()[0] == 'q')) {
           // Query user
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_QUERY;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_QUERY;
         } else if ((Prop->getString()->stringValue()[0] == 'I') || (Prop->getString()->stringValue()[0] == 'i')) {
           // Insert
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_INSERT;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_INSERT;
         } else if ((Prop->getString()->stringValue()[0] == 'W') || (Prop->getString()->stringValue()[0] == 'w')) {
           // White list
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_WHITELIST;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_WHITELIST;
         } else if ((Prop->getString()->stringValue()[0] == 'B') || (Prop->getString()->stringValue()[0] == 'b')) {
           // Black list
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_BLACKLIST;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_BLACKLIST;
         } else if ((Prop->getString()->stringValue()[0] == 'U') || (Prop->getString()->stringValue()[0] == 'u')) {
           // User policy
-          settingsData.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_USER;
+          gSettings.Boot.SecureBootPolicy = SECURE_BOOT_POLICY_USER;
         }
       }
       // Secure boot white list
@@ -2238,7 +2631,7 @@ EFI_STATUS GetEarlyUserSettings (
         INTN   i;
         INTN   Count = arrayProp->arrayContent().size();
         if (Count > 0) {
-          settingsData.Boot.SecureBootWhiteList.setEmpty();
+          gSettings.Boot.SecureBootWhiteList.setEmpty();
           for (i = 0; i < Count; i++) {
             const TagStruct* prop2 = &arrayProp->arrayContent()[i];
             if ( !prop2->isString() ) {
@@ -2246,7 +2639,7 @@ EFI_STATUS GetEarlyUserSettings (
               continue;
             }
             if ( prop2->getString()->stringValue().notEmpty() ) {
-              settingsData.Boot.SecureBootWhiteList.AddNoNull(prop2->getString()->stringValue());
+              gSettings.Boot.SecureBootWhiteList.AddNoNull(prop2->getString()->stringValue());
             }
           }
         }
@@ -2257,7 +2650,7 @@ EFI_STATUS GetEarlyUserSettings (
         INTN   i;
         INTN   Count = arrayProp->arrayContent().size();
         if (Count > 0) {
-          settingsData.Boot.SecureBootBlackList.setEmpty();
+          gSettings.Boot.SecureBootBlackList.setEmpty();
           for (i = 0; i < Count; i++) {
             const TagStruct* prop2 = &arrayProp->arrayContent()[i];
             if ( !prop2->isString() ) {
@@ -2265,7 +2658,7 @@ EFI_STATUS GetEarlyUserSettings (
               continue;
             }
             if ( prop2->getString()->stringValue().notEmpty() ) {
-              settingsData.Boot.SecureBootBlackList.AddNoNull(prop2->getString()->stringValue());
+              gSettings.Boot.SecureBootBlackList.AddNoNull(prop2->getString()->stringValue());
             }
           }
         }
@@ -2278,23 +2671,23 @@ EFI_STATUS GetEarlyUserSettings (
       // 2 = Use second profile
       Prop = BootDict->propertyForKey("XMPDetection");
       if (Prop != NULL) {
-        settingsData.Boot.XMPDetection = 0;
+        gSettings.Boot.XMPDetection = 0;
         if ( Prop->isFalse() ) {
-          settingsData.Boot.XMPDetection = -1;
+          gSettings.Boot.XMPDetection = -1;
         } else if ( Prop->isString() ) {
           if ((Prop->getString()->stringValue()[0] == 'n') ||
               (Prop->getString()->stringValue()[0] == 'N') ||
               (Prop->getString()->stringValue()[0] == '-')) {
-            settingsData.Boot.XMPDetection = -1;
+            gSettings.Boot.XMPDetection = -1;
           } else {
-            settingsData.Boot.XMPDetection = (INT8)AsciiStrDecimalToUintn(Prop->getString()->stringValue().c_str());
+            gSettings.Boot.XMPDetection = (INT8)AsciiStrDecimalToUintn(Prop->getString()->stringValue().c_str());
           }
         } else if (Prop->isInt64()) {
-          settingsData.Boot.XMPDetection = (INT8)Prop->getInt64()->intValue();
+          gSettings.Boot.XMPDetection = (INT8)Prop->getInt64()->intValue();
         }
         // Check that the setting value is sane
-        if ((settingsData.Boot.XMPDetection < -1) || (settingsData.Boot.XMPDetection > 2)) {
-          settingsData.Boot.XMPDetection   = -1;
+        if ((gSettings.Boot.XMPDetection < -1) || (gSettings.Boot.XMPDetection > 2)) {
+          gSettings.Boot.XMPDetection   = -1;
         }
       }
 
@@ -2304,87 +2697,90 @@ EFI_STATUS GetEarlyUserSettings (
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : Prop property not string in Legacy\n");
         }else{
-          settingsData.Boot.LegacyBoot = Prop->getString()->stringValue();
+          gSettings.Boot.LegacyBoot = Prop->getString()->stringValue();
         }
       } else if (gFirmwareClover) {
         // default for CLOVER EFI boot
-        settingsData.Boot.LegacyBoot = "PBR"_XS8;
+        gSettings.Boot.LegacyBoot = "PBR"_XS8;
       } else {
         // default for UEFI boot
-        settingsData.Boot.LegacyBoot = "LegacyBiosDefault"_XS8;
+        gSettings.Boot.LegacyBoot = "LegacyBiosDefault"_XS8;
       }
 
       // Entry for LegacyBiosDefault
       Prop = BootDict->propertyForKey("LegacyBiosDefaultEntry");
       if (Prop != NULL) {
-        settingsData.Boot.LegacyBiosDefaultEntry = (UINT16)GetPropertyAsInteger(Prop, 0); // disabled by default
+        gSettings.Boot.LegacyBiosDefaultEntry = (UINT16)GetPropertyAsInteger(Prop, 0); // disabled by default
       }
 
       // Whether or not to draw boot screen
+      gSettings.Boot.CustomLogoAsXString8.setEmpty();
+      gSettings.Boot.CustomLogoAsData.setEmpty();
       Prop = BootDict->propertyForKey("CustomLogo");
       if (Prop != NULL) {
         if (IsPropertyNotNullAndTrue(Prop)) {
-          settingsData.Boot.CustomBoot   = CUSTOM_BOOT_APPLE;
+          gSettings.Boot.CustomLogoType   = CUSTOM_BOOT_APPLE;
         } else if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
+          gSettings.Boot.CustomLogoAsXString8 = Prop->getString()->stringValue();
           if (Prop->getString()->stringValue().equalIC("Apple")) {
-            settingsData.Boot.CustomBoot = CUSTOM_BOOT_APPLE;
+            gSettings.Boot.CustomLogoType = CUSTOM_BOOT_APPLE;
           } else if (Prop->getString()->stringValue().equalIC("Alternate")) {
-            settingsData.Boot.CustomBoot = CUSTOM_BOOT_ALT_APPLE;
+            gSettings.Boot.CustomLogoType = CUSTOM_BOOT_ALT_APPLE;
           } else if (Prop->getString()->stringValue().equalIC("Theme")) {
-            settingsData.Boot.CustomBoot = CUSTOM_BOOT_THEME;
+            gSettings.Boot.CustomLogoType = CUSTOM_BOOT_THEME;
           } else {
-            XStringW customLogo = XStringW() = Prop->getString()->stringValue();
-            settingsData.Boot.CustomBoot = CUSTOM_BOOT_USER;
-            if (settingsData.Boot.CustomLogo != NULL) {
-              delete settingsData.Boot.CustomLogo;
-            }
-            settingsData.Boot.CustomLogo = new XImage;
-            settingsData.Boot.CustomLogo->LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
-            if (settingsData.Boot.CustomLogo->isEmpty()) {
-              DBG("Custom boot logo not found at path `%ls`!\n", customLogo.wc_str());
-              settingsData.Boot.CustomBoot = CUSTOM_BOOT_DISABLED;
-            }
+            gSettings.Boot.CustomLogoType = CUSTOM_BOOT_USER;
+//            if (settingsData.Boot.CustomLogo != NULL) {
+//              delete settingsData.Boot.CustomLogo;
+//            }
+//            settingsData.Boot.CustomLogo = new XImage;
+//            settingsData.Boot.CustomLogo->LoadXImage(&self.getSelfVolumeRootDir(), customLogo);
+//            if (settingsData.Boot.CustomLogo->isEmpty()) {
+//              DBG("Custom boot logo not found at path `%ls`!\n", customLogo.wc_str());
+//              settingsData.Boot.CustomBoot = CUSTOM_BOOT_DISABLED;
+//            }
           }
         } else if ( Prop->isData()  && Prop->getData()->dataLenValue() > 0 ) {
-          settingsData.Boot.CustomBoot = CUSTOM_BOOT_USER;
-          if (settingsData.Boot.CustomLogo != NULL) {
-            delete settingsData.Boot.CustomLogo;
-          }
-          settingsData.Boot.CustomLogo = new XImage;
-          settingsData.Boot.CustomLogo->FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
-          if (settingsData.Boot.CustomLogo->isEmpty()) {
-            DBG("Custom boot logo not decoded from data!\n"/*, Prop->getString()->stringValue().c_str()*/);
-            settingsData.Boot.CustomBoot = CUSTOM_BOOT_DISABLED;
-          }
+          gSettings.Boot.CustomLogoAsData = Prop->getData()->data();
+          gSettings.Boot.CustomLogoType = CUSTOM_BOOT_USER;
+//          if (settingsData.Boot.CustomLogo != NULL) {
+//            delete settingsData.Boot.CustomLogo;
+//          }
+//          settingsData.Boot.CustomLogo = new XImage;
+//          settingsData.Boot.CustomLogo->FromPNG(Prop->getData()->dataValue(), Prop->getData()->dataLenValue());
+//          if (settingsData.Boot.CustomLogo->isEmpty()) {
+//            DBG("Custom boot logo not decoded from data!\n"/*, Prop->getString()->stringValue().c_str()*/);
+//            settingsData.Boot.CustomBoot = CUSTOM_BOOT_DISABLED;
+//          }
         } else {
-          settingsData.Boot.CustomBoot = CUSTOM_BOOT_USER_DISABLED;
+          gSettings.Boot.CustomLogoType = CUSTOM_BOOT_USER_DISABLED;
         }
       } else {
-        settingsData.Boot.CustomBoot   = CUSTOM_BOOT_DISABLED;
+        gSettings.Boot.CustomLogoType   = CUSTOM_BOOT_DISABLED;
       }
-      DBG("Custom boot %s (0x%llX)\n", CustomBootModeToStr(settingsData.Boot.CustomBoot), (uintptr_t)settingsData.Boot.CustomLogo);
+
     }
 
     //*** SYSTEM ***
-    settingsData.WithKexts            = TRUE;  //default
+    gSettings.SystemParameters.WithKexts            = TRUE;  //default
     const TagDict* SystemParametersDict = CfgDict->dictPropertyForKey("SystemParameters");
     if (SystemParametersDict != NULL) {
       // Inject kexts
       const TagStruct* Prop = SystemParametersDict->propertyForKey("InjectKexts");
       if (Prop != NULL) {
         if (IsPropertyNotNullAndTrue(Prop)) {
-          settingsData.WithKexts            = TRUE;
+          gSettings.SystemParameters.WithKexts            = TRUE;
         } else if ((Prop->isString()) &&
                    (Prop->getString()->stringValue().equalIC("Detect"))) {
           //   settingsData.WithKexts            = TRUE;
-          settingsData.WithKextsIfNoFakeSMC = TRUE;
+          gSettings.SystemParameters.WithKextsIfNoFakeSMC = TRUE;
         }
       }
 
       // No caches - obsolete
       Prop = SystemParametersDict->propertyForKey("NoCaches");
       if (IsPropertyNotNullAndTrue(Prop)) {
-        settingsData.NoCaches = TRUE;
+        gSettings.SystemParameters.NoCaches = TRUE;
       }
       //test float - success
 //      Prop = SystemParametersDict->propertyForKey("BlueValue");
@@ -2396,146 +2792,147 @@ EFI_STATUS GetEarlyUserSettings (
     // KernelAndKextPatches
     const TagDict* KernelAndKextPatchesDict = CfgDict->dictPropertyForKey("KernelAndKextPatches");
     if (KernelAndKextPatchesDict != NULL) {
-      FillinKextPatches(&settingsData.KernelAndKextPatches, KernelAndKextPatchesDict);
+      FillinKextPatches(&gSettings.KernelAndKextPatches, KernelAndKextPatchesDict);
     }
 
     const TagDict* GUIDict = CfgDict->dictPropertyForKey("GUI");
     if (GUIDict != NULL) {
       const TagStruct* Prop = GUIDict->propertyForKey("Timezone");
-      settingsData.GUI.Timezone = (INT32)GetPropertyAsInteger(Prop, settingsData.GUI.Timezone);
-      //initialize Daylight when we know timezone
-#ifdef CLOVER_BUILD
-      EFI_TIME          Now;
-      gRT->GetTime(&Now, NULL);
-      INT32 NowHour = Now.Hour + settingsData.GUI.Timezone;
-      if (NowHour <  0 ) NowHour += 24;
-      if (NowHour >= 24 ) NowHour -= 24;
-      ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
-#endif
+      gSettings.GUI.Timezone = (INT32)GetPropertyAsInteger(Prop, gSettings.GUI.Timezone);
+//      //initialize Daylight when we know timezone
+//#ifdef CLOVER_BUILD
+//      EFI_TIME          Now;
+//      gRT->GetTime(&Now, NULL);
+//      INT32 NowHour = Now.Hour + gSettings.GUI.Timezone;
+//      if (NowHour <  0 ) NowHour += 24;
+//      if (NowHour >= 24 ) NowHour -= 24;
+//      ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
+//#endif
 
       Prop = GUIDict->propertyForKey("Theme");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-        ThemeX.Theme.takeValueFrom(Prop->getString()->stringValue());
-        settingsData.GUI.Theme.takeValueFrom(Prop->getString()->stringValue());
-        DBG("Default theme: %ls\n", settingsData.GUI.Theme.wc_str());
-        OldChosenTheme = 0xFFFF; //default for embedded
-        for (UINTN i = 0; i < ThemeNameArray.size(); i++) {
-          //now comparison is case sensitive
-          if ( settingsData.GUI.Theme.equalIC(ThemeNameArray[i]) ) {
-            OldChosenTheme = i;
-            break;
-          }
-        }
+//        ThemeX.Theme.takeValueFrom(Prop->getString()->stringValue());
+        gSettings.GUI.Theme.takeValueFrom(Prop->getString()->stringValue());
+//        DBG("Default theme: %ls\n", gSettings.GUI.Theme.wc_str());
+//        OldChosenTheme = 0xFFFF; //default for embedded
+//        for (UINTN i = 0; i < ThemeNameArray.size(); i++) {
+//          //now comparison is case sensitive
+//          if ( gSettings.GUI.Theme.equalIC(ThemeNameArray[i]) ) {
+//            OldChosenTheme = i;
+//            break;
+//          }
+//        }
       }
       // get embedded theme property even when starting with other themes, as they may be changed later
       Prop = GUIDict->propertyForKey("EmbeddedThemeType");
       if (Prop && (Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
+        gSettings.GUI.EmbeddedThemeType = Prop->getString()->stringValue();
         if (Prop->getString()->stringValue().equalIC("Dark")) {
-          ThemeX.DarkEmbedded = TRUE;
+//          gSettings.GUI.DarkEmbedded = TRUE;
           //ThemeX.Font = FONT_GRAY;
         } else if (Prop->getString()->stringValue().equalIC("Light")) {
-          ThemeX.DarkEmbedded = FALSE;
+//          gSettings.GUI.DarkEmbedded = FALSE;
           //ThemeX.Font = FONT_ALFA;
         } else if (Prop->getString()->stringValue().equalIC("Daytime")) {
-          ThemeX.DarkEmbedded = !ThemeX.Daylight;
+//          gSettings.GUI.DarkEmbedded = !ThemeX.Daylight;
           //ThemeX.Font = ThemeX.Daylight?FONT_ALFA:FONT_GRAY;
         }
       }
       Prop = GUIDict->propertyForKey("PlayAsync"); //PlayAsync
-      settingsData.PlayAsync = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.PlayAsync = IsPropertyNotNullAndTrue(Prop);
 
       // CustomIcons
       Prop = GUIDict->propertyForKey("CustomIcons");
-      settingsData.GUI.CustomIcons = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.CustomIcons = IsPropertyNotNullAndTrue(Prop);
       Prop = GUIDict->propertyForKey("TextOnly");
-      settingsData.GUI.TextOnly = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.TextOnly = IsPropertyNotNullAndTrue(Prop);
       Prop = GUIDict->propertyForKey("ShowOptimus");
-      settingsData.GUI.ShowOptimus = IsPropertyNotNullAndTrue(Prop);
+      gSettings.GUI.ShowOptimus = IsPropertyNotNullAndTrue(Prop);
 
       Prop = GUIDict->propertyForKey("ScreenResolution");
       if (Prop != NULL) {
         if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
-          settingsData.GUI.ScreenResolution.takeValueFrom(Prop->getString()->stringValue());
+          gSettings.GUI.ScreenResolution.takeValueFrom(Prop->getString()->stringValue());
         }
       }
 
       Prop = GUIDict->propertyForKey("ProvideConsoleGop");
-      settingsData.ProvideConsoleGop = !IsPropertyNotNullAndFalse(Prop); //default is true
+      gSettings.GUI.ProvideConsoleGop = !IsPropertyNotNullAndFalse(Prop); //default is true
 
       Prop = GUIDict->propertyForKey("ConsoleMode");
       if (Prop != NULL) {
         if (Prop->isInt64()) {
-          settingsData.GUI.ConsoleMode = Prop->getInt64()->intValue();
+          gSettings.GUI.ConsoleMode = Prop->getInt64()->intValue();
         } else if ((Prop->isString()) && Prop->getString()->stringValue().notEmpty()) {
           if ( Prop->getString()->stringValue().contains("Max") ) {
-            settingsData.GUI.ConsoleMode = -1;
+            gSettings.GUI.ConsoleMode = -1;
             DBG("ConsoleMode will be set to highest mode\n");
           } else if ( Prop->getString()->stringValue().contains("Min") ) {
-            settingsData.GUI.ConsoleMode = -2;
+            gSettings.GUI.ConsoleMode = -2;
             DBG("ConsoleMode will be set to lowest mode\n");
           } else {
-            settingsData.GUI.ConsoleMode = (INT32)AsciiStrDecimalToUintn(Prop->getString()->stringValue());
+            gSettings.GUI.ConsoleMode = (INT32)AsciiStrDecimalToUintn(Prop->getString()->stringValue());
           }
         }
-        if (settingsData.GUI.ConsoleMode > 0) {
-          DBG("ConsoleMode will be set to mode #%lld\n", settingsData.GUI.ConsoleMode);
+        if (gSettings.GUI.ConsoleMode > 0) {
+          DBG("ConsoleMode will be set to mode #%lld\n", gSettings.GUI.ConsoleMode);
         }
       }
 
       Prop = GUIDict->propertyForKey("Language");
       if (Prop != NULL) {
-        settingsData.Language = Prop->getString()->stringValue();
+        gSettings.Language = Prop->getString()->stringValue();
         if ( Prop->getString()->stringValue().contains("en") ) {
-          gLanguage = english;
-          settingsData.GUI.Codepage = 0xC0;
-          settingsData.GUI.CodepageSize = 0;
+          gSettings.GUI.Language = english;
+//          gSettings.GUI.Codepage = 0xC0;
+//          gSettings.GUI.CodepageSize = 0;
         } else if ( Prop->getString()->stringValue().contains("ru")) {
-          gLanguage = russian;
-          settingsData.GUI.Codepage = 0x410;
-          settingsData.GUI.CodepageSize = 0x40;
+          gSettings.GUI.Language = russian;
+//          gSettings.GUI.Codepage = 0x410;
+//          gSettings.GUI.CodepageSize = 0x40;
         } else if ( Prop->getString()->stringValue().contains("ua")) {
-          gLanguage = ukrainian;
-          settingsData.GUI.Codepage = 0x400;
-          settingsData.GUI.CodepageSize = 0x60;
+          gSettings.GUI.Language = ukrainian;
+//          gSettings.GUI.Codepage = 0x400;
+//          gSettings.GUI.CodepageSize = 0x60;
         } else if ( Prop->getString()->stringValue().contains("fr")) {
-          gLanguage = french; //default is extended latin
+          gSettings.GUI.Language = french; //default is extended latin
         } else if ( Prop->getString()->stringValue().contains("it")) {
-          gLanguage = italian;
+          gSettings.GUI.Language = italian;
         } else if ( Prop->getString()->stringValue().contains("es")) {
-          gLanguage = spanish;
+          gSettings.GUI.Language = spanish;
         } else if ( Prop->getString()->stringValue().contains("pt")) {
-          gLanguage = portuguese;
+          gSettings.GUI.Language = portuguese;
         } else if ( Prop->getString()->stringValue().contains("br")) {
-          gLanguage = brasil;
+          gSettings.GUI.Language = brasil;
         } else if ( Prop->getString()->stringValue().contains("de")) {
-          gLanguage = german;
+          gSettings.GUI.Language = german;
         } else if ( Prop->getString()->stringValue().contains("nl")) {
-          gLanguage = dutch;
+          gSettings.GUI.Language = dutch;
         } else if ( Prop->getString()->stringValue().contains("pl")) {
-          gLanguage = polish;
+          gSettings.GUI.Language = polish;
         } else if ( Prop->getString()->stringValue().contains("cz")) {
-          gLanguage = czech;
+          gSettings.GUI.Language = czech;
         } else if ( Prop->getString()->stringValue().contains("hr")) {
-          gLanguage = croatian;
+          gSettings.GUI.Language = croatian;
         } else if ( Prop->getString()->stringValue().contains("id")) {
-          gLanguage = indonesian;
+          gSettings.GUI.Language = indonesian;
         } else if ( Prop->getString()->stringValue().contains("zh_CN")) {
-          gLanguage = chinese;
-          settingsData.GUI.Codepage = 0x3400;
-          settingsData.GUI.CodepageSize = 0x19C0;
+          gSettings.GUI.Language = chinese;
+//          gSettings.GUI.Codepage = 0x3400;
+//          gSettings.GUI.CodepageSize = 0x19C0;
         } else if ( Prop->getString()->stringValue().contains("ro")) {
-          gLanguage = romanian;
+          gSettings.GUI.Language = romanian;
         } else if ( Prop->getString()->stringValue().contains("ko")) {
-          gLanguage = korean;
-          settingsData.GUI.Codepage = 0x1100;
-          settingsData.GUI.CodepageSize = 0x100;
+          gSettings.GUI.Language = korean;
+//          gSettings.GUI.Codepage = 0x1100;
+//          gSettings.GUI.CodepageSize = 0x100;
         }
       }
 
 //      if (settingsData.Language != NULL) { // settingsData.Language != NULL cannot be false because settingsData.Language is dclared as CHAR8 Language[16]; Must we replace by settingsData.Language[0] != NULL
       Prop = GUIDict->propertyForKey("KbdPrevLang");
       if (Prop != NULL) {
-        settingsData.KbdPrevLang = IsPropertyNotNullAndTrue(Prop);
+        gSettings.GUI.KbdPrevLang = IsPropertyNotNullAndTrue(Prop);
       }
 //      }
 
@@ -2543,23 +2940,23 @@ EFI_STATUS GetEarlyUserSettings (
       if (MouseDict != NULL) {
         const TagStruct* prop = MouseDict->propertyForKey("Speed");
         if (prop != NULL) {
-          settingsData.PointerSpeed = (INT32)GetPropertyAsInteger(prop, 0);
-          settingsData.PointerEnabled = (settingsData.PointerSpeed != 0);
+          gSettings.GUI.Mouse.PointerSpeed = (INT32)GetPropertyAsInteger(prop, 0);
+          gSettings.GUI.Mouse.PointerEnabled = (gSettings.GUI.Mouse.PointerSpeed != 0);
         }
         //but we can disable mouse even if there was positive speed
         prop = MouseDict->propertyForKey("Enabled");
         if (IsPropertyNotNullAndFalse(prop)) {
-          settingsData.PointerEnabled = FALSE;
+          gSettings.GUI.Mouse.PointerEnabled = FALSE;
         }
 
         prop = MouseDict->propertyForKey("Mirror");
         if (IsPropertyNotNullAndTrue(prop)) {
-          settingsData.PointerMirror = TRUE;
+          gSettings.GUI.Mouse.PointerMirror = TRUE;
         }
 
         prop = MouseDict->propertyForKey("DoubleClickTime");
         if (prop != NULL) {
-          settingsData.DoubleClickTime = (UINT64)GetPropertyAsInteger(prop, 500);
+          gSettings.GUI.Mouse.DoubleClickTime = (UINT64)GetPropertyAsInteger(prop, 500);
         }
       }
       // hide by name/uuid. Array of string
@@ -2568,7 +2965,7 @@ EFI_STATUS GetEarlyUserSettings (
         INTN   i;
         INTN   Count = HideArray->arrayContent().size();
         if (Count > 0) {
-          settingsData.HVHideStrings.setEmpty();
+          gSettings.GUI.HVHideStrings.setEmpty();
           for (i = 0; i < Count; i++) {
             const TagStruct* prop2 = &HideArray->arrayContent()[i];
             if ( !prop2->isString()) {
@@ -2576,60 +2973,60 @@ EFI_STATUS GetEarlyUserSettings (
               continue;
             }
             if ( prop2->getString()->stringValue().notEmpty() ) {
-              settingsData.HVHideStrings.Add(prop2->getString()->stringValue());
+              gSettings.GUI.HVHideStrings.Add(prop2->getString()->stringValue());
               DBG("Hiding entries with string %s\n", prop2->getString()->stringValue().c_str());
             }
           }
         }
       }
-      settingsData.LinuxScan = TRUE;
+      gSettings.GUI.Scan.LinuxScan = TRUE;
       // Disable loader scan
       Prop = GUIDict->propertyForKey("Scan");
       if (Prop != NULL) {
         if (IsPropertyNotNullAndFalse(Prop)) {
-          settingsData.DisableEntryScan = TRUE;
-          settingsData.DisableToolScan  = TRUE;
-          settingsData.GUI.NoLegacy      = TRUE;
+          gSettings.GUI.Scan.DisableEntryScan = TRUE;
+          gSettings.GUI.Scan.DisableToolScan  = TRUE;
+          gSettings.GUI.Scan.NoLegacy      = TRUE;
         } else if (Prop->isDict()) {
           const TagStruct* prop2 = Prop->getDict()->propertyForKey("Entries");
           if (IsPropertyNotNullAndFalse(prop2)) {
-            settingsData.DisableEntryScan = TRUE;
+            gSettings.GUI.Scan.DisableEntryScan = TRUE;
           }
           prop2 = Prop->getDict()->propertyForKey("Tool");
           if (IsPropertyNotNullAndFalse(prop2)) {
-            settingsData.DisableToolScan = TRUE;
+            gSettings.GUI.Scan.DisableToolScan = TRUE;
           }
           prop2 = Prop->getDict()->propertyForKey("Linux");
-          settingsData.LinuxScan = !IsPropertyNotNullAndFalse(prop2);
+          gSettings.GUI.Scan.LinuxScan = !IsPropertyNotNullAndFalse(prop2);
           prop2 = Prop->getDict()->propertyForKey("Legacy");
           if (prop2 != NULL) {
             if (prop2->isFalse()) {
-              settingsData.GUI.NoLegacy = TRUE;
+              gSettings.GUI.Scan.NoLegacy = TRUE;
             } else if ((prop2->isString()) && prop2->getString()->stringValue().notEmpty() ) {
               if ((prop2->getString()->stringValue()[0] == 'N') || (prop2->getString()->stringValue()[0] == 'n')) {
-                settingsData.GUI.NoLegacy = TRUE;
+                gSettings.GUI.Scan.NoLegacy = TRUE;
               } else if ((prop2->getString()->stringValue()[0] == 'F') || (prop2->getString()->stringValue()[0] == 'f')) {
-                settingsData.GUI.LegacyFirst = TRUE;
+                gSettings.GUI.Scan.LegacyFirst = TRUE;
                }
             }
           }
           prop2 = Prop->getDict()->propertyForKey("Kernel");
           if (prop2 != NULL) {
             if (prop2->isFalse()) {
-              settingsData.KernelScan = KERNEL_SCAN_NONE;
+              gSettings.GUI.Scan.KernelScan = KERNEL_SCAN_NONE;
             } else if ((prop2->isString()) && prop2->getString()->stringValue().notEmpty() ) {
               if ((prop2->getString()->stringValue()[0] == 'N') || (prop2->getString()->stringValue()[0] == 'n')) {
-                settingsData.KernelScan = ( prop2->getString()->stringValue().length() > 1  &&  (prop2->getString()->stringValue()[1] == 'E' || prop2->getString()->stringValue()[1] == 'e') ) ? KERNEL_SCAN_NEWEST : KERNEL_SCAN_NONE;
+                gSettings.GUI.Scan.KernelScan = ( prop2->getString()->stringValue().length() > 1  &&  (prop2->getString()->stringValue()[1] == 'E' || prop2->getString()->stringValue()[1] == 'e') ) ? KERNEL_SCAN_NEWEST : KERNEL_SCAN_NONE;
               } else if ((prop2->getString()->stringValue()[0] == 'O') || (prop2->getString()->stringValue()[0] == 'o')) {
-                settingsData.KernelScan = KERNEL_SCAN_OLDEST;
+                gSettings.GUI.Scan.KernelScan = KERNEL_SCAN_OLDEST;
               } else if ((prop2->getString()->stringValue()[0] == 'F') || (prop2->getString()->stringValue()[0] == 'f')) {
-                settingsData.KernelScan = KERNEL_SCAN_FIRST;
+                gSettings.GUI.Scan.KernelScan = KERNEL_SCAN_FIRST;
               } else if ((prop2->getString()->stringValue()[0] == 'L') || (prop2->getString()->stringValue()[0] == 'l')) {
-                settingsData.KernelScan = KERNEL_SCAN_LAST;
+                gSettings.GUI.Scan.KernelScan = KERNEL_SCAN_LAST;
               } else if ((prop2->getString()->stringValue()[0] == 'M') || (prop2->getString()->stringValue()[0] == 'm')) {
-                settingsData.KernelScan = KERNEL_SCAN_MOSTRECENT;
+                gSettings.GUI.Scan.KernelScan = KERNEL_SCAN_MOSTRECENT;
               } else if ((prop2->getString()->stringValue()[0] == 'E') || (prop2->getString()->stringValue()[0] == 'e')) {
-                settingsData.KernelScan = KERNEL_SCAN_EARLIEST;
+                gSettings.GUI.Scan.KernelScan = KERNEL_SCAN_EARLIEST;
               }
             }
           }
@@ -2645,9 +3042,11 @@ EFI_STATUS GetEarlyUserSettings (
             for (INTN i = 0; i < Count; i++) {
               const TagDict* Dict3 = arrayProp->dictElementAt(i, "Custom/Entries"_XS8);
               // Allocate an entry
-              CUSTOM_LOADER_ENTRY* Entry = new CUSTOM_LOADER_ENTRY;
+              CUSTOM_LOADER_ENTRY_SETTINGS* Entry = new CUSTOM_LOADER_ENTRY_SETTINGS;
               // Fill it in
-              if ( !FillinCustomEntry(Entry, Dict3, FALSE) || !AddCustomLoaderEntry(Entry) ) {
+              if ( FillinCustomEntry(Entry, Dict3, FALSE) ) {
+                gSettings.GUI.CustomEntriesSettings.AddReference(Entry, true);
+              }else{
                 delete Entry;
               }
             }
@@ -2655,16 +3054,18 @@ EFI_STATUS GetEarlyUserSettings (
         }
         const TagArray* LegacyArray = CustomDict2->arrayPropertyForKey("Legacy"); // is an array of dict
         if (LegacyArray != NULL) {
-          CUSTOM_LEGACY_ENTRY *Entry;
+          CUSTOM_LEGACY_ENTRY_SETTINGS *Entry;
           INTN   i;
           INTN   Count = LegacyArray->arrayContent().size();
           if (Count > 0) {
             for (i = 0; i < Count; i++) {
               const TagDict* Dict3 = LegacyArray->dictElementAt(i, "Legacy"_XS8);
               // Allocate an entry
-              Entry = new CUSTOM_LEGACY_ENTRY;
+              Entry = new CUSTOM_LEGACY_ENTRY_SETTINGS;
               // Fill it in
-              if (!FillingCustomLegacy(Entry, Dict3) || !AddCustomLegacyEntry(Entry)) {
+              if ( FillingCustomLegacy(Entry, Dict3) ) {
+                gSettings.GUI.CustomLegacySettings.AddReference(Entry, true);
+              }else{
                 delete Entry;
               }
             }
@@ -2672,16 +3073,17 @@ EFI_STATUS GetEarlyUserSettings (
         }
         const TagArray* ToolArray = CustomDict2->arrayPropertyForKey("Tool"); // is an array of dict
         if (ToolArray != NULL) {
-          CUSTOM_TOOL_ENTRY *Entry;
           INTN   i;
           INTN   Count = ToolArray->arrayContent().size();
           if (Count > 0) {
             for (i = 0; i < Count; i++) {
               const TagDict* Dict3 = ToolArray->dictElementAt(i, "Tool"_XS8);
               // Allocate an entry
-              Entry = new CUSTOM_TOOL_ENTRY;
+              CUSTOM_TOOL_ENTRY_SETTINGS* Entry = new CUSTOM_TOOL_ENTRY_SETTINGS;
               // Fill it in
-              if (!FillingCustomTool(Entry, Dict3) || !AddCustomToolEntry(Entry)) {
+              if ( FillingCustomTool(Entry, Dict3) ) {
+                gSettings.GUI.CustomToolSettings.AddReference(Entry, true);
+              }else{
                 delete Entry;
               }
             }
@@ -2693,71 +3095,75 @@ EFI_STATUS GetEarlyUserSettings (
     if (GraphicsDict != NULL) {
 
       const TagStruct* Prop             = GraphicsDict->propertyForKey("PatchVBios");
-      settingsData.PatchVBios              = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Graphics.PatchVBios              = IsPropertyNotNullAndTrue(Prop);
 
-      settingsData.PatchVBiosBytesCount    = 0;
+      gSettings.Graphics.PatchVBiosBytes.setEmpty();
 
       const TagArray* Dict2 = GraphicsDict->arrayPropertyForKey("PatchVBiosBytes"); // array of dict
       if (Dict2 != NULL) {
         INTN   Count = Dict2->arrayContent().size();
         if (Count > 0) {
-          VBIOS_PATCH_BYTES *VBiosPatch;
           UINTN             FindSize    = 0;
           UINTN             ReplaceSize = 0;
           BOOLEAN           Valid;
           // alloc space for up to 16 entries
-          settingsData.PatchVBiosBytes = (__typeof__(settingsData.PatchVBiosBytes))AllocateZeroPool(Count * sizeof(VBIOS_PATCH_BYTES));
+//          gSettings.Graphics.PatchVBiosBytes = (__typeof__(gSettings.Graphics.PatchVBiosBytes))AllocateZeroPool(Count * sizeof(VBIOS_PATCH_BYTES));
 
           // get all entries
           for (INTN i = 0; i < Count; i++) {
             const TagDict* dict3 = Dict2->dictElementAt(i, "Graphics/PatchVBiosBytes"_XS8);
             Valid = TRUE;
             // read entry
-            VBiosPatch          = &settingsData.PatchVBiosBytes[settingsData.PatchVBiosBytesCount];
-            VBiosPatch->Find    = GetDataSetting (dict3, "Find",    &FindSize);
-            VBiosPatch->Replace = GetDataSetting (dict3, "Replace", &ReplaceSize);
+            VBIOS_PATCH* VBiosPatchPtr = new VBIOS_PATCH;
+            VBIOS_PATCH& VBiosPatch = *VBiosPatchPtr;
+//            VBiosPatch          = &gSettings.Graphics.PatchVBiosBytes[gSettings.Graphics.PatchVBiosBytesCount];
+            UINT8* DataSetting = GetDataSetting (dict3, "Find",    &FindSize);
+            VBiosPatch.Find.stealValueFrom(DataSetting, FindSize);
+            DataSetting = GetDataSetting (dict3, "Replace", &ReplaceSize);
+            VBiosPatch.Replace.stealValueFrom(DataSetting, ReplaceSize);
 
-            if (VBiosPatch->Find == NULL || FindSize == 0) {
+            if ( VBiosPatch.Find.size() == 0 ) {
               Valid = FALSE;
               DBG("PatchVBiosBytes[%lld]: missing Find data\n", i);
             }
 
-            if (VBiosPatch->Replace == NULL || ReplaceSize == 0) {
+            if ( VBiosPatch.Replace.size() == 0 ) {
               Valid = FALSE;
               DBG("PatchVBiosBytes[%lld]: missing Replace data\n", i);
             }
 
-            if (FindSize != ReplaceSize) {
+            if (VBiosPatch.Find.size() != VBiosPatch.Replace.size()) {
               Valid = FALSE;
               DBG("PatchVBiosBytes[%lld]: Find and Replace data are not the same size\n", i);
             }
 
             if (Valid) {
-              VBiosPatch->NumberOfBytes = FindSize;
+//              VBiosPatch->NumberOfBytes = FindSize;
               // go to next entry
-              ++settingsData.PatchVBiosBytesCount;
+//              ++gSettings.Graphics.PatchVBiosBytesCount;
+              gSettings.Graphics.PatchVBiosBytes.AddReference(VBiosPatchPtr, true);
             } else {
               // error - release mem
-              if (VBiosPatch->Find != NULL) {
-                FreePool(VBiosPatch->Find);
-                VBiosPatch->Find = NULL;
-              }
-
-              if (VBiosPatch->Replace != NULL) {
-                FreePool(VBiosPatch->Replace);
-                VBiosPatch->Replace = NULL;
-              }
+              delete VBiosPatchPtr;
+//              if (VBiosPatch->Find != NULL) {
+//                FreePool(VBiosPatch->Find);
+//                VBiosPatch->Find = NULL;
+//              }
+//              if (VBiosPatch->Replace != NULL) {
+//                FreePool(VBiosPatch->Replace);
+//                VBiosPatch->Replace = NULL;
+//              }
             }
           }
 
-          if (settingsData.PatchVBiosBytesCount == 0) {
-            FreePool(settingsData.PatchVBiosBytes);
-            settingsData.PatchVBiosBytes = NULL;
-          }
+//          if (gSettings.Graphics.PatchVBiosBytesCount == 0) {
+//            FreePool(gSettings.Graphics.PatchVBiosBytes);
+//            gSettings.Graphics.PatchVBiosBytes = NULL;
+//          }
         }
       }
 
-      GetEDIDSettings(GraphicsDict);
+      GetEDIDSettings(GraphicsDict, gSettings);
     }
 
     const TagArray* DisableDriversArray = CfgDict->arrayPropertyForKey("DisableDrivers"); // array of string
@@ -2765,7 +3171,7 @@ EFI_STATUS GetEarlyUserSettings (
       INTN   i;
       INTN   Count = DisableDriversArray->arrayContent().size();
       if (Count > 0) {
-        settingsData.DisabledDriverArray.setEmpty();
+        gSettings.DisabledDriverArray.setEmpty();
 
         for (i = 0; i < Count; i++) {
           const TagStruct* Prop = &DisableDriversArray->arrayContent()[i];
@@ -2773,7 +3179,8 @@ EFI_STATUS GetEarlyUserSettings (
             MsgLog("MALFORMED PLIST : DisableDrivers must be an array of string");
             continue;
           }
-          settingsData.DisabledDriverArray.Add(Prop->getString()->stringValue());
+          if ( Prop->getString()->stringValue().notEmpty() )
+          gSettings.DisabledDriverArray.Add(Prop->getString()->stringValue());
         }
       }
     }
@@ -2784,7 +3191,7 @@ EFI_STATUS GetEarlyUserSettings (
       if (Dict2 != NULL) {
         // HDA
         const TagStruct* Prop = Dict2->propertyForKey("ResetHDA");
-        settingsData.ResetHDA = IsPropertyNotNullAndTrue(Prop);
+        gSettings.Devices.Audio.ResetHDA = IsPropertyNotNullAndTrue(Prop);
       }
     }
 
@@ -2797,13 +3204,13 @@ EFI_STATUS GetEarlyUserSettings (
         }else{
           if ((Prop->getString()->stringValue().equalIC("UseMacAddr0")) ||
               (Prop->getString()->stringValue().equalIC("UseMacAddr1"))) {
-            GetLegacyLanAddress = TRUE;
+//            gSettings.RtVariables.GetLegacyLanAddress = TRUE;
           }
         }
       }
     }
 
-    settingsData.mmioWhiteListArray.setEmpty();
+    gSettings.Quirks.mmioWhiteListArray.setEmpty();
  //   const TagDict* OcQuirksDict = CfgDict->dictPropertyForKey("OcQuirks");
 //if ( OcQuirksDict ) panic("config.plist/OcQuirks has been renamed Quirks. Update your config.plist");
 
@@ -2813,59 +3220,59 @@ EFI_STATUS GetEarlyUserSettings (
       const TagStruct* Prop;
       Prop               = OcQuirksDict->propertyForKey("AvoidRuntimeDefrag");
 //if ( !Prop ) panic("Cannot find AvoidRuntimeDefrag in OcQuirks under root (OC booter quirks)");
-      settingsData.ocBooterQuirks.AvoidRuntimeDefrag = !IsPropertyNotNullAndFalse(Prop); //true if absent so no panic
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.AvoidRuntimeDefrag? QUIRK_DEFRAG:0;
+      gSettings.Quirks.ocBooterQuirks.AvoidRuntimeDefrag = !IsPropertyNotNullAndFalse(Prop); //true if absent so no panic
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.AvoidRuntimeDefrag? QUIRK_DEFRAG:0;
       Prop               = OcQuirksDict->propertyForKey( "DevirtualiseMmio");
-      settingsData.ocBooterQuirks.DevirtualiseMmio   = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.DevirtualiseMmio? QUIRK_MMIO:0;
+      gSettings.Quirks.ocBooterQuirks.DevirtualiseMmio   = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.DevirtualiseMmio? QUIRK_MMIO:0;
       Prop               = OcQuirksDict->propertyForKey( "DisableSingleUser");
-      settingsData.ocBooterQuirks.DisableSingleUser  = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.DisableSingleUser? QUIRK_SU:0;
+      gSettings.Quirks.ocBooterQuirks.DisableSingleUser  = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.DisableSingleUser? QUIRK_SU:0;
       Prop               = OcQuirksDict->propertyForKey( "DisableVariableWrite");
-      settingsData.ocBooterQuirks.DisableVariableWrite = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.DisableVariableWrite? QUIRK_VAR:0;
+      gSettings.Quirks.ocBooterQuirks.DisableVariableWrite = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.DisableVariableWrite? QUIRK_VAR:0;
       Prop               = OcQuirksDict->propertyForKey( "DiscardHibernateMap");
-      settingsData.ocBooterQuirks.DiscardHibernateMap = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.DiscardHibernateMap? QUIRK_HIBER:0;
+      gSettings.Quirks.ocBooterQuirks.DiscardHibernateMap = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.DiscardHibernateMap? QUIRK_HIBER:0;
       Prop               = OcQuirksDict->propertyForKey( "EnableSafeModeSlide");
-      settingsData.ocBooterQuirks.EnableSafeModeSlide = !IsPropertyNotNullAndFalse(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.EnableSafeModeSlide? QUIRK_SAFE:0;
+      gSettings.Quirks.ocBooterQuirks.EnableSafeModeSlide = !IsPropertyNotNullAndFalse(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.EnableSafeModeSlide? QUIRK_SAFE:0;
       Prop               = OcQuirksDict->propertyForKey( "EnableWriteUnprotector");
-      settingsData.ocBooterQuirks.EnableWriteUnprotector = !IsPropertyNotNullAndFalse(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.EnableWriteUnprotector? QUIRK_UNPROT:0;
+      gSettings.Quirks.ocBooterQuirks.EnableWriteUnprotector = !IsPropertyNotNullAndFalse(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.EnableWriteUnprotector? QUIRK_UNPROT:0;
       Prop               = OcQuirksDict->propertyForKey( "ForceExitBootServices");
-      settingsData.ocBooterQuirks.ForceExitBootServices = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.ForceExitBootServices? QUIRK_EXIT:0;
+      gSettings.Quirks.ocBooterQuirks.ForceExitBootServices = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.ForceExitBootServices? QUIRK_EXIT:0;
       Prop               = OcQuirksDict->propertyForKey( "ProtectMemoryRegions");
-      settingsData.ocBooterQuirks.ProtectMemoryRegions = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.ProtectMemoryRegions? QUIRK_REGION:0;
+      gSettings.Quirks.ocBooterQuirks.ProtectMemoryRegions = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.ProtectMemoryRegions? QUIRK_REGION:0;
       Prop               = OcQuirksDict->propertyForKey( "ProtectSecureBoot");
-      settingsData.ocBooterQuirks.ProtectSecureBoot = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.ProtectSecureBoot? QUIRK_SECURE:0;
+      gSettings.Quirks.ocBooterQuirks.ProtectSecureBoot = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.ProtectSecureBoot? QUIRK_SECURE:0;
       Prop               = OcQuirksDict->propertyForKey( "ProtectUefiServices");
-      settingsData.ocBooterQuirks.ProtectUefiServices = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.ProtectUefiServices? QUIRK_UEFI:0;
+      gSettings.Quirks.ocBooterQuirks.ProtectUefiServices = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.ProtectUefiServices? QUIRK_UEFI:0;
       //it is in GUI section
 //      Prop               = OcQuirksDict->propertyForKey( "ProvideConsoleGopEnable");
 //      settingsData.ProvideConsoleGop = !IsPropertyNotNullAndFalse(Prop);
       Prop               = OcQuirksDict->propertyForKey( "ProvideCustomSlide");
-      settingsData.ocBooterQuirks.ProvideCustomSlide = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.ProvideCustomSlide? QUIRK_CUSTOM:0;
+      gSettings.Quirks.ocBooterQuirks.ProvideCustomSlide = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.ProvideCustomSlide? QUIRK_CUSTOM:0;
       Prop               = OcQuirksDict->propertyForKey( "ProvideMaxSlide");
-      settingsData.ocBooterQuirks.ProvideMaxSlide = (UINT8)GetPropertyAsInteger(Prop, 0); // cast will be safe when the new parser will ensure that the value is UINT8
+      gSettings.Quirks.ocBooterQuirks.ProvideMaxSlide = (UINT8)GetPropertyAsInteger(Prop, 0); // cast will be safe when the new parser will ensure that the value is UINT8
       Prop               = OcQuirksDict->propertyForKey( "RebuildAppleMemoryMap");
-      settingsData.ocBooterQuirks.RebuildAppleMemoryMap = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.RebuildAppleMemoryMap? QUIRK_MAP:0;
+      gSettings.Quirks.ocBooterQuirks.RebuildAppleMemoryMap = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.RebuildAppleMemoryMap? QUIRK_MAP:0;
       Prop               = OcQuirksDict->propertyForKey( "SetupVirtualMap");
-      settingsData.ocBooterQuirks.SetupVirtualMap = !IsPropertyNotNullAndFalse(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.SetupVirtualMap? QUIRK_VIRT:0;
+      gSettings.Quirks.ocBooterQuirks.SetupVirtualMap = !IsPropertyNotNullAndFalse(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.SetupVirtualMap? QUIRK_VIRT:0;
       Prop               = OcQuirksDict->propertyForKey( "SignalAppleOS");
-      settingsData.ocBooterQuirks.SignalAppleOS = IsPropertyNotNullAndTrue(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.SignalAppleOS? QUIRK_OS:0;
+      gSettings.Quirks.ocBooterQuirks.SignalAppleOS = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.SignalAppleOS? QUIRK_OS:0;
       Prop               = OcQuirksDict->propertyForKey( "SyncRuntimePermissions");
-      settingsData.ocBooterQuirks.SyncRuntimePermissions = !IsPropertyNotNullAndFalse(Prop);
-      settingsData.QuirksMask  |= settingsData.ocBooterQuirks.SyncRuntimePermissions? QUIRK_PERM:0;
-      settingsData.mmioWhiteListArray.setEmpty();
+      gSettings.Quirks.ocBooterQuirks.SyncRuntimePermissions = !IsPropertyNotNullAndFalse(Prop);
+      gSettings.Quirks.QuirksMask  |= gSettings.Quirks.ocBooterQuirks.SyncRuntimePermissions? QUIRK_PERM:0;
+      gSettings.Quirks.mmioWhiteListArray.setEmpty();
 
       const TagArray* Dict2 = OcQuirksDict->arrayPropertyForKey("MmioWhitelist"); // array of dict
       if (Dict2 != NULL) {
@@ -2877,8 +3284,8 @@ EFI_STATUS GetEarlyUserSettings (
           for (INTN i = 0; i < Count; i++)
           {
             const TagDict* Dict3 = Dict2->dictElementAt(i, "MmioWhitelist"_XS8);
-            MMIOWhiteList* mmioWhiteListPtr = new MMIOWhiteList();
-            MMIOWhiteList& mmioWhiteList = *mmioWhiteListPtr;
+            SETTINGS_DATA::QuirksClass::MMIOWhiteList* mmioWhiteListPtr = new SETTINGS_DATA::QuirksClass::MMIOWhiteList();
+            SETTINGS_DATA::QuirksClass::MMIOWhiteList& mmioWhiteList = *mmioWhiteListPtr;
 
             const TagStruct* Prop2 = Dict3->propertyForKey("Comment");
             if (Prop2 != NULL && Prop2->isString() && Prop2->getString()->stringValue().notEmpty()) {
@@ -2893,27 +3300,27 @@ EFI_STATUS GetEarlyUserSettings (
               Prop2 = Dict3->propertyForKey("Enabled");
               mmioWhiteList.enabled = IsPropertyNotNullAndTrue(Prop2);
             }
-            settingsData.mmioWhiteListArray.AddReference(mmioWhiteListPtr, true);
+            gSettings.Quirks.mmioWhiteListArray.AddReference(mmioWhiteListPtr, true);
           }
         }
       }
 
       Prop = OcQuirksDict->propertyForKey("FuzzyMatch");
       if (Prop != NULL || GlobalConfig.gBootChanged) {
-        settingsData.KernelAndKextPatches.FuzzyMatch = !IsPropertyNotNullAndFalse(Prop);
+        gSettings.Quirks.FuzzyMatch = !IsPropertyNotNullAndFalse(Prop);
       }
 
       Prop = OcQuirksDict->propertyForKey("KernelCache");
       if (Prop != NULL || GlobalConfig.gBootChanged) {
         if ( Prop->isString() ) {
           if ( Prop->getString()->stringValue().notEmpty() ) {
-            settingsData.KernelAndKextPatches.OcKernelCache = Prop->getString()->stringValue();
+            gSettings.Quirks.OcKernelCache = Prop->getString()->stringValue();
           }else{
-            settingsData.KernelAndKextPatches.OcKernelCache = "Auto"_XS8;
+            gSettings.Quirks.OcKernelCache = "Auto"_XS8;
           }
         }else{
           MsgLog("MALFORMED PLIST : Quirks/KernelCache must be a string");
-          settingsData.KernelAndKextPatches.OcKernelCache = "Auto"_XS8;
+          gSettings.Quirks.OcKernelCache = "Auto"_XS8;
         }
       }
 
@@ -2921,17 +3328,17 @@ EFI_STATUS GetEarlyUserSettings (
       // Booter Quirks
 //      Prop = OcQuirksDict->propertyForKey("AppleCpuPmCfgLock");
 //      settingsData.KernelAndKextPatches.OcKernelQuirks.AppleCpuPmCfgLock = IsPropertyNotNullAndTrue(Prop);
-      settingsData.KernelAndKextPatches.OcKernelQuirks.AppleCpuPmCfgLock = settingsData.KernelAndKextPatches.KPAppleIntelCPUPM;
+//      gSettings.Quirks.OcKernelQuirks.AppleCpuPmCfgLock = gSettings.KernelAndKextPatches.KPAppleIntelCPUPM || GlobalConfig.NeedPMfix;
 
 //      Prop = OcQuirksDict->propertyForKey("AppleXcpmCfgLock"); //
 //      settingsData.KernelAndKextPatches.OcKernelQuirks.AppleXcpmCfgLock = IsPropertyNotNullAndTrue(Prop);
-      settingsData.KernelAndKextPatches.OcKernelQuirks.AppleXcpmCfgLock = settingsData.KernelAndKextPatches.KPKernelPm;
+//      gSettings.Quirks.OcKernelQuirks.AppleXcpmCfgLock = GlobalConfig.KPKernelPm || GlobalConfig.NeedPMfix;
 
       Prop = OcQuirksDict->propertyForKey("AppleXcpmExtraMsrs");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.AppleXcpmExtraMsrs = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.AppleXcpmExtraMsrs = IsPropertyNotNullAndTrue(Prop);
 
       Prop = OcQuirksDict->propertyForKey("AppleXcpmForceBoost");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.AppleXcpmForceBoost = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.AppleXcpmForceBoost = IsPropertyNotNullAndTrue(Prop);
 
 // We can't use that Quirks because we don't delegate SMBios to OC.
 //      Prop = OcQuirksDict->propertyForKey("CustomSMBIOSGuid");
@@ -2939,40 +3346,40 @@ EFI_STATUS GetEarlyUserSettings (
 
       Prop = OcQuirksDict->propertyForKey("DisableIoMapper");
 //if ( !Prop ) panic("Cannot find DisableIoMapper in config.plist/Quirks. You forgot to merge your quirks into one section. Update your config.plist");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.DisableIoMapper = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.DisableIoMapper = IsPropertyNotNullAndTrue(Prop);
 
       Prop = OcQuirksDict->propertyForKey("DisableLinkeditJettison");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.DisableLinkeditJettison = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.DisableLinkeditJettison = IsPropertyNotNullAndTrue(Prop);
 
  //     Prop = OcQuirksDict->propertyForKey("DisableRtcChecksum");
  //     settingsData.KernelAndKextPatches.OcKernelQuirks.DisableRtcChecksum = IsPropertyNotNullAndTrue(Prop);
-      settingsData.KernelAndKextPatches.OcKernelQuirks.DisableRtcChecksum = settingsData.KernelAndKextPatches.KPAppleRTC;
+      gSettings.Quirks.OcKernelQuirks.DisableRtcChecksum = gSettings.KernelAndKextPatches.KPAppleRTC;
 
       Prop = OcQuirksDict->propertyForKey("DummyPowerManagement");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.DummyPowerManagement = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.DummyPowerManagement = IsPropertyNotNullAndTrue(Prop);
 
       Prop = OcQuirksDict->propertyForKey("ExternalDiskIcons");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.ExternalDiskIcons = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.ExternalDiskIcons = IsPropertyNotNullAndTrue(Prop);
 
       Prop = OcQuirksDict->propertyForKey("IncreasePciBarSize");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.IncreasePciBarSize = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.IncreasePciBarSize = IsPropertyNotNullAndTrue(Prop);
 
  //     Prop = OcQuirksDict->propertyForKey("LapicKernelPanic");
  //     settingsData.KernelAndKextPatches.OcKernelQuirks.LapicKernelPanic = IsPropertyNotNullAndTrue(Prop);
-      settingsData.KernelAndKextPatches.OcKernelQuirks.LapicKernelPanic = settingsData.KernelAndKextPatches.KPKernelLapic;
+      gSettings.Quirks.OcKernelQuirks.LapicKernelPanic = gSettings.KernelAndKextPatches.KPKernelLapic;
 
 //      Prop = OcQuirksDict->propertyForKey("PanicNoKextDump");
 //      settingsData.KernelAndKextPatches.OcKernelQuirks.PanicNoKextDump = IsPropertyNotNullAndTrue(Prop); //KPPanicNoKextDump
-      settingsData.KernelAndKextPatches.OcKernelQuirks.PanicNoKextDump = settingsData.KernelAndKextPatches.KPPanicNoKextDump;
+      gSettings.Quirks.OcKernelQuirks.PanicNoKextDump = gSettings.KernelAndKextPatches.KPPanicNoKextDump;
 
       Prop = OcQuirksDict->propertyForKey("PowerTimeoutKernelPanic");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.PowerTimeoutKernelPanic = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.PowerTimeoutKernelPanic = IsPropertyNotNullAndTrue(Prop);
 
       Prop = OcQuirksDict->propertyForKey("ThirdPartyDrives");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.ThirdPartyDrives = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.ThirdPartyDrives = IsPropertyNotNullAndTrue(Prop);
 
       Prop = OcQuirksDict->propertyForKey("XhciPortLimit");
-      settingsData.KernelAndKextPatches.OcKernelQuirks.XhciPortLimit = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Quirks.OcKernelQuirks.XhciPortLimit = IsPropertyNotNullAndTrue(Prop);
     }
   }
 
@@ -3436,8 +3843,16 @@ ParseSMBIOSSettings(
   }
 }
 
-static void getACPISettings(const TagDict *CfgDict)
+/*
+ * To ease copy/paste and text replacement from GetUserSettings, the parameter has the same name as the global
+ * and is passed by non-const reference.
+ * This temporary during the refactoring
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+static void getACPISettings(const TagDict *CfgDict, SETTINGS_DATA& gSettings)
 {
+  #pragma GCC diagnostic pop
   const TagDict* ACPIDict = CfgDict->dictPropertyForKey("ACPI");
   if (ACPIDict) {
     const TagArray* DropTablesArray = ACPIDict->arrayPropertyForKey("DropTables"); // array of dict
@@ -3594,8 +4009,8 @@ static void getACPISettings(const TagDict *CfgDict)
           gSettings.ACPI.DSDT.DSDTPatchArray.setEmpty();
           for (i = 0; i < Count; i++)
           {
-            DSDT_Patch* dsdtPatchPtr = new DSDT_Patch();
-            DSDT_Patch& dsdtPatch = *dsdtPatchPtr;
+            SETTINGS_DATA::ACPIClass::DSDTClass::DSDT_Patch* dsdtPatchPtr = new SETTINGS_DATA::ACPIClass::DSDTClass::DSDT_Patch();
+            SETTINGS_DATA::ACPIClass::DSDTClass::DSDT_Patch& dsdtPatch = *dsdtPatchPtr;
             UINTN Size = 0;
             const TagDict* Prop2 = PatchesArray->dictElementAt(i,"DSDT/Patches"_XS8);
             DBG(" - [%02lld]:", i);
@@ -3611,6 +4026,7 @@ static void getACPISettings(const TagDict *CfgDict)
             DBG(" (%s)", dsdtPatch.PatchDsdtLabel.c_str());
             
             Prop3 = Prop2->propertyForKey("Disabled");
+            dsdtPatch.Disabled = IsPropertyNotNullAndTrue(Prop3);
             dsdtPatch.PatchDsdtMenuItem.BValue = !IsPropertyNotNullAndTrue(Prop3);
             
             //DBG(" DSDT bin patch #%d ", i);
@@ -3772,7 +4188,7 @@ static void getACPISettings(const TagDict *CfgDict)
       }
       
       const TagStruct* Prop = SSDTDict->propertyForKey("DropOem");
-      gSettings.ACPI.SSDT.DropSSDT  = IsPropertyNotNullAndTrue(Prop);
+      gSettings.ACPI.SSDT.DropSSDTSetting  = IsPropertyNotNullAndTrue(Prop);
       
       Prop = SSDTDict->propertyForKey("NoOemTableId"); // to disable OEM table ID on ACPI/orgin/SSDT file names
       gSettings.ACPI.SSDT.NoOemTableId = IsPropertyNotNullAndTrue(Prop);
@@ -3791,25 +4207,25 @@ static void getACPISettings(const TagDict *CfgDict)
       
       Prop = SSDTDict->propertyForKey("EnableC6");
       if (Prop) {
-        gSettings.ACPI.SSDT.EnableC6 = IsPropertyNotNullAndTrue(Prop);
-        DBG("EnableC6: %s\n", gSettings.ACPI.SSDT.EnableC6 ? "yes" : "no");
+        gSettings.ACPI.SSDT._EnableC6 = IsPropertyNotNullAndTrue(Prop);
+        DBG("EnableC6: %s\n", gSettings.ACPI.SSDT._EnableC6 ? "yes" : "no");
       }
       
       Prop = SSDTDict->propertyForKey("EnableC4");
       if (Prop) {
-        gSettings.ACPI.SSDT.EnableC4 = IsPropertyNotNullAndTrue(Prop);
-        DBG("EnableC4: %s\n", gSettings.ACPI.SSDT.EnableC4 ? "yes" : "no");
+        gSettings.ACPI.SSDT._EnableC4 = IsPropertyNotNullAndTrue(Prop);
+        DBG("EnableC4: %s\n", gSettings.ACPI.SSDT._EnableC4 ? "yes" : "no");
       }
       
       Prop = SSDTDict->propertyForKey("EnableC2");
       if (Prop) {
-        gSettings.ACPI.SSDT.EnableC2 = IsPropertyNotNullAndTrue(Prop);
-        DBG("EnableC2: %s\n", gSettings.ACPI.SSDT.EnableC2 ? "yes" : "no");
+        gSettings.ACPI.SSDT._EnableC2 = IsPropertyNotNullAndTrue(Prop);
+        DBG("EnableC2: %s\n", gSettings.ACPI.SSDT._EnableC2 ? "yes" : "no");
       }
       
       Prop = SSDTDict->propertyForKey("C3Latency");
-        gSettings.ACPI.SSDT.C3Latency = (UINT16)GetPropertyAsInteger(Prop, gSettings.ACPI.SSDT.C3Latency);
-        DBG("C3Latency: %d\n", gSettings.ACPI.SSDT.C3Latency);
+        gSettings.ACPI.SSDT._C3Latency = (UINT16)GetPropertyAsInteger(Prop, gSettings.ACPI.SSDT._C3Latency);
+        DBG("C3Latency: %d\n", gSettings.ACPI.SSDT._C3Latency);
       
       Prop                       = SSDTDict->propertyForKey("PLimitDict");
       gSettings.ACPI.SSDT.PLimitDict       = (UINT8)GetPropertyAsInteger(Prop, 0);
@@ -3993,9 +4409,8 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       }
 
       Prop                     = BootDict->propertyForKey("NeverDoRecovery");
-      gSettings.NeverDoRecovery  = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Boot.NeverDoRecovery  = IsPropertyNotNullAndTrue(Prop);
     }
-
 
     //Graphics
 
@@ -4005,62 +4420,62 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       const TagStruct* Prop     = GraphicsDict->propertyForKey("Inject");
       if (Prop != NULL) {
         if (IsPropertyNotNullAndTrue(Prop)) {
-          gSettings.GraphicsInjector = TRUE;
-          gSettings.InjectIntel      = TRUE;
-          gSettings.InjectATI        = TRUE;
-          gSettings.InjectNVidia     = TRUE;
+          gSettings.Graphics.InjectAsDict.GraphicsInjector = TRUE;
+          gSettings.Graphics.InjectAsDict.InjectIntel      = TRUE;
+          gSettings.Graphics.InjectAsDict.InjectATI        = TRUE;
+          gSettings.Graphics.InjectAsDict.InjectNVidia     = TRUE;
         } else if (Prop->isDict()) {
           const TagDict* Dict2 = Prop->getDict();
           const TagStruct* Prop2 = Dict2->propertyForKey("Intel");
           if (Prop2 != NULL) {
-            gSettings.InjectIntel = IsPropertyNotNullAndTrue(Prop2);
+            gSettings.Graphics.InjectAsDict.InjectIntel = IsPropertyNotNullAndTrue(Prop2);
           }
 
           Prop2 = Dict2->propertyForKey("ATI");
           if (Prop2 != NULL) {
-            gSettings.InjectATI = IsPropertyNotNullAndTrue(Prop2);
+            gSettings.Graphics.InjectAsDict.InjectATI = IsPropertyNotNullAndTrue(Prop2);
           }
 
           Prop2 = Dict2->propertyForKey("NVidia");
           if (Prop2 != NULL) {
-            gSettings.InjectNVidia = IsPropertyNotNullAndTrue(Prop2);
+            gSettings.Graphics.InjectAsDict.InjectNVidia = IsPropertyNotNullAndTrue(Prop2);
           }
         } else {
-          gSettings.GraphicsInjector = FALSE;
-          gSettings.InjectIntel      = FALSE;
-          gSettings.InjectATI        = FALSE;
-          gSettings.InjectNVidia     = FALSE;
+          gSettings.Graphics.InjectAsDict.GraphicsInjector = FALSE;
+          gSettings.Graphics.InjectAsDict.InjectIntel      = FALSE;
+          gSettings.Graphics.InjectAsDict.InjectATI        = FALSE;
+          gSettings.Graphics.InjectAsDict.InjectNVidia     = FALSE;
         }
       }
 
       Prop = GraphicsDict->propertyForKey("RadeonDeInit");
-      gSettings.DeInit = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Graphics.RadeonDeInit = IsPropertyNotNullAndTrue(Prop);
 
       Prop = GraphicsDict->propertyForKey("VRAM");
-      gSettings.VRAM = (UINTN)GetPropertyAsInteger(Prop, (INTN)gSettings.VRAM); //Mb
+      gSettings.Graphics.VRAM = (UINTN)GetPropertyAsInteger(Prop, (INTN)gSettings.Graphics.VRAM); //Mb
       //
       Prop = GraphicsDict->propertyForKey("RefCLK");
-      gSettings.RefCLK = (UINT16)GetPropertyAsInteger(Prop, 0);
+      gSettings.Graphics.RefCLK = (UINT16)GetPropertyAsInteger(Prop, 0);
 
       Prop = GraphicsDict->propertyForKey("LoadVBios");
-      gSettings.LoadVBios = IsPropertyNotNullAndTrue(Prop);
-
-      for (i = 0; i < (INTN)NGFX; i++) {
-        gGraphics[i].LoadVBios = gSettings.LoadVBios; //default
-      }
+      gSettings.Graphics.LoadVBios = IsPropertyNotNullAndTrue(Prop);
+//
+//      for (i = 0; i < (INTN)NGFX; i++) {
+//        gGraphics[i].LoadVBios = gSettings.Graphics.LoadVBios; //default
+//      }
 
       Prop = GraphicsDict->propertyForKey("VideoPorts");
-      gSettings.VideoPorts   = (UINT16)GetPropertyAsInteger(Prop, gSettings.VideoPorts);
+      gSettings.Graphics.VideoPorts   = (UINT16)GetPropertyAsInteger(Prop, gSettings.Graphics.VideoPorts);
 
       Prop = GraphicsDict->propertyForKey("BootDisplay");
-      gSettings.BootDisplay = (INT8)GetPropertyAsInteger(Prop, -1);
+      gSettings.Graphics.BootDisplay = (INT8)GetPropertyAsInteger(Prop, -1);
 
       Prop = GraphicsDict->propertyForKey("FBName");
       if (Prop != NULL) {
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : property not string in FBName\n");
         }else{
-          gSettings.FBName = Prop->getString()->stringValue();
+          gSettings.Graphics.FBName = Prop->getString()->stringValue();
         }
       }
 
@@ -4069,11 +4484,11 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : property not string in NVCAP\n");
         }else{
-          hex2bin (Prop->getString()->stringValue().c_str(), (UINT8*)&gSettings.NVCAP[0], 20);
+          hex2bin (Prop->getString()->stringValue(), (UINT8*)&gSettings.Graphics.NVCAP[0], sizeof(gSettings.Graphics.NVCAP));
           DBG("Read NVCAP:");
 
           for (i = 0; i<20; i++) {
-            DBG("%02hhX", gSettings.NVCAP[i]);
+            DBG("%02hhX", gSettings.Graphics.NVCAP[i]);
           }
 
           DBG("\n");
@@ -4086,49 +4501,59 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
         if ( !Prop->isString() ) {
           MsgLog("ATTENTION : property not string in display-cfg\n");
         }else{
-          hex2bin (Prop->getString()->stringValue().c_str(), (UINT8*)&gSettings.Dcfg[0], 8);
+          hex2bin (Prop->getString()->stringValue(), (UINT8*)&gSettings.Graphics.Dcfg[0], sizeof(gSettings.Graphics.Dcfg));
         }
       }
 
       Prop = GraphicsDict->propertyForKey("DualLink");
-      gSettings.DualLink = (UINT32)GetPropertyAsInteger(Prop, gSettings.DualLink);
+      gSettings.Graphics.DualLink = (UINT32)GetPropertyAsInteger(Prop, gSettings.Graphics.DualLink);
 
       //InjectEDID - already done in earlysettings
       //No! Take again
-      GetEDIDSettings(GraphicsDict);
+      GetEDIDSettings(GraphicsDict, gSettings);
 
       // ErmaC: NvidiaGeneric
       Prop = GraphicsDict->propertyForKey("NvidiaGeneric");
-      gSettings.NvidiaGeneric = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Graphics.NvidiaGeneric = IsPropertyNotNullAndTrue(Prop);
 
       Prop = GraphicsDict->propertyForKey("NvidiaNoEFI");
-      gSettings.NvidiaNoEFI = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Graphics.NvidiaNoEFI = IsPropertyNotNullAndTrue(Prop);
 
       Prop = GraphicsDict->propertyForKey("NvidiaSingle");
-      gSettings.NvidiaSingle = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Graphics.NvidiaSingle = IsPropertyNotNullAndTrue(Prop);
 
       Prop = GraphicsDict->propertyForKey("ig-platform-id");
-      gSettings.IgPlatform = (UINT32)GetPropertyAsInteger(Prop, gSettings.IgPlatform);
+      gSettings.Graphics.IgPlatform = (UINT32)GetPropertyAsInteger(Prop, gSettings.Graphics.IgPlatform);
 
       Prop = GraphicsDict->propertyForKey("snb-platform-id");
-      gSettings.IgPlatform = (UINT32)GetPropertyAsInteger(Prop, gSettings.IgPlatform);
+      gSettings.Graphics.IgPlatform = (UINT32)GetPropertyAsInteger(Prop, gSettings.Graphics.IgPlatform);
 
-      FillCardList(GraphicsDict); //#@ Getcardslist
+      FillCardList(GraphicsDict, gSettings); //#@ Getcardslist
     }
+    
+
+
+
+    //done until here
+
+
+
+
+
 
     const TagDict* DevicesDict = CfgDict->dictPropertyForKey("Devices");
     if (DevicesDict != NULL) {
       const TagStruct* Prop = DevicesDict->propertyForKey("Inject");
-      gSettings.StringInjector = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Devices.StringInjector = IsPropertyNotNullAndTrue(Prop);
 
       Prop = DevicesDict->propertyForKey("SetIntelBacklight");
-      gSettings.IntelBacklight = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Devices.IntelBacklight = IsPropertyNotNullAndTrue(Prop);
 
       Prop = DevicesDict->propertyForKey("SetIntelMaxBacklight");
-      gSettings.IntelMaxBacklight = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Devices.IntelMaxBacklight = IsPropertyNotNullAndTrue(Prop);
 
       Prop = DevicesDict->propertyForKey("IntelMaxValue");
-      gSettings.IntelMaxValue = (UINT16)GetPropertyAsInteger(Prop, gSettings.IntelMaxValue);
+      gSettings.Devices.IntelMaxValue = (UINT16)GetPropertyAsInteger(Prop, gSettings.Devices.IntelMaxValue);
 
       /*
        * Properties is a single string, or a dict
@@ -4137,21 +4562,25 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       if (Prop != NULL) {
         if (Prop->isString()) {
 
-          cDeviceProperties = Prop->getString()->stringValue();
+          gSettings.Devices.Properties.cDeviceProperties = Prop->getString()->stringValue();
+          if ( gSettings.Devices.Properties.cDeviceProperties.sizeInBytesIncludingTerminator() > MAX_UINT32-1 ) {
+            MsgLog("gSettings.Devices.Properties.cDeviceProperties is too big");
+            gSettings.Devices.Properties.cDeviceProperties.setEmpty();
+          }
           //-------
 #ifdef CLOVER_BUILD
           EFI_PHYSICAL_ADDRESS  BufferPtr = EFI_SYSTEM_TABLE_MAX_ADDRESS; //0xFE000000;
           EFI_STATUS Status = gBS->AllocatePages (
                                        AllocateMaxAddress,
                                        EfiACPIReclaimMemory,
-                                       EFI_SIZE_TO_PAGES (cDeviceProperties.sizeInBytes()) + 1,
+                                       EFI_SIZE_TO_PAGES (gSettings.Devices.Properties.cDeviceProperties.sizeInBytes()) + 1,
                                        &BufferPtr
                                        );
 
           if (!EFI_ERROR(Status)) {
             cProperties = (UINT8*)(UINTN)BufferPtr;
-            cPropSize   = (UINT32)(cDeviceProperties.length() >> 1);
-            cPropSize = hex2bin(cDeviceProperties.c_str(), cProperties, cPropSize);
+            //cPropSize   = (UINT32)(gSettings.Devices.Properties.cDeviceProperties.length() >> 1);
+            cPropSize = (UINT32)hex2bin(gSettings.Devices.Properties.cDeviceProperties, cProperties, EFI_PAGES_TO_SIZE(EFI_SIZE_TO_PAGES (gSettings.Devices.Properties.cDeviceProperties.sizeInBytesIncludingTerminator()))); // cast should be safe gSettings.Devices.Properties.cDeviceProperties.sizeInBytesIncludingTerminator() <= MAX_UINT32-1
             DBG("Injected EFIString of length %d\n", cPropSize);
           }
           //---------
@@ -4161,7 +4590,7 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
           INTN i;
           const TagDict* PropertiesDict = Prop->getDict();
           INTN Count = PropertiesDict->dictKeyCount(); //ok
-          gSettings.AddProperties = new DEV_PROPERTY[Count];
+          //gSettings.Devices.AddProperties = new DEV_PROPERTY[Count]; // seems bug, only ArbProperties is used in this block
           DEV_PROPERTY *DevPropDevice;
           DEV_PROPERTY *DevProps;
           DEV_PROPERTY **Child;
@@ -4191,14 +4620,14 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
                 }
 #endif
                 //Create Device node
-                DevPropDevice = gSettings.ArbProperties;
-                gSettings.ArbProperties = new DEV_PROPERTY;
-                gSettings.ArbProperties->Next = DevPropDevice; //next device
-                gSettings.ArbProperties->Child = NULL;
-                gSettings.ArbProperties->Device = 0; //to differ from arbitrary
-                gSettings.ArbProperties->DevicePath = DevicePath; //this is pointer
-                gSettings.ArbProperties->Label = S8Printf("%s", key->keyStringValue().c_str()).forgetDataWithoutFreeing();
-                Child = &(gSettings.ArbProperties->Child);
+                DevPropDevice = gSettings.Devices.ArbProperties;
+                gSettings.Devices.ArbProperties = new DEV_PROPERTY;
+                gSettings.Devices.ArbProperties->Next = DevPropDevice; //next device
+                gSettings.Devices.ArbProperties->Child = NULL;
+                gSettings.Devices.ArbProperties->Device = 0; //to differ from arbitrary
+                gSettings.Devices.ArbProperties->DevicePath = DevicePath; //this is pointer
+                gSettings.Devices.ArbProperties->Label = S8Printf("%s", key->keyStringValue().c_str()).forgetDataWithoutFreeing();
+                Child = &(gSettings.Devices.ArbProperties->Child);
 
                 if ((value != NULL) && (value->isDict())) {
                   INTN PropCount = 0;
@@ -4273,13 +4702,13 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       }
 
       Prop  = DevicesDict->propertyForKey("LANInjection");
-      gSettings.LANInjection = !IsPropertyNotNullAndFalse(Prop);  //default = TRUE
+      gSettings.Devices.LANInjection = !IsPropertyNotNullAndFalse(Prop);  //default = TRUE
 
       Prop  = DevicesDict->propertyForKey("HDMIInjection");
-      gSettings.HDMIInjection = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Devices.HDMIInjection = IsPropertyNotNullAndTrue(Prop);
 
       Prop  = DevicesDict->propertyForKey("NoDefaultProperties");
-      gSettings.NoDefaultProperties = !IsPropertyNotNullAndFalse(Prop);
+      gSettings.Devices.NoDefaultProperties = !IsPropertyNotNullAndFalse(Prop);
 
       const TagArray* ArbitraryArray = DevicesDict->arrayPropertyForKey("Arbitrary"); // array of dict
       if (ArbitraryArray != NULL) {
@@ -4337,59 +4766,59 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
 
               for (PropIndex = 0; PropIndex < PropCount; PropIndex++) {
                 Dict3 = CustomPropertiesArray->dictElementAt(PropIndex, "CustomProperties"_XS8);
-                DevProp = gSettings.ArbProperties;
-                gSettings.ArbProperties = new DEV_PROPERTY;
-                gSettings.ArbProperties->Next = DevProp;
+                DevProp = gSettings.Devices.ArbProperties;
+                gSettings.Devices.ArbProperties = new DEV_PROPERTY;
+                gSettings.Devices.ArbProperties->Next = DevProp;
 
-                gSettings.ArbProperties->Device = (UINT32)DeviceAddr;
-                gSettings.ArbProperties->Label = (__typeof__(gSettings.ArbProperties->Label))AllocateCopyPool(Label.sizeInBytesIncludingTerminator(), Label.c_str());
+                gSettings.Devices.ArbProperties->Device = (UINT32)DeviceAddr;
+                gSettings.Devices.ArbProperties->Label = (__typeof__(gSettings.Devices.ArbProperties->Label))AllocateCopyPool(Label.sizeInBytesIncludingTerminator(), Label.c_str());
 
                 const TagStruct* DisabledProp = Dict3->propertyForKey("Disabled");
-                gSettings.ArbProperties->MenuItem.BValue = !IsPropertyNotNullAndTrue(DisabledProp);
+                gSettings.Devices.ArbProperties->MenuItem.BValue = !IsPropertyNotNullAndTrue(DisabledProp);
 
                 DisabledProp = Dict3->propertyForKey("Key");
                 if (DisabledProp && (DisabledProp->isString()) && DisabledProp->getString()->stringValue().notEmpty()) {
-                  gSettings.ArbProperties->Key = S8Printf("%s", DisabledProp->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
+                  gSettings.Devices.ArbProperties->Key = S8Printf("%s", DisabledProp->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
                 }
 
                 DisabledProp = Dict3->propertyForKey("Value");
                 if (DisabledProp && (DisabledProp->isString()) && DisabledProp->getString()->stringValue().notEmpty()) {
                   //first suppose it is Ascii string
-                  gSettings.ArbProperties->Value = (UINT8*)S8Printf("%s", DisabledProp->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
-                  gSettings.ArbProperties->ValueLen = DisabledProp->getString()->stringValue().sizeInBytesIncludingTerminator();
-                  gSettings.ArbProperties->ValueType = kTagTypeString;
+                  gSettings.Devices.ArbProperties->Value = (UINT8*)S8Printf("%s", DisabledProp->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
+                  gSettings.Devices.ArbProperties->ValueLen = DisabledProp->getString()->stringValue().sizeInBytesIncludingTerminator();
+                  gSettings.Devices.ArbProperties->ValueType = kTagTypeString;
                 } else if (DisabledProp && (DisabledProp->isInt64())) {
                   if ( DisabledProp->getInt64()->intValue() < MIN_INT32  ||  DisabledProp->getInt64()->intValue() > MAX_INT32 ) {
                     MsgLog("Invalid int value for key 'Value'\n");
                   }else{
                     INT32 intValue = (INT32)DisabledProp->getInt64()->intValue();
-                    gSettings.ArbProperties->Value = (__typeof__(gSettings.ArbProperties->Value))AllocatePool(sizeof(intValue));
+                    gSettings.Devices.ArbProperties->Value = (__typeof__(gSettings.Devices.ArbProperties->Value))AllocatePool(sizeof(intValue));
   //                    CopyMem(settingsData.ArbProperties->Value, &Prop3->intValue, 4);
-                    *(INT32*)(gSettings.ArbProperties->Value) = intValue;
-                    gSettings.ArbProperties->ValueLen = sizeof(intValue);
-                    gSettings.ArbProperties->ValueType = kTagTypeInteger;
+                    *(INT32*)(gSettings.Devices.ArbProperties->Value) = intValue;
+                    gSettings.Devices.ArbProperties->ValueLen = sizeof(intValue);
+                    gSettings.Devices.ArbProperties->ValueType = kTagTypeInteger;
                   }
                 } else if ( DisabledProp && DisabledProp->isTrue() ) {
-                  gSettings.ArbProperties->Value = (__typeof__(gSettings.ArbProperties->Value))AllocateZeroPool(4);
-                  gSettings.ArbProperties->Value[0] = TRUE;
-                  gSettings.ArbProperties->ValueLen = 1;
-                  gSettings.ArbProperties->ValueType = kTagTypeTrue;
+                  gSettings.Devices.ArbProperties->Value = (__typeof__(gSettings.Devices.ArbProperties->Value))AllocateZeroPool(4);
+                  gSettings.Devices.ArbProperties->Value[0] = TRUE;
+                  gSettings.Devices.ArbProperties->ValueLen = 1;
+                  gSettings.Devices.ArbProperties->ValueType = kTagTypeTrue;
                 } else if ( DisabledProp && DisabledProp->isFalse() ) {
-                  gSettings.ArbProperties->Value = (__typeof__(gSettings.ArbProperties->Value))AllocateZeroPool(4);
+                  gSettings.Devices.ArbProperties->Value = (__typeof__(gSettings.Devices.ArbProperties->Value))AllocateZeroPool(4);
                   //settingsData.ArbProperties->Value[0] = FALSE;
-                  gSettings.ArbProperties->ValueLen = 1;
-                  gSettings.ArbProperties->ValueType = kTagTypeFalse;
+                  gSettings.Devices.ArbProperties->ValueLen = 1;
+                  gSettings.Devices.ArbProperties->ValueType = kTagTypeFalse;
                 } else {
                   //else  data
                   UINTN Size = 0;
-                  gSettings.ArbProperties->Value = GetDataSetting (Dict3, "Value", &Size);
-                  gSettings.ArbProperties->ValueLen = Size;
-                  gSettings.ArbProperties->ValueType = kTagTypeData;
+                  gSettings.Devices.ArbProperties->Value = GetDataSetting (Dict3, "Value", &Size);
+                  gSettings.Devices.ArbProperties->ValueLen = Size;
+                  gSettings.Devices.ArbProperties->ValueType = kTagTypeData;
                 }
 
                 //Special case. In future there must be more such cases
-                if ((AsciiStrStr(gSettings.ArbProperties->Key, "-platform-id") != NULL)) {
-                  CopyMem((CHAR8*)&gSettings.IgPlatform, gSettings.ArbProperties->Value, 4);
+                if ((AsciiStrStr(gSettings.Devices.ArbProperties->Key, "-platform-id") != NULL)) {
+                  CopyMem((CHAR8*)&gSettings.Graphics.IgPlatform, gSettings.Devices.ArbProperties->Value, 4);
                 }
               }   //for() device properties
             }
@@ -4406,16 +4835,16 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
 //count = 0x1F1E1D1C1B1A1918
         if (Count > 0) {
       DBG("Add %lld properties:\n", Count);
-          gSettings.AddProperties = new DEV_PROPERTY[Count];
+          gSettings.Devices.AddProperties.setEmpty();
 
           for (i = 0; i < Count; i++) {
             UINTN Size = 0;
         DBG(" - [%02lld]:", i);
             const TagDict* Dict2 = AddPropertiesArray->dictElementAt(i, "AddProperties"_XS8);
             const TagStruct* DeviceProp = Dict2->propertyForKey("Device");
-            if (DeviceProp && (DeviceProp->isString()) && DeviceProp->getString()->stringValue().notEmpty()) {
-              DEV_PROPERTY *Property = &gSettings.AddProperties[Index];
+            DEV_ADDPROPERTY *Property = new DEV_ADDPROPERTY();
 
+            if (DeviceProp && (DeviceProp->isString()) && DeviceProp->getString()->stringValue().notEmpty()) {
               if (DeviceProp->getString()->stringValue().equalIC("ATI")) {
                 Property->Device = (UINT32)DEV_ATI;
               } else if (DeviceProp->getString()->stringValue().equalIC("NVidia")) {
@@ -4451,44 +4880,45 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
             if ( DeviceProp->isString() ) DBG(" %s ", DeviceProp->getString()->stringValue().c_str());
 
             const TagStruct* Prop2 = Dict2->propertyForKey("Disabled");
-            gSettings.AddProperties[Index].MenuItem.BValue = !IsPropertyNotNullAndTrue(Prop2);
+            Property->MenuItem.BValue = !IsPropertyNotNullAndTrue(Prop2);
 
             Prop2 = Dict2->propertyForKey("Key");
             if (Prop2 && (Prop2->isString()) && Prop2->getString()->stringValue().notEmpty()) {
-              gSettings.AddProperties[Index].Key = S8Printf("%s", Prop2->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
+              Property->Key = Prop2->getString()->stringValue();
             }
 
             Prop2 = Dict2->propertyForKey("Value");
             if (Prop2 && (Prop2->isString()) && Prop2->getString()->stringValue().notEmpty()) {
               //first suppose it is Ascii string
-              gSettings.AddProperties[Index].Value = (UINT8*)S8Printf("%s", Prop2->getString()->stringValue().c_str()).forgetDataWithoutFreeing();
-              gSettings.AddProperties[Index].ValueLen = Prop2->getString()->stringValue().sizeInBytesIncludingTerminator();
+              Property->Value.ncpy(Prop2->getString()->stringValue().c_str(), Prop2->getString()->stringValue().sizeInBytesIncludingTerminator());
             } else if (Prop2 && (Prop2->isInt64())) {
               if ( Prop2->getInt64()->intValue() < MIN_INT32  ||  Prop2->getInt64()->intValue() > MAX_INT32 ) {
                 MsgLog("Invalid int value for key 'Value'\n");
               }else{
                 INT32 intValue = (INT32)Prop2->getInt64()->intValue();
-                gSettings.AddProperties[Index].Value = (__typeof__(gSettings.AddProperties[Index].Value))AllocatePool (sizeof(intValue));
-  //              CopyMem(settingsData.AddProperties[Index].Value, &Prop2->intValue, 4);
-                *(INT32*)(gSettings.AddProperties[Index].Value) = intValue;
-                gSettings.AddProperties[Index].ValueLen = sizeof(intValue);
+                Property->Value.cat(intValue);
+//                Property->Value = (__typeof__(Property->Value))AllocatePool (sizeof(intValue));
+//  //              CopyMem(settingsData.AddProperties[Index].Value, &Prop2->intValue, 4);
+//                *(INT32*)(Property->Value) = intValue;
+//                Property->ValueLen = sizeof(intValue);
               }
             } else {
               //else  data
-              gSettings.AddProperties[Index].Value = GetDataSetting (Dict2, "Value", &Size);
-              gSettings.AddProperties[Index].ValueLen = Size;
+              uint8_t* Data = GetDataSetting (Dict2, "Value", &Size);
+              Property->Value.stealValueFrom(Data, Size);
             }
 
-        DBG("Key: %s, len: %llu\n", gSettings.AddProperties[Index].Key, gSettings.AddProperties[Index].ValueLen);
+            DBG("Key: %s, len: %zu\n", Property->Key.c_str(), Property->Value.size());
 
-            if (!gSettings.AddProperties[Index].MenuItem.BValue) {
+            if (!Property->MenuItem.BValue) {
               DBG("  property disabled at config\n");
             }
 
+            gSettings.Devices.AddProperties.AddReference(Property, true);
             ++Index;
           }
 
-          gSettings.NrAddProperties = Index;
+//          gSettings.Devices.AddProperties.size() = Index;
         }
       }
       //end AddProperties
@@ -4497,54 +4927,54 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       if (FakeIDDict != NULL) {
         const TagStruct* Prop2 = FakeIDDict->propertyForKey("ATI");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeATI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeATI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("NVidia");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeNVidia  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeNVidia  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("IntelGFX");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeIntel  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeIntel  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("LAN");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeLAN  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeLAN  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("WIFI");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeWIFI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeWIFI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("SATA");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeSATA  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeSATA  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("XHCI");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeXHCI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeXHCI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
 
         Prop2 = FakeIDDict->propertyForKey("IMEI");
         if (Prop2 && (Prop2->isString())) {
-          gSettings.FakeIMEI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
+          gSettings.Devices.FakeID.FakeIMEI  = (UINT32)AsciiStrHexToUint64(Prop2->getString()->stringValue());
         }
       }
 
       Prop                   = DevicesDict->propertyForKey("UseIntelHDMI");
-      gSettings.UseIntelHDMI = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Devices.UseIntelHDMI = IsPropertyNotNullAndTrue(Prop);
 
       Prop                = DevicesDict->propertyForKey("ForceHPET");
-      gSettings.ForceHPET = IsPropertyNotNullAndTrue(Prop);
+      gSettings.Devices.ForceHPET = IsPropertyNotNullAndTrue(Prop);
 
       Prop                = DevicesDict->propertyForKey("DisableFunctions");
       if (Prop && (Prop->isString())) {
-        gSettings.DisableFunctions  = (UINT32)AsciiStrHexToUint64(Prop->getString()->stringValue());
+        gSettings.Devices.DisableFunctions  = (UINT32)AsciiStrHexToUint64(Prop->getString()->stringValue());
       }
 
       Prop                = DevicesDict->propertyForKey("AirportBridgeDeviceName");
@@ -4552,7 +4982,7 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
         if ( Prop->getString()->stringValue().length() != 4 ) {
            MsgLog("ERROR IN PLIST : AirportBridgeDeviceName must 4 chars long");
         }else{
-          gSettings.AirportBridgeDeviceName = Prop->getString()->stringValue();
+          gSettings.Devices.AirportBridgeDeviceName = Prop->getString()->stringValue();
         }
       }
 
@@ -4573,58 +5003,58 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
           //   if hex device is cannot be converted to decimal, injects legacy value 12 decimal
           // - all other values are equal to HDAInjection=Detect
           if (Prop->isInt64()) {
-            gSettings.HDALayoutId = (INT32)Prop->getInt64()->intValue(); //must be signed
-            gSettings.HDAInjection = (gSettings.HDALayoutId > 0);
+            gSettings.Devices.Audio.HDALayoutId = (INT32)Prop->getInt64()->intValue(); //must be signed
+            gSettings.Devices.Audio.HDAInjection = (gSettings.Devices.Audio.HDALayoutId > 0);
           } else if (Prop->isString()){
             if ( Prop->getString()->stringValue().notEmpty()  &&  (Prop->getString()->stringValue()[0] == 'n' || Prop->getString()->stringValue()[0] == 'N') ) {
               // if starts with n or N, then no HDA injection
-              gSettings.HDAInjection = FALSE;
+              gSettings.Devices.Audio.HDAInjection = FALSE;
             } else if ( Prop->getString()->stringValue().length() > 1  &&
                         Prop->getString()->stringValue()[0] == '0'  &&
                         ( Prop->getString()->stringValue()[1] == 'x' || Prop->getString()->stringValue()[1] == 'X' ) ) {
               // assume it's a hex layout id
-              gSettings.HDALayoutId = (INT32)AsciiStrHexToUintn(Prop->getString()->stringValue());
-              gSettings.HDAInjection = TRUE;
+              gSettings.Devices.Audio.HDALayoutId = (INT32)AsciiStrHexToUintn(Prop->getString()->stringValue());
+              gSettings.Devices.Audio.HDAInjection = TRUE;
             } else {
               // assume it's a decimal layout id
-              gSettings.HDALayoutId = (INT32)AsciiStrDecimalToUintn(Prop->getString()->stringValue());
-              gSettings.HDAInjection = TRUE;
+              gSettings.Devices.Audio.HDALayoutId = (INT32)AsciiStrDecimalToUintn(Prop->getString()->stringValue());
+              gSettings.Devices.Audio.HDAInjection = TRUE;
             }
           }
         }
 
         Prop = AudioDict->propertyForKey("AFGLowPowerState");
-        gSettings.AFGLowPowerState = IsPropertyNotNullAndTrue(Prop);
+        gSettings.Devices.Audio.AFGLowPowerState = IsPropertyNotNullAndTrue(Prop);
       }
 
       const TagDict* USBDict = DevicesDict->dictPropertyForKey("USB");
       if (USBDict != NULL) {
         // USB
         Prop = USBDict->propertyForKey("Inject");
-        gSettings.USBInjection = !IsPropertyNotNullAndFalse(Prop); // enabled by default
+        gSettings.Devices.USB.USBInjection = !IsPropertyNotNullAndFalse(Prop); // enabled by default
 
         Prop = USBDict->propertyForKey("AddClockID");
-        gSettings.InjectClockID = IsPropertyNotNullAndTrue(Prop); // disabled by default
+        gSettings.Devices.USB.InjectClockID = IsPropertyNotNullAndTrue(Prop); // disabled by default
         // enabled by default for CloverEFI
         // disabled for others
-        gSettings.USBFixOwnership = gFirmwareClover;
+        gSettings.Devices.USB.USBFixOwnership = gFirmwareClover;
         Prop = USBDict->propertyForKey("FixOwnership");
         if (Prop != NULL) {
-          gSettings.USBFixOwnership = IsPropertyNotNullAndTrue(Prop);
+          gSettings.Devices.USB.USBFixOwnership = IsPropertyNotNullAndTrue(Prop);
         }
-        DBG("USB FixOwnership: %s\n", gSettings.USBFixOwnership?"yes":"no");
+        DBG("USB FixOwnership: %s\n", gSettings.Devices.USB.USBFixOwnership?"yes":"no");
 
         Prop = USBDict->propertyForKey("HighCurrent");
-        gSettings.HighCurrent = IsPropertyNotNullAndTrue(Prop);
+        gSettings.Devices.USB.HighCurrent = IsPropertyNotNullAndTrue(Prop);
 
         Prop = USBDict->propertyForKey("NameEH00");
-        gSettings.NameEH00 = IsPropertyNotNullAndTrue(Prop);
+        gSettings.Devices.USB.NameEH00 = IsPropertyNotNullAndTrue(Prop);
       }
     }
 
     //*** ACPI ***//
 
-    getACPISettings(CfgDict);
+    getACPISettings(CfgDict, gSettings);
 
     //*** SMBIOS ***//
     const TagDict* SMBIOSDict = CfgDict->dictPropertyForKey("SMBIOS");
@@ -4831,93 +5261,98 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
     }
 
     //CPU
-    gSettings.CpuType = GetAdvancedCpuType(); //let it be default
-    gSettings.SavingMode = 0xFF; //default
+    gSettings.CPU.CpuType = GetAdvancedCpuType(); //let it be default
+    gSettings.CPU.SavingMode = 0xFF; //default
     const TagDict* CPUDict = CfgDict->dictPropertyForKey("CPU");
     if (CPUDict != NULL) {
       const TagStruct* Prop = CPUDict->propertyForKey("QPI");
       if (Prop != NULL) {
-        gSettings.QPI = (UINT16)GetPropertyAsInteger(Prop, gSettings.QPI);
-        DBG("QPI: %dMHz\n", gSettings.QPI);
+        gSettings.CPU.QPI = (UINT16)GetPropertyAsInteger(Prop, gSettings.CPU.QPI);
+        DBG("QPI: %dMHz\n", gSettings.CPU.QPI);
       }
 
       Prop = CPUDict->propertyForKey("FrequencyMHz");
       if (Prop != NULL) {
-        gSettings.CpuFreqMHz = (UINT32)GetPropertyAsInteger(Prop, gSettings.CpuFreqMHz);
-        DBG("CpuFreq: %dMHz\n", gSettings.CpuFreqMHz);
+        gSettings.CPU.CpuFreqMHz = (UINT32)GetPropertyAsInteger(Prop, gSettings.CPU.CpuFreqMHz);
+        DBG("CpuFreq: %dMHz\n", gSettings.CPU.CpuFreqMHz);
       }
 
       Prop = CPUDict->propertyForKey("Type");
       if (Prop != NULL) {
-        gSettings.CpuType = (UINT16)GetPropertyAsInteger(Prop, gSettings.CpuType);
-        DBG("CpuType: %hX\n", gSettings.CpuType);
+        gSettings.CPU.CpuType = (UINT16)GetPropertyAsInteger(Prop, gSettings.CPU.CpuType);
+        DBG("CpuType: %hX\n", gSettings.CPU.CpuType);
       }
 
       Prop = CPUDict->propertyForKey("QEMU");
-      gSettings.QEMU = IsPropertyNotNullAndTrue(Prop);
-      if (gSettings.QEMU) {
+      gSettings.CPU.QEMU = IsPropertyNotNullAndTrue(Prop);
+      if (gSettings.CPU.QEMU) {
         DBG("QEMU: true\n");
       }
 
       Prop = CPUDict->propertyForKey("UseARTFrequency");
       if (Prop != NULL) {
-        gSettings.UseARTFreq = IsPropertyNotNullAndTrue(Prop);
+        gSettings.CPU.UseARTFreq = IsPropertyNotNullAndTrue(Prop);
       }
 
-      gSettings.UserChange = FALSE;
+      gSettings.CPU.UserChange = FALSE;
       Prop = CPUDict->propertyForKey("BusSpeedkHz");
       if (Prop != NULL) {
-        gSettings.BusSpeed = (UINT32)GetPropertyAsInteger(Prop, gSettings.BusSpeed);
-        DBG("BusSpeed: %dkHz\n", gSettings.BusSpeed);
-        gSettings.UserChange = TRUE;
+        gSettings.CPU.BusSpeed = (UINT32)GetPropertyAsInteger(Prop, gSettings.CPU.BusSpeed);
+        DBG("BusSpeed: %dkHz\n", gSettings.CPU.BusSpeed);
+        gSettings.CPU.UserChange = TRUE;
       }
 
       Prop = CPUDict->propertyForKey("C6");
       if (Prop != NULL) {
-        gSettings.ACPI.SSDT.EnableC6 = IsPropertyNotNullAndTrue(Prop);
+//        gSettings.ACPI.SSDT.EnableC6 = IsPropertyNotNullAndTrue(Prop);
+        gSettings.CPU._EnableC6 = IsPropertyNotNullAndTrue(Prop);
       }
 
       Prop = CPUDict->propertyForKey("C4");
       if (Prop != NULL) {
-        gSettings.ACPI.SSDT.EnableC4 = IsPropertyNotNullAndTrue(Prop);
+//        gSettings.ACPI.SSDT.EnableC4 = IsPropertyNotNullAndTrue(Prop);
+        gSettings.CPU._EnableC4 = IsPropertyNotNullAndTrue(Prop);
       }
 
       Prop = CPUDict->propertyForKey("C2");
       if (Prop != NULL) {
-        gSettings.ACPI.SSDT.EnableC2 = IsPropertyNotNullAndTrue(Prop);
+//        gSettings.ACPI.SSDT.EnableC2 = IsPropertyNotNullAndTrue(Prop);
+        gSettings.CPU._EnableC2 = IsPropertyNotNullAndTrue(Prop);
       }
 
       //Usually it is 0x03e9, but if you want Turbo, you may set 0x00FA
       Prop                 = CPUDict->propertyForKey("Latency");
-      gSettings.ACPI.SSDT.C3Latency  = (UINT16)GetPropertyAsInteger(Prop, gSettings.ACPI.SSDT.C3Latency);
+//      gSettings.ACPI.SSDT.C3Latency  = (UINT16)GetPropertyAsInteger(Prop, gSettings.ACPI.SSDT.C3Latency);
+      if ( Prop != NULL ) gSettings.CPU._C3Latency  = (UINT16)GetPropertyAsInteger(Prop, 0);
 
       Prop                 = CPUDict->propertyForKey("SavingMode");
-      gSettings.SavingMode = (UINT8)GetPropertyAsInteger(Prop, 0xFF); //the default value means not set
+      gSettings.CPU.SavingMode = (UINT8)GetPropertyAsInteger(Prop, 0xFF); //the default value means not set
 
       Prop                 = CPUDict->propertyForKey("HWPEnable");
-      if (Prop && IsPropertyNotNullAndTrue(Prop) && (gCPUStructure.Model >= CPU_MODEL_SKYLAKE_U)) {
-        gSettings.HWP = TRUE;
-#ifdef CLOVER_BUILD
-        AsmWriteMsr64 (MSR_IA32_PM_ENABLE, 1);
-#endif
-      }
+      gSettings.CPU.HWPEnable = IsPropertyNotNullAndTrue(Prop);
+//      if (gSettings.CPU.HWPEnable && (gCPUStructure.Model >= CPU_MODEL_SKYLAKE_U)) {
+//        GlobalConfig.HWP = TRUE;
+//#ifdef CLOVER_BUILD
+//        AsmWriteMsr64 (MSR_IA32_PM_ENABLE, 1);
+//#endif
+//      }
       Prop                 = CPUDict->propertyForKey("HWPValue");
-      if (Prop && gSettings.HWP) {
-        gSettings.HWPValue = (UINT32)GetPropertyAsInteger(Prop, 0);
-#ifdef CLOVER_BUILD
-        AsmWriteMsr64 (MSR_IA32_HWP_REQUEST, gSettings.HWPValue);
-#endif
-      }
+      if ( Prop ) gSettings.CPU.HWPValue = (UINT32)GetPropertyAsInteger(Prop, 0);
+//      if (Prop && GlobalConfig.HWP) {
+//#ifdef CLOVER_BUILD
+//        AsmWriteMsr64 (MSR_IA32_HWP_REQUEST, gSettings.CPU.HWPValue);
+//#endif
+//      }
 
       Prop                 = CPUDict->propertyForKey("TDP");
-      gSettings.TDP  = (UINT8)GetPropertyAsInteger(Prop, 0);
+      gSettings.CPU.TDP  = (UINT8)GetPropertyAsInteger(Prop, 0);
 
       Prop                 = CPUDict->propertyForKey("TurboDisable");
       if (Prop && IsPropertyNotNullAndTrue(Prop)) {
 #ifdef CLOVER_BUILD
         UINT64 msr = AsmReadMsr64(MSR_IA32_MISC_ENABLE);
 #endif
-        gSettings.Turbo = 0;
+        gSettings.CPU.TurboDisabled = 1;
 #ifdef CLOVER_BUILD
         msr &= ~(1ULL<<38);
         AsmWriteMsr64 (MSR_IA32_MISC_ENABLE, msr);
@@ -4926,20 +5361,20 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
     }
 
     // RtVariables
-    gSettings.RtROM.setEmpty();
+    gSettings.RtVariables.RtROMAsData.setEmpty();
     const TagDict* RtVariablesDict = CfgDict->dictPropertyForKey("RtVariables");
     if (RtVariablesDict != NULL) {
       // ROM: <data>bin data</data> or <string>base 64 encoded bin data</string>
       const TagStruct* Prop = RtVariablesDict->propertyForKey("ROM");
       if (Prop != NULL) {
         if ( Prop->isString()  &&  Prop->getString()->stringValue().equalIC("UseMacAddr0") ) {
-          gSettings.RtROM.ncpy(&gLanMac[0][0], 6);
+          gSettings.RtVariables.RtROMAsString = Prop->getString()->stringValue();
         } else if ( Prop->isString()  &&  Prop->getString()->stringValue().equalIC("UseMacAddr1") ) {
-          gSettings.RtROM.ncpy(&gLanMac[1][0], 6);
+          gSettings.RtVariables.RtROMAsString = Prop->getString()->stringValue();
         } else if ( Prop->isString()  ||  Prop->isData() ) { // GetDataSetting accept both
           UINTN ROMLength         = 0;
-          void* ROM = GetDataSetting(RtVariablesDict, "ROM", &ROMLength);
-          gSettings.RtROM.ncpy(ROM, ROMLength);
+          uint8_t* ROM = GetDataSetting(RtVariablesDict, "ROM", &ROMLength);
+          gSettings.RtVariables.RtROMAsData.stealValueFrom(ROM, ROMLength);
         } else {
           MsgLog("MALFORMED PLIST : property not string or data in RtVariables/ROM\n");
         }
@@ -4952,17 +5387,17 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
           MsgLog("ATTENTION : property not string in RtVariables/MLB\n");
         }else{
           if( Prop->getString()->stringValue().notEmpty() ) {
-            gSettings.RtMLB = Prop->getString()->stringValue();
+            gSettings.RtVariables.RtMLBSetting = Prop->getString()->stringValue();
           }
         }
       }
       // CsrActiveConfig
       Prop = RtVariablesDict->propertyForKey("CsrActiveConfig");
-      gSettings.CsrActiveConfig = (UINT32)GetPropertyAsInteger(Prop, 0x2E7); //the value 0xFFFF means not set
+      gSettings.RtVariables.CsrActiveConfig = (UINT32)GetPropertyAsInteger(Prop, 0x2E7); //the value 0xFFFF means not set
 
       //BooterConfig
       Prop = RtVariablesDict->propertyForKey("BooterConfig");
-      gSettings.BooterConfig = (UINT16)GetPropertyAsInteger(Prop, 0); //the value 0 means not set
+      gSettings.RtVariables.BooterConfig = (UINT16)GetPropertyAsInteger(Prop, 0); //the value 0 means not set
       //let it be string like "log=0"
       Prop = RtVariablesDict->propertyForKey("BooterCfg");
       if ( Prop != NULL ) {
@@ -4970,7 +5405,7 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
           MsgLog("ATTENTION : property not string in RtVariables/BooterCfg\n");
         }else{
           if( Prop->getString()->stringValue().notEmpty() ) {
-            gSettings.BooterCfgStr = Prop->getString()->stringValue();
+            gSettings.RtVariables.BooterCfgStr = Prop->getString()->stringValue();
           }
         }
       }
@@ -4979,41 +5414,44 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       if (BlockArray != NULL) {
         INTN   i;
         INTN Count = BlockArray->arrayContent().size();
-        BlockRtVariableArray.setEmpty();
-        RT_VARIABLES* RtVariablePtr = new RT_VARIABLES();
-        RT_VARIABLES& RtVariable = *RtVariablePtr;
+        gSettings.RtVariables.BlockRtVariableArray.setEmpty();
+        SETTINGS_DATA::RtVariablesClass::RT_VARIABLES* RtVariablePtr = new SETTINGS_DATA::RtVariablesClass::RT_VARIABLES();
+        SETTINGS_DATA::RtVariablesClass::RT_VARIABLES& RtVariable = *RtVariablePtr;
         for (i = 0; i < Count; i++) {
-          CfgDict = BlockArray->dictElementAt(i, "Block"_XS8);
-          const TagStruct* Prop2 = CfgDict->propertyForKey("Comment");
+          const TagDict* BlockDict = BlockArray->dictElementAt(i, "Block"_XS8);
+          const TagStruct* Prop2 = BlockDict->propertyForKey("Comment");
           if ( Prop2 != NULL ) {
             if ( !Prop2->isString() ) {
               MsgLog("ATTENTION : property not string in Block/Comment\n");
             }else{
               if( Prop2->getString()->stringValue().notEmpty() ) {
                 DBG(" %s\n", Prop2->getString()->stringValue().c_str());
+                RtVariable.Comment = Prop2->getString()->stringValue();
               }
             }
           }
-          Prop2 = CfgDict->propertyForKey("Disabled");
+          Prop2 = BlockDict->propertyForKey("Disabled");
           if (IsPropertyNotNullAndFalse(Prop2)) {
-            continue;
+            RtVariable.Disabled = true;
+//            continue;
           }
-          Prop2 = CfgDict->propertyForKey("Guid");
+          Prop2 = BlockDict->propertyForKey("Guid");
           if ( Prop2 != NULL ) {
             if ( !Prop2->isString() ) {
               MsgLog("ATTENTION : property not string in Block/Guid\n");
             }else{
               if( Prop2->getString()->stringValue().notEmpty() ) {
                 if (IsValidGuidString(Prop2->getString()->stringValue())) {
-                  StrToGuidLE(Prop2->getString()->stringValue(), &RtVariable.VarGuid);
+                  StrToGuidLE(Prop2->getString()->stringValue(), &RtVariable.Guid);
                 }else{
+                  StrToGuidLE(nullGuidAsString, &RtVariable.Guid);
                  DBG("Error: invalid GUID for RT var '%s' - should be in the format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX\n", Prop->getString()->stringValue().c_str());
                 }
               }
             }
           }
 
-          Prop2 = CfgDict->propertyForKey("Name");
+          Prop2 = BlockDict->propertyForKey("Name");
           RtVariable.Name.setEmpty();
           if ( Prop2 != NULL ) {
             if ( !Prop2->isString() ) {
@@ -5024,20 +5462,20 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
               }
             }
           }
-          BlockRtVariableArray.AddReference(RtVariablePtr, true);
+          gSettings.RtVariables.BlockRtVariableArray.AddReference(RtVariablePtr, true);
         }
       }
     }
 
-    if (gSettings.RtROM.isEmpty()) {
-      EFI_GUID uuid;
-      StrToGuidLE(gSettings.SmUUID, &uuid);
-      gSettings.RtROM.ncpy(&uuid.Data4[2], 6);
-    }
+//    if (gSettings.RtVariables.RtROM.isEmpty()) {
+//      EFI_GUID uuid;
+//      StrToGuidLE(gSettings.SmUUID, &uuid);
+//      gSettings.RtVariables.RtROM.ncpy(&uuid.Data4[2], 6);
+//    }
 
-    if (gSettings.RtMLB.isEmpty()) {
-      gSettings.RtMLB       = gSettings.BoardSerialNumber;
-    }
+//    if (gSettings.RtVariables.RtMLB.isEmpty()) {
+//      gSettings.RtVariables.RtMLB       = gSettings.BoardSerialNumber;
+//    }
 
     // if CustomUUID and InjectSystemID are not specified
     // then use InjectSystemID=TRUE and SMBIOS UUID
@@ -5050,8 +5488,8 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       //BacklightLevel
       const TagStruct* Prop = SystemParametersDict->propertyForKey("BacklightLevel");
       if (Prop != NULL) {
-        gSettings.BacklightLevel       = (UINT16)GetPropertyAsInteger(Prop, gSettings.BacklightLevel);
-        gSettings.BacklightLevelConfig = TRUE;
+        gSettings.SystemParameters.BacklightLevel       = (UINT16)GetPropertyAsInteger(Prop, gSettings.SystemParameters.BacklightLevel);
+        gSettings.SystemParameters.BacklightLevelConfig = TRUE;
       }
 
       Prop = SystemParametersDict->propertyForKey("CustomUUID");
@@ -5060,31 +5498,31 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
           MsgLog("ATTENTION : property not string in SystemParameters/CustomUUID\n");
         }else{
           if (IsValidGuidString(Prop->getString()->stringValue())) {
-          gSettings.CustomUuid = Prop->getString()->stringValue();
+          gSettings.SystemParameters.CustomUuid = Prop->getString()->stringValue();
             // if CustomUUID specified, then default for InjectSystemID=FALSE
             // to stay compatibile with previous Clover behaviour
             DBG("The UUID is valid\n");
           }else{
             DBG("Error: invalid CustomUUID '%s' - should be in the format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX\n", Prop->getString()->stringValue().c_str());
-            gSettings.CustomUuid = {0};
+            gSettings.SystemParameters.CustomUuid = {0};
           }
         }
       }
       //else gUuid value from SMBIOS
       //     DBG("Finally use %s\n", strguid(&gUuid));
 
-      gSettings.InjectSystemID_ = 2;
+      gSettings.SystemParameters._InjectSystemID = 2;
       Prop                     = SystemParametersDict->propertyForKey("InjectSystemID");
       if ( Prop ) {
-        if ( Prop->isBool() ) gSettings.InjectSystemID_ = Prop->getBool()->boolValue();
+        if ( Prop->isBool() ) gSettings.SystemParameters._InjectSystemID = Prop->getBool()->boolValue();
         else if (  Prop->isString() ) {
           // TODO a function that takes a string and return if it's true or false
-          if ( Prop->getString()->stringValue().equalIC("true") ) gSettings.InjectSystemID_ = 1;
-          else if ( Prop->getString()->stringValue()[0] == 'y' ) gSettings.InjectSystemID_ = 1;
-          else if ( Prop->getString()->stringValue()[0] == 'Y' ) gSettings.InjectSystemID_ = 1;
-          else if ( Prop->getString()->stringValue().equalIC("false") ) gSettings.InjectSystemID_ = 0;
-          else if ( Prop->getString()->stringValue().equalIC("n") ) gSettings.InjectSystemID_ = 0;
-          else if ( Prop->getString()->stringValue().equalIC("N") ) gSettings.InjectSystemID_ = 0;
+          if ( Prop->getString()->stringValue().equalIC("true") ) gSettings.SystemParameters._InjectSystemID = 1;
+          else if ( Prop->getString()->stringValue()[0] == 'y' ) gSettings.SystemParameters._InjectSystemID = 1;
+          else if ( Prop->getString()->stringValue()[0] == 'Y' ) gSettings.SystemParameters._InjectSystemID = 1;
+          else if ( Prop->getString()->stringValue().equalIC("false") ) gSettings.SystemParameters._InjectSystemID = 0;
+          else if ( Prop->getString()->stringValue().equalIC("n") ) gSettings.SystemParameters._InjectSystemID = 0;
+          else if ( Prop->getString()->stringValue().equalIC("N") ) gSettings.SystemParameters._InjectSystemID = 0;
           else {
             DBG("MALFORMED PLIST : SMBIOS/InjectSystemID must be true, yes, false, no, or non existant");
           }
@@ -5094,7 +5532,7 @@ EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings)
       }
 
       Prop                     = SystemParametersDict->propertyForKey("NvidiaWeb");
-      gSettings.NvidiaWeb      = IsPropertyNotNullAndTrue(Prop);
+      gSettings.SystemParameters.NvidiaWeb      = IsPropertyNotNullAndTrue(Prop);
 
     }
 
@@ -6142,7 +6580,7 @@ GetDevices ()
             SlotDevice->SlotID          = 5;
             SlotDevice->SlotType        = SlotTypePciExpressX4;
           }
-          if (gSettings.ResetHDA) {
+          if (gSettings.Devices.Audio.ResetHDA) {
             //Slice method from VoodooHDA
             //PCI_HDA_TCSEL_OFFSET = 0x44
             UINT8 Value = 0;
@@ -6190,7 +6628,7 @@ SetDevices (LOADER_ENTRY *Entry)
   GetEdidDiscovered ();
 
   //First make string from Device->Properties
-  Prop = gSettings.ArbProperties;
+  Prop = gSettings.Devices.ArbProperties;
   device = NULL;
   if (!device_inject_string) {
     device_inject_string = devprop_create_string();
@@ -6206,15 +6644,15 @@ SetDevices (LOADER_ENTRY *Entry)
     while (Prop2) {
       if (Prop2->MenuItem.BValue) {
         if (AsciiStrStr(Prop2->Key, "-platform-id") != NULL) {
-          if (gSettings.IgPlatform == 0 && Prop2->Value) {
-            CopyMem((UINT8*)&gSettings.IgPlatform, (UINT8*)Prop2->Value, Prop2->ValueLen);
+          if (gSettings.Graphics.IgPlatform == 0 && Prop2->Value) {
+            CopyMem((UINT8*)&gSettings.Graphics.IgPlatform, (UINT8*)Prop2->Value, Prop2->ValueLen);
           }
-          devprop_add_value(device, Prop2->Key, (UINT8*)&gSettings.IgPlatform, 4);
+          devprop_add_value(device, Prop2->Key, (UINT8*)&gSettings.Graphics.IgPlatform, 4);
           DBG("   Add key=%s valuelen=%llu\n", Prop2->Key, Prop2->ValueLen);
         } else if ((AsciiStrStr(Prop2->Key, "override-no-edid") || AsciiStrStr(Prop2->Key, "override-no-connect"))
-          && gSettings.InjectEDID && gSettings.CustomEDID) {
+          && gSettings.Graphics.EDID.InjectEDID && gSettings.Graphics.EDID.CustomEDID.notEmpty()) {
           // special case for EDID properties
-          devprop_add_value(device, Prop2->Key, gSettings.CustomEDID, 128);
+          devprop_add_value(device, Prop2->Key, gSettings.Graphics.EDID.CustomEDID.data(), 128);
           DBG("   Add key=%s from custom EDID\n", Prop2->Key);
         } else {
           devprop_add_value(device, Prop2->Key, (UINT8*)Prop2->Value, Prop2->ValueLen);
@@ -6261,9 +6699,9 @@ SetDevices (LOADER_ENTRY *Entry)
         PCIdevice.subsys_id.subsys.device_id = Pci.Device.SubsystemID;
         PCIdevice.used                       = FALSE;
 
-        //if (gSettings.NrAddProperties == 0xFFFE) {  //yyyy it means Arbitrary
+        //if (gSettings.Devices.AddProperties.size() == 0xFFFE) {  //yyyy it means Arbitrary  // Looks like NrAddProperties == 0xFFFE is not used anymore
         //------------------
-        Prop = gSettings.ArbProperties;  //check for additional properties
+        Prop = gSettings.Devices.ArbProperties;  //check for additional properties
         device = NULL;
         /*       if (!string) {
          string = devprop_create_string();
@@ -6280,7 +6718,7 @@ SetDevices (LOADER_ENTRY *Entry)
           //special corrections
           if (Prop->MenuItem.BValue) {
             if (AsciiStrStr(Prop->Key, "-platform-id") != NULL) {
-              devprop_add_value(device, Prop->Key, (UINT8*)&gSettings.IgPlatform, 4);
+              devprop_add_value(device, Prop->Key, (UINT8*)&gSettings.Graphics.IgPlatform, 4);
             } else {
               devprop_add_value(device, Prop->Key, (UINT8*)Prop->Value, Prop->ValueLen);
             }
@@ -6305,7 +6743,7 @@ SetDevices (LOADER_ENTRY *Entry)
 
           switch (Pci.Hdr.VendorId) {
             case 0x1002:
-              if (gSettings.InjectATI) {
+              if (gSettings.Graphics.InjectAsDict.InjectATI) {
                 //can't do this in one step because of C-conventions
                 TmpDirty    = setup_ati_devprop(Entry, &PCIdevice);
                 StringDirty |=  TmpDirty;
@@ -6322,7 +6760,7 @@ SetDevices (LOADER_ENTRY *Entry)
                 }
               }
 
-              if (gSettings.DeInit) {
+              if (gSettings.Graphics.RadeonDeInit) {
                 for (j = 0; j < 4; j++) {
                   if (gGraphics[j].Handle == PCIdevice.DeviceHandle) {
                     *(UINT32*)(gGraphics[j].Mmio + 0x6848) = 0; //EVERGREEN_GRPH_FLIP_CONTROL, 1<<0 SURFACE_UPDATE_H_RETRACE_EN
@@ -6339,7 +6777,7 @@ SetDevices (LOADER_ENTRY *Entry)
               break;
 
             case 0x8086:
-              if (gSettings.InjectIntel) {
+              if (gSettings.Graphics.InjectAsDict.InjectIntel) {
                 TmpDirty    = setup_gma_devprop(Entry, &PCIdevice);
                 StringDirty |=  TmpDirty;
                 MsgLog ("Intel GFX revision  = 0x%hhX\n", PCIdevice.revision);
@@ -6348,7 +6786,7 @@ SetDevices (LOADER_ENTRY *Entry)
               }
 
               // IntelBacklight reworked by Sherlocks. 2018.10.07
-              if (gSettings.IntelBacklight || gSettings.IntelMaxBacklight) {
+              if (gSettings.Devices.IntelBacklight || gSettings.Devices.IntelMaxBacklight) {
                 UINT32 LEV2 = 0, LEVL = 0, P0BL = 0, GRAN = 0;
                 UINT32 LEVW = 0, LEVX = 0, LEVD = 0, PCHL = 0;
                 UINT32 ShiftLEVX = 0, FBLEVX = 0;
@@ -6445,8 +6883,8 @@ SetDevices (LOADER_ENTRY *Entry)
                   case 0x0116: // "Intel HD Graphics 3000"
                   case 0x0122: // "Intel HD Graphics 3000"
                   case 0x0126: // "Intel HD Graphics 3000"
-                    if (gSettings.IgPlatform) {
-                      switch (gSettings.IgPlatform) {
+                    if (gSettings.Graphics.IgPlatform) {
+                      switch (gSettings.Graphics.IgPlatform) {
                         case (UINT32)0x00030010:
                         case (UINT32)0x00050000:
                           FBLEVX = 0xFFFF;
@@ -6491,8 +6929,8 @@ SetDevices (LOADER_ENTRY *Entry)
                   case 0x0D2A: // "Intel Iris Pro Graphics 5200"
                   case 0x0D2B: // "Intel Iris Pro Graphics 5200"
                   case 0x0D2E: // "Intel Iris Pro Graphics 5200"
-                    if (gSettings.IgPlatform) {
-                      switch (gSettings.IgPlatform) {
+                    if (gSettings.Graphics.IgPlatform) {
+                      switch (gSettings.Graphics.IgPlatform) {
                         case (UINT32)0x04060000:
                         case (UINT32)0x0c060000:
                         case (UINT32)0x04160000:
@@ -6552,8 +6990,8 @@ SetDevices (LOADER_ENTRY *Entry)
                   case 0x162D: // "Intel Iris Pro Graphics P6300"
                   case 0x1622: // "Intel Iris Pro Graphics 6200"
                   case 0x162A: // "Intel Iris Pro Graphics P6300"
-                    if (gSettings.IgPlatform) {
-                      switch (gSettings.IgPlatform) {
+                    if (gSettings.Graphics.IgPlatform) {
+                      switch (gSettings.Graphics.IgPlatform) {
                         case (UINT32)0x16060000:
                         case (UINT32)0x160e0000:
                         case (UINT32)0x16160000:
@@ -6619,8 +7057,8 @@ SetDevices (LOADER_ENTRY *Entry)
                   case 0x193A: // "Intel Iris Pro Graphics P580"
                   case 0x193B: // "Intel Iris Pro Graphics 580"
                   case 0x193D: // "Intel Iris Pro Graphics P580"
-                    if (gSettings.IgPlatform) {
-                      switch (gSettings.IgPlatform) {
+                    if (gSettings.Graphics.IgPlatform) {
+                      switch (gSettings.Graphics.IgPlatform) {
                         case (UINT32)0x19120001:
                         FBLEVX = 0xFFFF;
                         break;
@@ -6712,7 +7150,7 @@ SetDevices (LOADER_ENTRY *Entry)
                     break;
 
                   default:
-                    if (gSettings.IntelBacklight) {
+                    if (gSettings.Devices.IntelBacklight) {
                       MsgLog ("  Write macOS LEVW: 0x%X\n", MACLEVW);
 
                       /*Status = */PciIo->Mem.Write(
@@ -6744,7 +7182,7 @@ SetDevices (LOADER_ENTRY *Entry)
                   case 0x0166: // "Intel HD Graphics 4000"
                   case 0x016A: // "Intel HD Graphics P4000"
                     // Write LEVL/LEVX
-                    if (gSettings.IntelMaxBacklight) {
+                    if (gSettings.Devices.IntelMaxBacklight) {
                       if (!LEVL) {
                         LEVL = FBLEVX;
                         MsgLog ("  Found invalid LEVL, set LEVL: 0x%X\n", LEVL);
@@ -6755,8 +7193,8 @@ SetDevices (LOADER_ENTRY *Entry)
                         MsgLog ("  Found invalid LEVX, set LEVX: 0x%X\n", ShiftLEVX);
                       }
 
-                      if (gSettings.IntelMaxValue) {
-                        FBLEVX = gSettings.IntelMaxValue;
+                      if (gSettings.Devices.IntelMaxValue) {
+                        FBLEVX = gSettings.Devices.IntelMaxValue;
                         MsgLog ("  Read IntelMaxValue: 0x%X\n", FBLEVX);
                       } else {
                         MsgLog ("  Read default Framebuffer LEVX: 0x%X\n", FBLEVX);
@@ -6799,9 +7237,9 @@ SetDevices (LOADER_ENTRY *Entry)
                   case 0x9B41: // "Intel UHD Graphics 620"
                   case 0x9BCA: // "Intel UHD Graphics 620"
                     // Write LEVD
-                    if (gSettings.IntelMaxBacklight) {
-                      if (gSettings.IntelMaxValue) {
-                        FBLEVX = gSettings.IntelMaxValue;
+                    if (gSettings.Devices.IntelMaxBacklight) {
+                      if (gSettings.Devices.IntelMaxValue) {
+                        FBLEVX = gSettings.Devices.IntelMaxValue;
                         MsgLog ("  Read IntelMaxValue: 0x%X\n", FBLEVX);
                       } else {
                         MsgLog ("  Read default Framebuffer LEVX: 0x%X\n", FBLEVX);
@@ -6823,9 +7261,9 @@ SetDevices (LOADER_ENTRY *Entry)
 
                   default:
                     // Write LEVX
-                    if (gSettings.IntelMaxBacklight) {
-                      if (gSettings.IntelMaxValue) {
-                        FBLEVX = gSettings.IntelMaxValue;
+                    if (gSettings.Devices.IntelMaxBacklight) {
+                      if (gSettings.Devices.IntelMaxValue) {
+                        FBLEVX = gSettings.Devices.IntelMaxValue;
                         MsgLog ("  Read IntelMaxValue: 0x%X\n", FBLEVX);
                         LEVX = FBLEVX | FBLEVX << 16;
                       } else if (!LEVX) {
@@ -6850,7 +7288,7 @@ SetDevices (LOADER_ENTRY *Entry)
                     break;
                 }
 
-                if (gSettings.FakeIntel == 0x00008086) {
+                if (gSettings.Devices.FakeID.FakeIntel == 0x00008086) {
                   UINT32 IntelDisable = 0x03;
                   PciIo->Pci.Write (PciIo, EfiPciIoWidthUint32, 0x50, 1, &IntelDisable);
                 }
@@ -6858,7 +7296,7 @@ SetDevices (LOADER_ENTRY *Entry)
               break;
 
             case 0x10de:
-              if (gSettings.InjectNVidia) {
+              if (gSettings.Graphics.InjectAsDict.InjectNVidia) {
                 TmpDirty    = setup_nvidia_devprop(&PCIdevice);
                 StringDirty |=  TmpDirty;
               } else {
@@ -6882,7 +7320,7 @@ SetDevices (LOADER_ENTRY *Entry)
         //USB
         else if ((Pci.Hdr.ClassCode[2] == PCI_CLASS_SERIAL) &&
                  (Pci.Hdr.ClassCode[1] == PCI_CLASS_SERIAL_USB)) {
-          if (gSettings.USBInjection) {
+          if (gSettings.Devices.USB.USBInjection) {
             TmpDirty = set_usb_props (&PCIdevice);
             StringDirty |=  TmpDirty;
           }
@@ -6893,11 +7331,11 @@ SetDevices (LOADER_ENTRY *Entry)
                  ((Pci.Hdr.ClassCode[1] == PCI_CLASS_MEDIA_HDA) ||
                   (Pci.Hdr.ClassCode[1] == PCI_CLASS_MEDIA_AUDIO))) {
                    // HDMI injection inside
-          if (gSettings.HDAInjection ) {
+          if (gSettings.Devices.Audio.HDAInjection ) {
             TmpDirty    = setup_hda_devprop (PciIo, &PCIdevice, Entry->macOSVersion);
             StringDirty |= TmpDirty;
           }
-          if (gSettings.ResetHDA) {
+          if (gSettings.Devices.Audio.ResetHDA) {
             
             //PCI_HDA_TCSEL_OFFSET = 0x44
             UINT8 Value = 0;
@@ -6920,7 +7358,7 @@ SetDevices (LOADER_ENTRY *Entry)
             Status = PciIo->Pci.Read (PciIo, EfiPciIoWidthUint16, GEN_PMCON_1, 1, &PmCon);
             MsgLog ("Initial PmCon value=%hX\n", PmCon);
 
-            if (gSettings.ACPI.SSDT.EnableC6) {
+            if (GlobalConfig.EnableC6) {
               PmCon |= 1 << 11;
               DBG("C6 enabled\n");
             } else {
@@ -6928,7 +7366,7 @@ SetDevices (LOADER_ENTRY *Entry)
               DBG("C6 disabled\n");
             }
             /*
-             if (gSettings.ACPI.SSDT.EnableC2) {
+             if (GlobalConfig.EnableC2) {
              PmCon |= 1 << 10;
              DBG("BIOS_PCIE enabled\n");
              } else {
@@ -6936,7 +7374,7 @@ SetDevices (LOADER_ENTRY *Entry)
              DBG("BIOS_PCIE disabled\n");
              }
              */
-            if (gSettings.ACPI.SSDT.EnableC4) {
+            if (GlobalConfig.EnableC4) {
               PmCon |= 1 << 7;
               DBG("C4 enabled\n");
             } else {
@@ -6975,7 +7413,7 @@ SetDevices (LOADER_ENTRY *Entry)
           }
 
           Rcba &= 0xFFFFC000;
-          if (gSettings.ForceHPET) {
+          if (gSettings.Devices.ForceHPET) {
             Hptc = REG32 ((UINTN)Rcba, 0x3404);
             if ((Hptc & 0x80) != 0) {
               DBG("HPET is already enabled\n");
@@ -6992,10 +7430,10 @@ SetDevices (LOADER_ENTRY *Entry)
             }
           }
 
-          if (gSettings.DisableFunctions){
+          if (gSettings.Devices.DisableFunctions){
             UINT32 FD = REG32 ((UINTN)Rcba, 0x3418);
             DBG("Initial value of FD register 0x%X\n", FD);
-            FD |= gSettings.DisableFunctions;
+            FD |= gSettings.Devices.DisableFunctions;
             REG32 ((UINTN)Rcba, 0x3418) = FD;
             FD = REG32 ((UINTN)Rcba, 0x3418);
             DBG(" recheck value after patch 0x%X\n", FD);
@@ -7007,74 +7445,79 @@ SetDevices (LOADER_ENTRY *Entry)
 
   if (StringDirty) {
     EFI_PHYSICAL_ADDRESS BufferPtr = EFI_SYSTEM_TABLE_MAX_ADDRESS; //0xFE000000;
-    device_inject_stringlength                   = device_inject_string->length * 2;
-    DBG("stringlength = %d\n", device_inject_stringlength);
-    // gDeviceProperties = (__typeof__(gDeviceProperties))AllocateAlignedPages EFI_SIZE_TO_PAGES (device_inject_stringlength + 1), 64);
+    if ( device_inject_string->length > MAX_UINT32/2-1 ) {
+      MsgLog("device_inject_string is too big\n");
+    }else{
+      device_inject_stringlength                   = device_inject_string->length * 2;
+      DBG("stringlength = %d\n", device_inject_stringlength);
+      // gDeviceProperties = (__typeof__(gDeviceProperties))AllocateAlignedPages EFI_SIZE_TO_PAGES (device_inject_stringlength + 1), 64);
 
-    Status = gBS->AllocatePages (
-                                 AllocateMaxAddress,
-                                 EfiACPIReclaimMemory,
-                                 EFI_SIZE_TO_PAGES ((UINTN)device_inject_stringlength + 1),
-                                 &BufferPtr
-                                 );
+      UINTN nbPages = EFI_SIZE_TO_PAGES (device_inject_stringlength + 1);
+      Status = gBS->AllocatePages (
+                                   AllocateMaxAddress,
+                                   EfiACPIReclaimMemory,
+                                   nbPages,
+                                   &BufferPtr
+                                   );
 
-    if (!EFI_ERROR(Status)) {
-      mProperties       = (UINT8*)(UINTN)BufferPtr;
-      gDeviceProperties = devprop_generate_string (device_inject_string);
-      gDeviceProperties[device_inject_stringlength] = 0;
-      //     DBG(gDeviceProperties);
-      //     DBG("\n");
-      //     StringDirty = FALSE;
-      //-------
-      mPropSize = (UINT32)AsciiStrLen(gDeviceProperties) / 2;
-      //     DBG("Preliminary size of mProperties=%d\n", mPropSize);
-      mPropSize = hex2bin (gDeviceProperties, mProperties, mPropSize);
-      //     DBG("Final size of mProperties=%d\n", mPropSize);
-      //---------
-      //      Status = egSaveFile(&self.getSelfRootDir(),  SWPrintf("%ls\\misc\\devprop.bin", self.getCloverDirFullPath().wc_str()).wc_str()    , (UINT8*)mProperties, mPropSize);
-      //and now we can free memory?
-      if (gSettings.AddProperties) {
-        FreePool(gSettings.AddProperties);
-      }
-      if (gSettings.ArbProperties) {
-        DEV_PROPERTY *Props;
-        DEV_PROPERTY *Next;
-        Prop = gSettings.ArbProperties;
-        while (Prop) {
-          Props = Prop->Child;
-          if (Prop->Label) {
-            FreePool(Prop->Label);
-          }
-          if (Prop->Key) {
-            FreePool(Prop->Key);
-          }
-          if (Prop->Value) {
-            FreePool(Prop->Value);
-          }
-          if (Prop->DevicePath) {
-            FreePool(Prop->DevicePath);
-          }
-          while (Props) {
-            if (Props->Label) {
-              FreePool(Props->Label);
+      if (!EFI_ERROR(Status)) {
+//        mProperties       = (UINT8*)(UINTN)BufferPtr;
+//        gDeviceProperties = devprop_generate_string (device_inject_string);
+//        gDeviceProperties[device_inject_stringlength] = 0;
+//        //     DBG(gDeviceProperties);
+//        //     DBG("\n");
+//        //     StringDirty = FALSE;
+//        //-------
+//        //mPropSize = (UINT32)AsciiStrLen(gDeviceProperties) / 2;
+//        //     DBG("Preliminary size of mProperties=%d\n", mPropSize);
+//        mPropSize = (UINT32)hex2bin (gDeviceProperties, AsciiStrLen(gDeviceProperties), mProperties, EFI_PAGES_TO_SIZE(nbPages)); // cast should be safe as device_inject_string->length <= MAX_UINT32/2-1
+//        //     DBG("Final size of mProperties=%d\n", mPropSize);
+//        //---------
+//        //      Status = egSaveFile(&self.getSelfRootDir(),  SWPrintf("%ls\\misc\\devprop.bin", self.getCloverDirFullPath().wc_str()).wc_str()    , (UINT8*)mProperties, mPropSize);
+//        //and now we can free memory?
+//        if (gSettings.Devices.AddProperties) {
+//          FreePool(gSettings.Devices.AddProperties);
+//        }
+        if (gSettings.Devices.ArbProperties) {
+          DEV_PROPERTY *Props;
+          DEV_PROPERTY *Next;
+          Prop = gSettings.Devices.ArbProperties;
+          while (Prop) {
+            Props = Prop->Child;
+            if (Prop->Label) {
+              FreePool(Prop->Label);
             }
-            if (Props->Key) {
-              FreePool(Props->Key);
+            if (Prop->Key) {
+              FreePool(Prop->Key);
             }
-            if (Props->Value) {
-              FreePool(Props->Value);
+            if (Prop->Value) {
+              FreePool(Prop->Value);
             }
-            if (Props->DevicePath) {
-              FreePool(Props->DevicePath);
+            if (Prop->DevicePath) {
+              FreePool(Prop->DevicePath);
             }
-            Next = Props->Next;
-            FreePool(Props);
-            //delete Props;
-            Props = Next;
+            while (Props) {
+              if (Props->Label) {
+                FreePool(Props->Label);
+              }
+              if (Props->Key) {
+                FreePool(Props->Key);
+              }
+              if (Props->Value) {
+                FreePool(Props->Value);
+              }
+              if (Props->DevicePath) {
+                FreePool(Props->DevicePath);
+              }
+              Next = Props->Next;
+              FreePool(Props);
+              //delete Props;
+              Props = Next;
+            }
+            Next = Prop->Next;
+            FreePool(Prop);
+            Prop = Next;
           }
-          Next = Prop->Next;
-          FreePool(Prop);
-          Prop = Next;
         }
       }
     }
@@ -7090,7 +7533,7 @@ SaveSettings ()
   // here we can apply user settings instead of default one
   gMobile                       = gSettings.Mobile;
 
-  if ((gSettings.BusSpeed != 0) && (gSettings.BusSpeed > 10 * Kilo) && (gSettings.BusSpeed < 500 * Kilo)) {
+  if ((gSettings.CPU.BusSpeed != 0) && (gSettings.CPU.BusSpeed > 10 * Kilo) && (gSettings.CPU.BusSpeed < 500 * Kilo)) {
     switch (gCPUStructure.Model) {
       case CPU_MODEL_PENTIUM_M:
       case CPU_MODEL_ATOM://  Atom
@@ -7107,7 +7550,7 @@ SaveSettings ()
       case CPU_MODEL_WESTMERE:// Core i7 LGA1366, Six-core, "Westmere", "Gulftown", 32nm
       case CPU_MODEL_NEHALEM_EX:// Core i7, Nehalem-Ex Xeon, "Beckton"
       case CPU_MODEL_WESTMERE_EX:// Core i7, Nehalem-Ex Xeon, "Eagleton"
-        gCPUStructure.ExternalClock = gSettings.BusSpeed;
+        gCPUStructure.ExternalClock = gSettings.CPU.BusSpeed;
         //DBG("Read ExternalClock: %d MHz\n", (INT32)(DivU64x32(gCPUStructure.ExternalClock, Kilo)));
         break;
       default:
@@ -7115,22 +7558,22 @@ SaveSettings ()
 
         // for sandy bridge or newer
         // to match ExternalClock 25 MHz like real mac, divide BusSpeed by 4
-        gCPUStructure.ExternalClock = (gSettings.BusSpeed + 3) / 4;
+        gCPUStructure.ExternalClock = (gSettings.CPU.BusSpeed + 3) / 4;
         //DBG("Corrected ExternalClock: %d MHz\n", (INT32)(DivU64x32(gCPUStructure.ExternalClock, Kilo)));
         break;
     }
 
-    gCPUStructure.FSBFrequency  = MultU64x64 (gSettings.BusSpeed, Kilo); //kHz -> Hz
-    gCPUStructure.MaxSpeed      = (UINT32)(DivU64x32 ((UINT64)gSettings.BusSpeed * gCPUStructure.MaxRatio, 10000)); //kHz->MHz
+    gCPUStructure.FSBFrequency  = MultU64x64 (gSettings.CPU.BusSpeed, Kilo); //kHz -> Hz
+    gCPUStructure.MaxSpeed      = (UINT32)(DivU64x32 ((UINT64)gSettings.CPU.BusSpeed * gCPUStructure.MaxRatio, 10000)); //kHz->MHz
   }
 
-  if ((gSettings.CpuFreqMHz > 100) && (gSettings.CpuFreqMHz < 20000)) {
-    gCPUStructure.MaxSpeed      = gSettings.CpuFreqMHz;
+  if ((gSettings.CPU.CpuFreqMHz > 100) && (gSettings.CPU.CpuFreqMHz < 20000)) {
+    gCPUStructure.MaxSpeed      = gSettings.CPU.CpuFreqMHz;
   }
 
   // to determine the use of Table 132
-  if (gSettings.QPI) {
-    gSettings.SetTable132 = TRUE;
+  if (gSettings.CPU.QPI) {
+    GlobalConfig.SetTable132 = TRUE;
     //DBG("QPI: use Table 132\n");
   }
   else {
@@ -7139,7 +7582,7 @@ SaveSettings ()
       case CPU_MODEL_WESTMERE:// Core i7 LGA1366, Six-core, "Westmere", "Gulftown", 32nm
       case CPU_MODEL_NEHALEM_EX:// Core i7, Nehalem-Ex Xeon, "Beckton"
       case CPU_MODEL_WESTMERE_EX:// Core i7, Nehalem-Ex Xeon, "Eagleton"
-        gSettings.SetTable132 = TRUE;
+        GlobalConfig.SetTable132 = TRUE;
         DBG("QPI: use Table 132\n");
         break;
       default:
@@ -7211,601 +7654,174 @@ InjectKextsFromDir (
   return Status;
 }
 
-EFI_STATUS LOADER_ENTRY::SetFSInjection()
-{
-  EFI_STATUS           Status;
-  FSINJECTION_PROTOCOL *FSInject;
-  XStringW              SrcDir;
-  //BOOLEAN              InjectionNeeded = FALSE;
-  //BOOLEAN              BlockCaches     = FALSE;
-  FSI_STRING_LIST      *Blacklist      = 0;
-  FSI_STRING_LIST      *ForceLoadKexts = NULL;
-
-  MsgLog ("Beginning FSInjection\n");
-
-  // get FSINJECTION_PROTOCOL
-  Status = gBS->LocateProtocol(&gFSInjectProtocolGuid, NULL, (void **)&FSInject);
-  if (EFI_ERROR(Status)) {
-    //Print (L"- No FSINJECTION_PROTOCOL, Status = %s\n", efiStrError(Status));
-    MsgLog (" - ERROR: gFSInjectProtocolGuid not found!\n");
-    return EFI_NOT_STARTED;
-  }
-
-  // check if blocking of caches is needed
-  if (  OSFLAG_ISSET(Flags, OSFLAG_NOCACHES) || LoadOptions.contains("-f")  ) {
-    MsgLog ("Blocking kext caches\n");
-    //  BlockCaches = TRUE;
-    // add caches to blacklist
-    Blacklist = FSInject->CreateStringList();
-    if (Blacklist == NULL) {
-      MsgLog (" - ERROR: Not enough memory!\n");
-      return EFI_NOT_STARTED;
-    }
-
-    /*
-     From 10.7 to 10.9, status of directly restoring ESD files or update from Appstore cannot block kernel cache. because there are boot.efi and kernelcache file without kernel file.
-     After macOS installed, boot.efi can call kernel file from S/L/Kernels.
-     For this reason, long time ago, chameleon's user restored Base System.dmg to made USB installer and added kernel file in root and custom kexts in S/L/E. then used "-f" option.
-     From 10.10+, boot.efi call only prelinkedkernel file without kernel file. we can never block only kernelcache.
-     The use of these block caches is meaningless in modern macOS. Unlike the old days, we do not have to do the tedious task of putting the files needed for booting into the S/L/E.
-     Caution! Do not add this list. If add this list, will see "Kernel cache load error (0xe)". This is just a guideline.
-     by Sherlocks, 2017.11
-     */
-
-    // Installed/createinstallmedia
-    //FSInject->AddStringToList(Blacklist, L"\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.10+/10.13.4+
-
-    // Recovery
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.recovery.boot\\kernelcache"); // 10.7 - 10.10
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.recovery.boot\\prelinkedkernel"); // 10.11+
-
-    // BaseSytem/InstallESD
-    //FSInject->AddStringToList(Blacklist, L"\\kernelcache"); // 10.7 - 10.9/(10.7/10.8)
-
-    // 1st stage - createinstallmedia
-    //FSInject->AddStringToList(Blacklist, L"\\.IABootFiles\\kernelcache"); // 10.9/10.10
-    //FSInject->AddStringToList(Blacklist, L"\\.IABootFiles\\prelinkedkernel"); // 10.11 - 10.13.3
-
-    // 2nd stage - InstallESD/AppStore/startosinstall
-    //FSInject->AddStringToList(Blacklist, L"\\Mac OS X Install Data\\kernelcache"); // 10.7
-    //FSInject->AddStringToList(Blacklist, L"\\OS X Install Data\\kernelcache"); // 10.8 - 10.10
-    //FSInject->AddStringToList(Blacklist, L"\\OS X Install Data\\prelinkedkernel"); // 10.11
-    //FSInject->AddStringToList(Blacklist, L"\\macOS Install Data\\prelinkedkernel"); // 10.12 - 10.12.3
-    //FSInject->AddStringToList(Blacklist, L"\\macOS Install Data\\Locked Files\\Boot Files\\prelinkedkernel");// 10.12.4+
-
-    // 2nd stage - Fusion Drive
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.R\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.11
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.P\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.11
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.S\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.11
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.R\\prelinkedkernel"); // 10.12+
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.P\\prelinkedkernel"); // 10.12+
-    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.S\\prelinkedkernel"); // 10.12+
-
-    // NetInstall
-    //FSInject->AddStringToList(Blacklist, L"\\NetInstall macOS High Sierra.nbi\\i386\\x86_64\\kernelcache");
-
-
-    // Block Caches list
-    // InstallDVD/Installed
-    FSInject->AddStringToList(Blacklist, L"\\System\\Library\\Caches\\com.apple.kext.caches\\Startup\\Extensions.mkext"); // 10.6
-    FSInject->AddStringToList(Blacklist, L"\\System\\Library\\Extensions.mkext"); // 10.6
-    FSInject->AddStringToList(Blacklist, L"\\System\\Library\\Caches\\com.apple.kext.caches\\Startup\\kernelcache"); // 10.6/10.6 - 10.9
-
-    if (gSettings.BlockKexts[0] != L'\0') {
-      FSInject->AddStringToList(Blacklist, SWPrintf("\\System\\Library\\Extensions\\%ls", gSettings.BlockKexts).wc_str());
-    }
-  }
-
-  // check if kext injection is needed
-  // (will be done only if caches are blocked or if boot.efi refuses to load kernelcache)
-  //SrcDir = NULL;
-  if (OSFLAG_ISSET(Flags, OSFLAG_WITHKEXTS)) {
-    SrcDir = GetOtherKextsDir(TRUE);
-    Status = FSInject->Install(
-                                Volume->DeviceHandle,
-                                L"\\System\\Library\\Extensions",
-                                SelfVolume->DeviceHandle,
-                                //GetOtherKextsDir (),
-                                SrcDir.wc_str(),
-                                Blacklist,
-                                ForceLoadKexts
-                                );
-    //InjectKextsFromDir(Status, GetOtherKextsDir());
-    InjectKextsFromDir(Status, SrcDir.wc_str());
-
-    SrcDir = GetOSVersionKextsDir(macOSVersion);
-    Status = FSInject->Install(
-                                Volume->DeviceHandle,
-                                L"\\System\\Library\\Extensions",
-                                SelfVolume->DeviceHandle,
-                                //GetOSVersionKextsDir(OSVersion),
-                                SrcDir.wc_str(),
-                                Blacklist,
-                                ForceLoadKexts
-                                );
-    //InjectKextsFromDir(Status, GetOSVersionKextsDir(OSVersion));
-    InjectKextsFromDir(Status, SrcDir.wc_str());
-  } else {
-    MsgLog("skipping kext injection (not requested)\n");
-  }
-
-  // prepare list of kext that will be forced to load
-  ForceLoadKexts = FSInject->CreateStringList();
-  if (ForceLoadKexts == NULL) {
-    MsgLog(" - Error: not enough memory!\n");
-    return EFI_NOT_STARTED;
-  }
-
-  KextPatcherRegisterKexts(FSInject, ForceLoadKexts);
-
-  // reinit Volume->RootDir? it seems it's not needed.
-
-  return Status;
-}
-//
-//namespace old {
-//#include "../../CloverApp/Clover/CloverOldHeaders.h"
-//}
-//
-//static void breakpoint()
+// Do we need that with OC ? For old version ?
+//EFI_STATUS LOADER_ENTRY::SetFSInjection()
 //{
-//  DBG("Bug\n");
-//}
+//  EFI_STATUS           Status;
+//  FSINJECTION_PROTOCOL *FSInject;
+//  XStringW              SrcDir;
+//  //BOOLEAN              InjectionNeeded = FALSE;
+//  //BOOLEAN              BlockCaches     = FALSE;
+//  FSI_STRING_LIST      *Blacklist      = 0;
+//  FSI_STRING_LIST      *ForceLoadKexts = NULL;
 //
-#define WriteOldFixLengthString(str, strSize) xb.ncat(str.s(), MIN(str.sizeInBytes(), strSize*sizeof(*str.s()))); xb.memsetAtPos(xb.size(), 0, strSize*sizeof(*str.s())-MIN(str.sizeInBytes(), strSize*sizeof(*str.s())));
-#define checkOffset(w) \
-  { \
-    size_t offset = OFFSET_OF(old::SETTINGS_DATA, w) ; \
-    if ( offset != xb.size() ) { \
-      breakpoint(); \
-    } \
-  }
-
-//XBuffer<UINT8> SETTINGS_DATA::serialize() const
-//{
-//  XBuffer<UINT8> xb;
+//  MsgLog ("Beginning FSInjection\n");
 //
-//  // SMBIOS TYPE0
-//  WriteOldFixLengthString(VendorName, 64);
-//checkOffset(RomVersion);
-//  WriteOldFixLengthString(RomVersion, 64);
-//  WriteOldFixLengthString(EfiVersion, 64);
-//  WriteOldFixLengthString(ReleaseDate, 64);
-//  // SMBIOS TYPE1
-//  WriteOldFixLengthString(ManufactureName, 64);
-//  WriteOldFixLengthString(ProductName, 64);
-//  WriteOldFixLengthString(VersionNr, 64);
-//  WriteOldFixLengthString(SerialNr, 64);
-//  xb.ncat(&SmUUID, sizeof(SmUUID));
-//  xb.cat((BOOLEAN)SmUUID.notEmpty());
-//  xb.ncat(&pad0, sizeof(pad0));
-////CHAR8                    Uuid[64]);
-////CHAR8                    SKUNumber[64]);
-//  WriteOldFixLengthString(FamilyName, 64);
-//  WriteOldFixLengthString(OEMProduct, 64);
-//  WriteOldFixLengthString(OEMVendor, 64);
-//  // SMBIOS TYPE2
-//  WriteOldFixLengthString(BoardManufactureName, 64);
-//  WriteOldFixLengthString(BoardSerialNumber, 64);
-//  WriteOldFixLengthString(BoardNumber, 64); //Board-ID
-//  WriteOldFixLengthString(LocationInChassis, 64);
-//  WriteOldFixLengthString(BoardVersion, 64);
-//  WriteOldFixLengthString(OEMBoard, 64);
-//checkOffset(BoardType);
-//  xb.cat(BoardType);
-//  xb.cat(pad1);
-//  // SMBIOS TYPE3
-//  xb.cat(Mobile);
-//  xb.cat(ChassisType);
-//  WriteOldFixLengthString(ChassisManufacturer, 64);
-//  WriteOldFixLengthString(ChassisAssetTag, 64);
-//  // SMBIOS TYPE4
-//  xb.cat(CpuFreqMHz);
-//  xb.cat(BusSpeed); //in kHz
-//  xb.cat(Turbo);
-//  xb.cat(EnabledCores);
-//  xb.cat(UserChange);
-//  xb.cat(QEMU);
-//  // SMBIOS TYPE17
-//  xb.cat(SmbiosVersion);
-//  xb.cat(Attribute);
-//  xb.ncat(&pad17, sizeof(pad17));
-//  WriteOldFixLengthString(MemoryManufacturer, 64);
-//  WriteOldFixLengthString(MemorySerialNumber, 64);
-//  WriteOldFixLengthString(MemoryPartNumber, 64);
-//  WriteOldFixLengthString(MemorySpeed, 64);
-//  // SMBIOS TYPE131
-//checkOffset(CpuType);
-//  xb.cat(CpuType);
-//  // SMBIOS TYPE132
-//  xb.cat(QPI);
-//  xb.cat(SetTable132);
-//  xb.cat(TrustSMBIOS);
-//  xb.cat(InjectMemoryTables);
-//  xb.cat(Boot.XMPDetection);
-//  xb.cat(UseARTFreq);
-//  // SMBIOS TYPE133
-//  xb.ncat(&pad18, sizeof(pad18));
-//  xb.cat(PlatformFeature);
-//
-//  // PatchTableType11
-//  xb.cat(NoRomInfo);
-//
-//  // OS parameters
-//  WriteOldFixLengthString(Language, 16);
-//checkOffset(BootArgs);
-//  WriteOldFixLengthString(Boot.BootArgs, 256);
-//  xb.memsetAtPos(xb.size(), 0, 1);
-//checkOffset(CustomUuid);
-//  WriteOldFixLengthString(XStringW(CustomUuid), 40);
-//  xb.ncat(&pad20, sizeof(pad20));
-//checkOffset(DefaultVolume);
-//  xb.cat(uintptr_t(0)); //DefaultVolume was CHAR16*
-//  xb.cat(uintptr_t(0)); //DefaultLoader was CHAR16*
-////Boot
-//checkOffset(LastBootedVolume);
-//  xb.cat(Boot.LastBootedVolume);
-//  xb.cat(Boot.SkipHibernateTimeout);
-////Monitor
-//  xb.cat(IntelMaxBacklight);
-//  xb.ncat(&pad21, sizeof(pad21));
-//  xb.cat(VendorEDID);
-//  xb.cat(ProductEDID);
-//  xb.cat(BacklightLevel);
-//  xb.cat(BacklightLevelConfig);
-//  xb.cat(IntelBacklight);
-////Boot options
-//  xb.cat(MemoryFix);
-//  xb.cat(WithKexts);
-//  xb.cat(WithKextsIfNoFakeSMC);
-//  xb.cat(FakeSMCFound);
-//  xb.cat(NoCaches);
-//
-//  // GUI parameters
-//  xb.cat(Debug);
-////  BOOLEAN                 Proportional); //never used
-//  xb.ncat(&pad22, sizeof(pad22));
-//  xb.cat(DefaultBackgroundColor);
-//
-//  //ACPI
-//checkOffset(ResetAddr);
-//  xb.cat(ACPI.ResetAddr);
-//  xb.cat(ACPI.ResetVal);
-//  xb.cat(ACPI.NoASPM);
-//  xb.cat(ACPI.SSDT.DropSSDT);
-//  xb.cat(ACPI.SSDT.NoOemTableId);
-//  xb.cat(ACPI.SSDT.NoDynamicExtract);
-//  xb.cat(ACPI.AutoMerge);
-//  xb.cat(ACPI.SSDT.Generate.GeneratePStates);
-//  xb.cat(ACPI.SSDT.Generate.GenerateCStates);
-//  xb.cat(ACPI.SSDT.Generate.GenerateAPSN);
-//  xb.cat(ACPI.SSDT.Generate.GenerateAPLF);
-//  xb.cat(ACPI.SSDT.Generate.GeneratePluginType);
-//  xb.cat(ACPI.SSDT.PLimitDict);
-//  xb.cat(ACPI.SSDT.UnderVoltStep);
-//  xb.cat(ACPI.SSDT.DoubleFirstState);
-//  xb.cat(ACPI.DSDT.SuspendOverride);
-//  xb.cat(ACPI.SSDT.EnableC2);
-//  xb.cat(ACPI.SSDT.EnableC4);
-//  xb.cat(ACPI.SSDT.EnableC6);
-//  xb.cat(ACPI.SSDT.EnableISS);
-//  xb.cat(ACPI.SlpSmiEnable);
-//  xb.cat(ACPI.FixHeaders);
-//  xb.ncat(&pad23, sizeof(pad23));
-//  xb.cat(ACPI.SSDT.C3Latency);
-//  xb.cat(ACPI.smartUPS);
-//  xb.cat(ACPI.PatchNMI);
-//  xb.cat(ACPI.SSDT.EnableC7);
-//  xb.cat(SavingMode);
-//  WriteOldFixLengthString(ACPI.DSDT.DsdtName, 28);
-//  xb.cat(ACPI.DSDT.FixDsdt);
-//  xb.cat(ACPI.SSDT.MinMultiplier);
-//  xb.cat(ACPI.SSDT.MaxMultiplier);
-//  xb.cat(ACPI.SSDT.PluginType);
-////  BOOLEAN                 DropMCFG);
-//checkOffset(FixMCFG);
-//  xb.cat(ACPI.FixMCFG);
-//  xb.cat((UINT32)ACPI.DeviceRename.size());
-//  xb.cat(uintptr_t(0));
-//  //Injections
-//  xb.cat(StringInjector);
-//  xb.cat(InjectSystemID_);
-//  xb.cat(NoDefaultProperties);
-//  xb.cat(ACPI.DSDT.ReuseFFFF);
-//
-//  //PCI devices
-//  xb.cat(FakeATI);    //97
-//  xb.cat(FakeNVidia);
-//  xb.cat(FakeIntel);
-//  xb.cat(FakeLAN);   //100
-//  xb.cat(FakeWIFI);
-//  xb.cat(FakeSATA);
-//  xb.cat(FakeXHCI);  //103
-//  xb.cat(FakeIMEI);  //106
-//
-//  //Graphics
-////  UINT16                  PCIRootUID);
-//checkOffset(GraphicsInjector);
-//  xb.cat(GraphicsInjector);
-//  xb.cat(InjectIntel);
-//  xb.cat(InjectATI);
-//  xb.cat(InjectNVidia);
-//  xb.cat(DeInit);
-//  xb.cat(LoadVBios);
-//  xb.cat(PatchVBios);
-//  xb.ncat(&pad24, sizeof(pad24));
-//  xb.cat(PatchVBiosBytes);
-//  xb.cat(PatchVBiosBytesCount);
-//  xb.cat(InjectEDID);
-//  xb.cat(LpcTune);
-//  xb.cat(DropOEM_DSM); //vacant
-//  xb.ncat(&pad25, sizeof(pad25));
-//  xb.cat(CustomEDID);
-//  xb.cat(CustomEDIDsize);
-//  xb.cat(EdidFixHorizontalSyncPulseWidth);
-//  xb.cat(EdidFixVideoInputSignal);
-//  xb.ncat(&pad26, sizeof(pad26));
-//  WriteOldFixLengthString(FBName, 16);
-//  xb.cat(VideoPorts);
-//  xb.cat(NvidiaGeneric);
-//  xb.cat(NvidiaNoEFI);
-//  xb.cat(NvidiaSingle);
-//  xb.ncat(&pad27, sizeof(pad27));
-//  xb.cat(VRAM);
-//  xb.ncat(&Dcfg, sizeof(Dcfg));
-//  xb.ncat(&NVCAP, sizeof(NVCAP));
-//  xb.cat(BootDisplay);
-//  xb.cat(NvidiaWeb);
-//  xb.ncat(&pad41, sizeof(pad41));
-//  xb.cat(DualLink);
-//  xb.cat(IgPlatform);
-//
-//  // Secure boot white/black list
-//checkOffset(SecureBootWhiteListCount);
-//  xb.cat((UINT32)Boot.SecureBootWhiteList.size());
-//  xb.cat((UINT32)Boot.SecureBootBlackList.size());
-//  xb.cat(uintptr_t(0));
-//  xb.cat(uintptr_t(0));
-//
-//  // Secure boot
-//  xb.cat(Boot.SecureBoot);
-//  xb.cat(Boot.SecureBootSetupMode);
-//  xb.cat(Boot.SecureBootPolicy);
-//
-//  // HDA
-//  xb.cat(HDAInjection);
-//  xb.cat(HDALayoutId);
-//
-//  // USB DeviceTree injection
-//  xb.cat(USBInjection);
-//  xb.cat(USBFixOwnership);
-//  xb.cat(InjectClockID);
-//  xb.cat(HighCurrent);
-//  xb.cat(NameEH00);
-//  xb.cat(NameXH00);
-//  xb.cat(LANInjection);
-//  xb.cat(HDMIInjection);
-//
-// // UINT8                   pad61[2]);
-//
-//  // LegacyBoot
-//checkOffset(LegacyBoot);
-//  WriteOldFixLengthString(Boot.LegacyBoot, 32);
-//  xb.cat(Boot.LegacyBiosDefaultEntry);
-//
-//  //SkyLake
-//  xb.cat(HWP);
-//  xb.cat(TDP);
-//  xb.cat(HWPValue);
-//
-//  //Volumes hiding
-//  xb.cat(uintptr_t(0)); // HVHideStrings was **
-//  xb.cat((INTN)0);
-//
-//  // KernelAndKextPatches
-//  xb.memsetAtPos(xb.size(), 0, 112);  //KernelAndKextPatches was 112 bytes
-//  xb.cat(KextPatchesAllowed);
-//  xb.cat(KernelPatchesAllowed); //From GUI: Only for user patches, not internal Clover
-//  WriteOldFixLengthString(AirportBridgeDeviceName, 5);
-//
-//  // Pre-language
-//  xb.cat(KbdPrevLang);
-//
-//  //Pointer
-//  xb.cat(PointerEnabled);
-//  xb.ncat(&pad28, sizeof(pad28));
-//  xb.cat(PointerSpeed);
-//  xb.cat(DoubleClickTime);
-//  xb.cat(PointerMirror);
-//
-////  UINT8                   pad7[6]);
-//checkOffset(CustomBoot);
-//  xb.cat(Boot.CustomBoot);
-//  xb.ncat(&pad29, sizeof(pad29));
-//  xb.cat(Boot.CustomLogo);
-//  xb.cat(RefCLK);
-//
-//  // SysVariables
-//  xb.ncat(&pad30, sizeof(pad30));
-//checkOffset(RtMLB);
-//  xb.cat(uintptr_t(0)); // RtMLB was CHAR8*
-//  xb.cat(uintptr_t(0)); // RtROM was UINT8*
-//checkOffset(RtROMLen);
-//  xb.cat(RtROM.size());
-//checkOffset(CsrActiveConfig);
-//  xb.cat(CsrActiveConfig);
-//  xb.cat(BooterConfig);
-//  WriteOldFixLengthString(BooterCfgStr, 64);
-//  xb.cat(Boot.DisableCloverHotkeys);
-//  xb.cat(NeverDoRecovery);
-//
-//  // Multi-config
-//  xb.ncat(&ConfigName, sizeof(ConfigName));
-//  xb.ncat(&pad31, sizeof(pad31));
-//  xb.cat(uintptr_t(0)); // MainConfigName was a CHAR16*
-//
-//  //Drivers
-//  xb.cat(DisabledDriverArray.size()); // BlackListCount
-//  xb.cat(uintptr_t(0));  // BlackList was a pointer
-//
-//  //SMC keys
-//  xb.ncat(&RPlt, sizeof(RPlt));
-//  xb.ncat(&RBr, sizeof(RBr));
-//  xb.ncat(&EPCI, sizeof(EPCI));
-//  xb.ncat(&REV, sizeof(REV));
-//
-//  //other devices
-//checkOffset(Rtc8Allowed);
-//  xb.cat(ACPI.DSDT.Rtc8Allowed);
-//  xb.cat(ForceHPET);
-//  xb.cat(ResetHDA);
-//  xb.cat(PlayAsync);
-//  xb.ncat(&pad32, sizeof(pad32));
-//  xb.cat(DisableFunctions);
-//
-//  //Patch DSDT arbitrary
-//  xb.cat((UINT32)ACPI.DSDT.DSDTPatchArray.size()); // PatchDsdtNum
-//  xb.cat(uintptr_t(0)); // PatchDsdtFind
-//  xb.cat(uintptr_t(0)); // LenToFind
-//  xb.cat(uintptr_t(0)); // PatchDsdtReplace
-//  xb.cat(uintptr_t(0)); // LenToReplace
-//checkOffset(DebugDSDT);
-//  xb.cat(ACPI.DSDT.DebugDSDT);
-//  xb.cat(SlpWak);
-//  xb.cat(UseIntelHDMI);
-//  xb.cat(AFGLowPowerState);
-//  xb.cat(ACPI.DSDT.PNLF_UID);
-////  UINT8                   pad83[4]);
-//
-//  // Table dropping
-//  xb.ncat(&pad34, sizeof(pad34));
-//  xb.cat(GlobalConfig.ACPIDropTables);
-//
-//  // Custom entries
-//  xb.cat(DisableEntryScan);
-//  xb.cat(DisableToolScan);
-//  xb.cat((BOOLEAN)0); // was ShowHiddenEntries (BOOLEAN)
-//  xb.cat(KernelScan);
-//  xb.cat(LinuxScan);
-////  UINT8                   pad84[3]);
-//  xb.ncat(&pad35, sizeof(pad35));
-//checkOffset(CustomEntries);
-//  xb.cat(CustomEntries);
-//  xb.cat(CustomLegacy);
-//  xb.cat(CustomTool);
-//
-//  //Add custom properties
-//  xb.cat(NrAddProperties);
-//  xb.cat(AddProperties);
-//
-//  //BlackListed kexts
-//  xb.ncat(&BlockKexts, sizeof(BlockKexts));
-//
-//  //ACPI tables
-//  xb.cat((UINTN)ACPI.SortedACPI.size());
-//  xb.cat(uintptr_t(0));
-//
-//  // ACPI/PATCHED/AML
-//  xb.cat((UINT32)ACPI.DisabledAML.size());
-//  xb.ncat(&pad36, sizeof(pad36));
-//  xb.cat(uintptr_t(0));
-//  xb.cat(uintptr_t(0)); // PatchDsdtLabel
-//  xb.cat(uintptr_t(0)); // PatchDsdtTgt
-//  xb.cat(uintptr_t(0)); // PatchDsdtMenuItem
-//
-//  //other
-//  xb.cat(IntelMaxValue);
-////  UINT32                  AudioVolume);
-//
-//  // boot.efi
-//checkOffset(OptionsBits);
-//  xb.cat(OptionsBits);
-//  xb.cat(FlagsBits);
-//  xb.cat(UIScale);
-//  xb.cat(EFILoginHiDPI);
-//  xb.ncat(&flagstate, sizeof(flagstate));
-//  xb.ncat(&pad37, sizeof(pad37));
-//  xb.cat(ArbProperties);
-////  xb.cat(QuirksMask);
-////  xb.ncat(&pad38, sizeof(pad38));
-////  xb.cat(MaxSlide);
-//
-////  if ( xb.size() != sizeof(old::SETTINGS_DATA) ) {
-//  if ( xb.size() != 3088 ) {
-//    panic("SETTINGS_DATA::serialize wrong size\n");
+//  // get FSINJECTION_PROTOCOL
+//  Status = gBS->LocateProtocol(&gFSInjectProtocolGuid, NULL, (void **)&FSInject);
+//  if (EFI_ERROR(Status)) {
+//    //Print (L"- No FSINJECTION_PROTOCOL, Status = %s\n", efiStrError(Status));
+//    MsgLog (" - ERROR: gFSInjectProtocolGuid not found!\n");
+//    return EFI_NOT_STARTED;
 //  }
-//  return xb;
-//}
-
-//TagDict* regenerateConfigPlist_addDictToDict(TagDict* dict)
-//{
-//  TagDict* tagDict = TagDict::getEmptyTag();
-//  dict->dictContent().AddReference(tagDict, true);
-//  return tagDict;
-//}
-//TagKey* regenerateConfigPlist_addKeyToDict(TagDict* dict, const XString8& key)
-//{
-//  TagKey* tagKey = TagKey::getEmptyTag();
-//  tagKey->setKeyValue(key);
-//  dict->dictContent().AddReference(tagKey, true);
-//  return tagKey;
-//}
-//TagBool* regenerateConfigPlist_addBoolToDict(TagDict* dict, const bool value)
-//{
-//  TagBool* tagBool = TagBool::getEmptyTag();
-//  tagBool->setBoolValue(value);
-//  dict->dictContent().AddReference(tagBool, true);
-//  return tagBool;
-//}
-//void regenerateConfigPlist_addKeyAndBoolToDict(TagDict* dict, const XString8& key, const bool value)
-//{
-//  regenerateConfigPlist_addKeyToDict(dict, key);
-//  regenerateConfigPlist_addBoolToDict(dict, value);
-//}
 //
-//void testConfigPlist()
-//{
-//  TagDict* plist = TagDict::getEmptyTag();
-//  regenerateConfigPlist_addKeyToDict(plist, "ACPI"_XS8);
-//  TagDict* ACPIDict = regenerateConfigPlist_addDictToDict(plist);
-//  regenerateConfigPlist_addKeyAndBoolToDict(ACPIDict, "AutoMerge"_XS8, gSettings.ACPI.AutoMerge);
-//  regenerateConfigPlist_addKeyToDict(ACPIDict, "DSDT"_XS8);
-//  TagDict* DSDTDict = regenerateConfigPlist_addDictToDict(ACPIDict);
-//  regenerateConfigPlist_addKeyToDict(DSDTDict, "Debug"_XS8);
-//  regenerateConfigPlist_addBoolToDict(DSDTDict, gSettings.KernelAndKextPatches.KPDebug);
-////  regenerateConfigPlist_addKeyToDict(DSDTDict, "DropOEM_DSM"_XS8);
-////  TagDict* DropOEM_DSMDict = regenerateConfigPlist_addDictToDict(DSDTDict);
-//  regenerateConfigPlist_addKeyToDict(DSDTDict, "Fixes"_XS8);
-//  TagDict* FixesDict = regenerateConfigPlist_addDictToDict(DSDTDict);
-//  for (size_t Index = 0; Index < sizeof(FixesConfig)/sizeof(FixesConfig[0]); Index++) {
-//    if ( gSettings.ACPI.DSDT.FixDsdt & FixesConfig[Index].bitData ) {
-//      regenerateConfigPlist_addKeyToDict(FixesDict, LString8(FixesConfig[Index].newName));
-//      regenerateConfigPlist_addBoolToDict(FixesDict, true);
+//  // check if blocking of caches is needed
+//  if (  OSFLAG_ISSET(Flags, OSFLAG_NOCACHES) || LoadOptions.contains("-f")  ) {
+//    MsgLog ("Blocking kext caches\n");
+//    //  BlockCaches = TRUE;
+//    // add caches to blacklist
+//    Blacklist = FSInject->CreateStringList();
+//    if (Blacklist == NULL) {
+//      MsgLog (" - ERROR: Not enough memory!\n");
+//      return EFI_NOT_STARTED;
+//    }
+//
+//    /*
+//     From 10.7 to 10.9, status of directly restoring ESD files or update from Appstore cannot block kernel cache. because there are boot.efi and kernelcache file without kernel file.
+//     After macOS installed, boot.efi can call kernel file from S/L/Kernels.
+//     For this reason, long time ago, chameleon's user restored Base System.dmg to made USB installer and added kernel file in root and custom kexts in S/L/E. then used "-f" option.
+//     From 10.10+, boot.efi call only prelinkedkernel file without kernel file. we can never block only kernelcache.
+//     The use of these block caches is meaningless in modern macOS. Unlike the old days, we do not have to do the tedious task of putting the files needed for booting into the S/L/E.
+//     Caution! Do not add this list. If add this list, will see "Kernel cache load error (0xe)". This is just a guideline.
+//     by Sherlocks, 2017.11
+//     */
+//
+//    // Installed/createinstallmedia
+//    //FSInject->AddStringToList(Blacklist, L"\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.10+/10.13.4+
+//
+//    // Recovery
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.recovery.boot\\kernelcache"); // 10.7 - 10.10
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.recovery.boot\\prelinkedkernel"); // 10.11+
+//
+//    // BaseSytem/InstallESD
+//    //FSInject->AddStringToList(Blacklist, L"\\kernelcache"); // 10.7 - 10.9/(10.7/10.8)
+//
+//    // 1st stage - createinstallmedia
+//    //FSInject->AddStringToList(Blacklist, L"\\.IABootFiles\\kernelcache"); // 10.9/10.10
+//    //FSInject->AddStringToList(Blacklist, L"\\.IABootFiles\\prelinkedkernel"); // 10.11 - 10.13.3
+//
+//    // 2nd stage - InstallESD/AppStore/startosinstall
+//    //FSInject->AddStringToList(Blacklist, L"\\Mac OS X Install Data\\kernelcache"); // 10.7
+//    //FSInject->AddStringToList(Blacklist, L"\\OS X Install Data\\kernelcache"); // 10.8 - 10.10
+//    //FSInject->AddStringToList(Blacklist, L"\\OS X Install Data\\prelinkedkernel"); // 10.11
+//    //FSInject->AddStringToList(Blacklist, L"\\macOS Install Data\\prelinkedkernel"); // 10.12 - 10.12.3
+//    //FSInject->AddStringToList(Blacklist, L"\\macOS Install Data\\Locked Files\\Boot Files\\prelinkedkernel");// 10.12.4+
+//
+//    // 2nd stage - Fusion Drive
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.R\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.11
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.P\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.11
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.S\\System\\Library\\PrelinkedKernels\\prelinkedkernel"); // 10.11
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.R\\prelinkedkernel"); // 10.12+
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.P\\prelinkedkernel"); // 10.12+
+//    //FSInject->AddStringToList(Blacklist, L"\\com.apple.boot.S\\prelinkedkernel"); // 10.12+
+//
+//    // NetInstall
+//    //FSInject->AddStringToList(Blacklist, L"\\NetInstall macOS High Sierra.nbi\\i386\\x86_64\\kernelcache");
+//
+//
+//    // Block Caches list
+//    // InstallDVD/Installed
+//    FSInject->AddStringToList(Blacklist, L"\\System\\Library\\Caches\\com.apple.kext.caches\\Startup\\Extensions.mkext"); // 10.6
+//    FSInject->AddStringToList(Blacklist, L"\\System\\Library\\Extensions.mkext"); // 10.6
+//    FSInject->AddStringToList(Blacklist, L"\\System\\Library\\Caches\\com.apple.kext.caches\\Startup\\kernelcache"); // 10.6/10.6 - 10.9
+//
+//    if (gSettings.BlockKexts[0] != L'\0') {
+//      FSInject->AddStringToList(Blacklist, SWPrintf("\\System\\Library\\Extensions\\%ls", gSettings.BlockKexts).wc_str());
 //    }
 //  }
-//  XString8 s;
-//  plist->sprintf(0, &s);
-//  MsgLog("%s\n", s.c_str());
-//}
 //
+//  // check if kext injection is needed
+//  // (will be done only if caches are blocked or if boot.efi refuses to load kernelcache)
+//  //SrcDir = NULL;
+//  if (OSFLAG_ISSET(Flags, OSFLAG_WITHKEXTS)) {
+//    SrcDir = GetOtherKextsDir(TRUE);
+//    Status = FSInject->Install(
+//                                Volume->DeviceHandle,
+//                                L"\\System\\Library\\Extensions",
+//                                SelfVolume->DeviceHandle,
+//                                //GetOtherKextsDir (),
+//                                SrcDir.wc_str(),
+//                                Blacklist,
+//                                ForceLoadKexts
+//                                );
+//    //InjectKextsFromDir(Status, GetOtherKextsDir());
+//    InjectKextsFromDir(Status, SrcDir.wc_str());
+//
+//    SrcDir = GetOSVersionKextsDir(macOSVersion);
+//    Status = FSInject->Install(
+//                                Volume->DeviceHandle,
+//                                L"\\System\\Library\\Extensions",
+//                                SelfVolume->DeviceHandle,
+//                                //GetOSVersionKextsDir(OSVersion),
+//                                SrcDir.wc_str(),
+//                                Blacklist,
+//                                ForceLoadKexts
+//                                );
+//    //InjectKextsFromDir(Status, GetOSVersionKextsDir(OSVersion));
+//    InjectKextsFromDir(Status, SrcDir.wc_str());
+//  } else {
+//    MsgLog("skipping kext injection (not requested)\n");
+//  }
+//
+//  // prepare list of kext that will be forced to load
+//  ForceLoadKexts = FSInject->CreateStringList();
+//  if (ForceLoadKexts == NULL) {
+//    MsgLog(" - Error: not enough memory!\n");
+//    return EFI_NOT_STARTED;
+//  }
+//
+//  KextPatcherRegisterKexts(FSInject, ForceLoadKexts);
+//
+//  // reinit Volume->RootDir? it seems it's not needed.
+//
+//  return Status;
+//}
+
 
 EFI_GUID nullUUID = {0,0,0,{0}};
 
 const XString8& SETTINGS_DATA::getUUID()
 {
-  if ( CustomUuid.notEmpty() ) return CustomUuid;
+  if ( SystemParameters.CustomUuid.notEmpty() ) return SystemParameters.CustomUuid;
   return SmUUID;
 }
 
 const XString8& SETTINGS_DATA::getUUID(EFI_GUID *uuid)
 {
-  if ( CustomUuid.notEmpty() ) {
-    EFI_STATUS Status = StrToGuidLE(CustomUuid, uuid);
-    if ( EFI_ERROR(Status) ) panic("CustomUuid(%s) is not valid", CustomUuid.c_str()); // we panic, because it's a bug. Validity is checked when imported from settings
-    return CustomUuid;
+  if ( SystemParameters.CustomUuid.notEmpty() ) {
+    EFI_STATUS Status = StrToGuidLE(SystemParameters.CustomUuid, uuid);
+#ifdef DEBUG
+    if ( EFI_ERROR(Status) ) panic("CustomUuid(%s) is not valid", SystemParameters.CustomUuid.c_str()); // we panic, because it's a bug. Validity is checked when imported from settings
+#else
+    if ( EFI_ERROR(Status) ) {
+      DBG("CustomUuid(%s) is not valid\n", CustomUuid.c_str());
+      memset(uuid, 0, sizeof(uuid));
+      return nullUUID;
+    }
+#endif
+    return SystemParameters.CustomUuid;
   }
   EFI_STATUS Status = StrToGuidLE(SmUUID, uuid);
-  if ( EFI_ERROR(Status) ) panic("CustomUuid(%s) is not valid", CustomUuid.c_str()); // same as before
+#ifdef DEBUG
+  if ( EFI_ERROR(Status) ) panic("SmUUID(%s) is not valid", SmUUID.c_str()); // same as before
+#else
+  if ( EFI_ERROR(Status) ) {
+    DBG("SmUUID(%s) is not valid\n", SmUUID.c_str());
+    memset(uuid, 0, sizeof(uuid));
+    return nullUUID;
+  }
+#endif
+
   return SmUUID;
 }
 

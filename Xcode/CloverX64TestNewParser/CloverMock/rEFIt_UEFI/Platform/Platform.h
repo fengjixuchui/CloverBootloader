@@ -26,6 +26,7 @@ extern "C" {
 #include <Library/MemoryAllocationLib.h>
 #include "../../../../../rEFIt_UEFI/Platform/BootLog.h"
 //#include "BootLog.h"
+#include <Library/DebugLib.h> // this is just to define DEBUG, because Slice wrongly did some #ifdef DEBUG
 
 #ifdef __cplusplus
 }
@@ -49,6 +50,12 @@ typedef uint32_t char32_t;
 typedef uint16_t char16_t;
 typedef uint8_t bool;
 #endif
+
+// Replacement of uintptr_t to avoid warning in printf. It needs macro _UINTPTR_T to avoid to standard definition
+typedef unsigned long long  uintptr_t;
+#undef PRIuPTR
+#define PRIuPTR "llu"
+//#define _UINTPTR_T
 
 #include "../../../rEFIt_UEFI/Platform/Posix/abort.h"
 #include "../../../rEFIt_UEFI/cpp_foundation/unicode_conversions.h"

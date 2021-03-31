@@ -19,7 +19,10 @@
 template <typename T>
 class XBuffer : public XBuffer_Super
 {
-  protected:
+public:
+  static XBuffer<T> NullXBuffer;
+
+protected:
 	T*_WData; // same as RData (see XRBuffer)
 	size_t m_allocatedSize;
 
@@ -30,23 +33,44 @@ class XBuffer : public XBuffer_Super
   XBuffer(const XBuffer<T>& aBuffer) : _WData(NULL), m_allocatedSize(0) { Initialize(aBuffer.data(), aBuffer.size(), aBuffer.index()); }
   XBuffer(XRBuffer<T> &aBuffer, size_t pos = 0, size_t count = MAX_XSIZE);
 //	XBuffer(XBuffer &aBuffer, size_t pos = 0, size_t count = MAX_XSIZE);
-	XBuffer(void *p, size_t count);
+	XBuffer(const void *p, size_t count);
 	const XBuffer &operator =(const XRBuffer<T> &aBuffer);
 	const XBuffer &operator =(const XBuffer &aBuffer);
 
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
-	void stealValueFrom(T* p, IntegralType count) {
+  void stealValueFrom(T* p, IntegralType count) {
+    if ( count < 0 ) {
+#ifdef DEBUG
+      panic("XBuffer::stealValueFrom : count < 0. System halted\n");
+#else
+      return;
+#endif
+    }
+    if( _WData ) free(_WData);
+    m_allocatedSize = count;
+    XRBuffer<T>::_RData = _WData = p;
+    XRBuffer<T>::m_size = count;
+    XRBuffer<T>::_Index = 0;
+  }
+
+  template<typename IntegralType, enable_if(is_integral(IntegralType))>
+  void stealValueFrom(T* p, IntegralType count, IntegralType allocatedSize) {
     if ( count < 0 ) {
       panic("XBuffer::stealValueFrom : count < 0. System halted\n");
     }
+    if ( allocatedSize < count ) {
+      panic("XBuffer::stealValueFrom : allocatedSize < count. System halted\n");
+    }
     if( _WData ) free(_WData);
-    Initialize(p, count, 0);
+    m_allocatedSize = allocatedSize;
+    XRBuffer<T>::_RData = _WData = p;
+    XRBuffer<T>::m_size = count;
+    XRBuffer<T>::_Index = 0;
   }
-
-
 	~XBuffer();
 
-  public:
+public:
+
 	void CheckSize(size_t nNewSize, size_t nGrowBy = XBufferGrowByDefault);
 
   void* vdata() const { return (void*)XBuffer_Super::data(); }
@@ -61,7 +85,11 @@ class XBuffer : public XBuffer_Super
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
   T* dataSized(IntegralType size) {
     if ( size < 0 ) {
+#ifdef DEBUG
       panic("XBuffer::dataSized : size < 0. System halted\n");
+#else
+      return NULL;
+#endif
     }
     CheckSize(size, 0);
     return data();
@@ -80,8 +108,13 @@ class XBuffer : public XBuffer_Super
 
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
 	void setSize(IntegralType size) {
+#ifdef DEBUG
     if ( size<0 ) panic("XBuffer::setSize() -> i < 0");
     if ( (unsigned_type(IntegralType))size > MAX_XSIZE ) panic("XBuffer::setSize() -> i > MAX_XSIZE");
+#else
+    if ( size<0 ) return;
+    if ( (unsigned_type(IntegralType))size > MAX_XSIZE ) return;
+#endif
     CheckSize((unsigned_type(IntegralType))size);
     XBuffer_Super::m_size = (unsigned_type(IntegralType))size;
   };
@@ -100,15 +133,27 @@ class XBuffer : public XBuffer_Super
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
   T& operator [](IntegralType i)
   {
+//#ifdef DEBUG
     if (i < 0) panic("XBuffer::[] : i < 0. System halted\n");
     if ( (unsigned_type(IntegralType))i >= size() ) panic("XBuffer::[] : i > _Len. System halted\n");
+//#else
+//    // Cannot return 0, return value type is T, unknown at this stage.
+//    if (i < 0) return 0;
+//    if ( (unsigned_type(IntegralType))i >= size() ) return 0;
+//#endif
     return _WData[(unsigned_type(IntegralType))i];
   }
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
   const T& operator [](IntegralType i) const
   {
+//#ifdef DEBUG
     if (i < 0) panic("XBuffer::[] : i < 0. System halted\n");
     if ( (unsigned_type(IntegralType))i >= size() ) panic("XBuffer::[] : i > _Len. System halted\n");
+//#else
+//    // Cannot return 0, return value type is T, unknown at this stage.
+//    if (i < 0) return 0;
+//    if ( (unsigned_type(IntegralType))i >= size() ) return 0;
+//#endif
     return _WData[(unsigned_type(IntegralType))i];
   }
 
@@ -121,16 +166,26 @@ class XBuffer : public XBuffer_Super
 
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
   void memset(unsigned char c, IntegralType count) {
+#ifdef DEBUG
     if (count < 0) panic("XBuffer::memset : count < 0. System halted\n");
+#else
+    if (count < 0) return;
+#endif
     if ( (unsigned_type(IntegralType))count >= size() ) setSize(count);
     ::memset(_WData, c, count);
   }
 
   template<typename IntegralType1, typename IntegralType2, enable_if( is_integral(IntegralType1) && is_integral(IntegralType2) )>
   void memsetAtPos(IntegralType1 pos, unsigned char c, IntegralType2 count) {
+#ifdef DEBUG
     if (pos < 0) panic("XBuffer::memset : pos < 0. System halted\n");
     if (count < 0) panic("XBuffer::memset : count < 0. System halted\n");
+#else
+    if (pos < 0) return;
+    if (count < 0) return;
+#endif
     if ( (size_t)pos + (unsigned_type(IntegralType2))count >= size() ) setSize((size_t)pos + (unsigned_type(IntegralType2))count);
+
     ::memset(_WData, c, count);
   }
 
@@ -169,6 +224,8 @@ class XBuffer : public XBuffer_Super
 	bool ReadFromXRBuffer(XRBuffer<T> &unXBuffer);
 };
 
+template <typename T>
+XBuffer<T> XBuffer<T>::NullXBuffer = XBuffer<T>();
 
 
 
@@ -181,7 +238,11 @@ void XBuffer<T>::Initialize(const T* p, size_t count, size_t index)
     m_allocatedSize = count;
     _WData = (unsigned char*)malloc(m_allocatedSize);
     if ( !_WData ) {
+#ifdef DEBUG
       panic("XBuffer<T>::Initialize(%zu) : malloc returned NULL. System halted\n", count);
+#else
+      return;
+#endif
     }
     memcpy(_WData, p, count);
     XRBuffer<T>::_RData = _WData;
@@ -208,7 +269,12 @@ void XBuffer<T>::CheckSize(size_t nNewSize, size_t nGrowBy)
     nNewSize += nGrowBy;
     _WData = (unsigned char*)Xrealloc(_WData, nNewSize, m_allocatedSize);
     if ( !_WData ) {
+#ifdef DEBUG
       panic("XBuffer<T>::CheckSize(%zu, %zu) : Xrealloc(%" PRIuPTR " %zu, %zu) returned NULL. System halted\n", nNewSize, nGrowBy, uintptr_t(_WData), nNewSize, m_allocatedSize);
+#else
+      m_allocatedSize = 0;
+      return;
+#endif
     }
     XRBuffer<T>::_RData = _WData;
     m_allocatedSize = nNewSize;
@@ -242,7 +308,7 @@ XBuffer<T>::XBuffer(XRBuffer<T> &aXRBuffer, size_t pos, size_t count) : _WData(N
 //}
 
 template <typename T>
-XBuffer<T>::XBuffer(void *p, size_t count) : _WData(NULL), m_allocatedSize(0) // initialisation to avoid effc++ warning
+XBuffer<T>::XBuffer(const void *p, size_t count) : _WData(NULL), m_allocatedSize(0) // initialisation to avoid effc++ warning
 {
   Initialize((const unsigned char*)p, count, 0);
 }

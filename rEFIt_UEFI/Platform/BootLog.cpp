@@ -15,9 +15,14 @@
 #include "Self.h"
 #include "guid.h"
 
+//Slice - if I set NEW_LOG to 0 then I will work with debug.log as in 5103
+// but it is not working somehow.
+// my purpose is to make debug.log open and close every second to see crashes.
+// currently it is not happen. debug.log is not created at crash.
+#define NEW_LOG 1
 
 #ifndef DEBUG_ALL
-#define DEBUG_BOOTLOG 1
+#define DEBUG_BOOTLOG 0
 #else
 #define DEBUG_BOOTLOG DEBUG_ALL
 #endif
@@ -94,6 +99,7 @@ public:
 #if DEBUG_BOOTLOG == 0
 #define DGB_nbCallback(...)
 #else
+//Slice - it crashes at legacy boot
 #define DGB_nbCallback(...) do { SuspendMemLogCallback smc; DBG(__VA_ARGS__); } while (0)
 #endif
 
@@ -110,7 +116,7 @@ void closeDebugLog()
   //DGB_nbCallback("closeDebugLog() -> %s\n", efiStrError(Status));
 }
 
-
+#if NEW_LOG
 static UINTN GetDebugLogFile()
 {
   EFI_STATUS          Status;
@@ -142,12 +148,12 @@ static UINTN GetDebugLogFile()
 
   if ( debugLogFileName.isEmpty() )
   {
-    debugLogFileName = S8Printf("misc\\%d-%d-%d_%d-%d-%d_%ls.log", Now.Year, Now.Month, Now.Day, Now.Hour, Now.Minute, Now.Second, self.getCloverEfiFileName().wc_str());
+    debugLogFileName = S8Printf("misc\\%d-%d-%d_%d-%d_%ls.log", Now.Year, Now.Month, Now.Day, Now.Hour, Now.Minute,  self.getCloverEfiFileName().wc_str());
     Status = self.getCloverDir().Open(&self.getCloverDir(), &LogFile, debugLogFileName.wc_str(), EFI_FILE_MODE_READ, 0);
     if ( !EFI_ERROR(Status) ) LogFile->Close(LogFile); // DO NOT modify Status here.
     INTN i=1;
     while ( Status != EFI_NOT_FOUND  &&  (i < MAX_INTN) ) {
-      debugLogFileName = S8Printf("misc\\%d-%d-%d_%d-%d-%d_%ls(%lld).log", Now.Year, Now.Month, Now.Day, Now.Hour, Now.Minute, Now.Second, self.getCloverEfiFileName().wc_str(), i);
+      debugLogFileName = S8Printf("misc\\%d-%d-%d_%d-%d_%ls(%lld).log", Now.Year, Now.Month, Now.Day, Now.Hour, Now.Minute,  self.getCloverEfiFileName().wc_str(), i);
       Status = self.getCloverDir().Open(&self.getCloverDir(), &LogFile, debugLogFileName.wc_str(), EFI_FILE_MODE_READ, 0);
       if ( !EFI_ERROR(Status) ) LogFile->Close(LogFile); // DO NOT modify Status here.
     }
@@ -193,7 +199,59 @@ static UINTN GetDebugLogFile()
     }
     return 0;
   }
-
+}
+#else
+  EFI_FILE_PROTOCOL* GetDebugLogFile()
+  {
+    EFI_STATUS          Status;
+    EFI_LOADED_IMAGE    *LoadedImage;
+    EFI_FILE_PROTOCOL   *RootDir;
+    EFI_FILE_PROTOCOL   *LogFile;
+    
+    // get RootDir from device we are loaded from
+    Status = gBS->HandleProtocol(gImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **) &LoadedImage);
+    if (EFI_ERROR(Status)) {
+      return NULL;
+    }
+    RootDir = EfiLibOpenRoot(LoadedImage->DeviceHandle);
+    if (RootDir == NULL) {
+      return NULL;
+    }
+    
+    // Open log file from current root
+    Status = RootDir->Open(RootDir, &LogFile, debugLogFileName.wc_str(),
+                           EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE, 0);
+    
+    // If the log file is not found try to create it
+    if (Status == EFI_NOT_FOUND) {
+      Status = RootDir->Open(RootDir, &LogFile, debugLogFileName.wc_str(),
+                             EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+    }
+    RootDir->Close(RootDir);
+    RootDir = NULL;
+    
+    if (EFI_ERROR(Status)) {
+      // try on first EFI partition
+      Status = egFindESP(&RootDir);
+      if (!EFI_ERROR(Status)) {
+        Status = RootDir->Open(RootDir, &LogFile, debugLogFileName.wc_str(),
+                               EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE, 0);
+        // If the log file is not found try to create it
+        if (Status == EFI_NOT_FOUND) {
+          Status = RootDir->Open(RootDir, &LogFile, debugLogFileName.wc_str(),
+                                 EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0);
+        }
+        RootDir->Close(RootDir);
+        RootDir = NULL;
+      }
+    }
+    
+    if (EFI_ERROR(Status)) {
+      LogFile = NULL;
+    }
+    
+    return LogFile;
+}
 
 //  Jief : do we need that ?
 //  if (EFI_ERROR(Status)) {
@@ -211,8 +269,10 @@ static UINTN GetDebugLogFile()
 //      RootDir = NULL;
 //    }
 //  }
-}
 
+#endif
+
+#if NEW_LOG
 VOID SaveMessageToDebugLogFile(IN CHAR8 *LastMessage)
 {
   EFI_STATUS Status;
@@ -248,6 +308,45 @@ VOID SaveMessageToDebugLogFile(IN CHAR8 *LastMessage)
   // Not all Firmware implements Flush. So we have to close every time to force flush.
   closeDebugLog();
 }
+#else
+VOID SaveMessageToDebugLogFile(IN CHAR8 *LastMessage)
+{
+  STATIC BOOLEAN          FirstTimeSave = TRUE;
+  //  STATIC UINTN            Position = 0;
+  CHAR8                   *MemLogBuffer;
+  UINTN                   MemLogLen;
+  CHAR8                   *Text;
+  UINTN                   TextLen;
+  EFI_FILE_HANDLE         LogFile;
+  
+  MemLogBuffer = GetMemLogBuffer();
+  MemLogLen = GetMemLogLen();
+  Text = LastMessage;
+  TextLen = AsciiStrLen(LastMessage);
+  
+  /*UINTN lastWrittenOffset = GetDebugLogFile();*/
+  LogFile = GetDebugLogFile();
+  
+  // Write to the log file
+  if (LogFile != NULL) {
+    // Advance to the EOF so we append
+    EFI_FILE_INFO *Info = EfiLibFileInfo(LogFile);
+    if (Info) {
+      LogFile->SetPosition(LogFile, Info->FileSize);
+      // If we haven't had root before this write out whole log
+      if (FirstTimeSave) {
+        Text = MemLogBuffer;
+        TextLen = MemLogLen;
+        FirstTimeSave = FALSE;
+      }
+      // Write out this message
+      LogFile->Write(LogFile, &TextLen, Text);
+    }
+    LogFile->Close(LogFile);
+  }
+}
+
+#endif
 
 void EFIAPI MemLogCallback(IN INTN DebugMode, IN CHAR8 *LastMessage)
 {
@@ -281,11 +380,28 @@ void EFIAPI DebugLog(IN INTN DebugMode, IN CONST CHAR8 *FormatString, ...)
    MemLogfVA(TRUE, DebugMode, FormatString, Marker);
    VA_END(Marker);
 }
-
+#if NEW_LOG
 void InitBooterLog(void)
 {
   SetMemLogCallback(MemLogCallback);
 }
+
+#else
+void InitBooterLog(void)
+{
+  EFI_TIME          Now;
+  EFI_STATUS        Status;
+  
+  Status = gRT->GetTime(&Now, NULL);
+  if (!EFI_ERROR(Status)) {
+    debugLogFileName = SWPrintf("misc\\%d-%d-%d_%d-%d-%d_%ls.log", Now.Year, Now.Month, Now.Day, Now.Hour, Now.Minute, Now.Second, self.getCloverEfiFileName().wc_str());
+  } else {
+    debugLogFileName = L"misc\\debug.log"_XSW;
+  }
+
+  SetMemLogCallback(MemLogCallback);
+}
+#endif
 
 EFI_STATUS SetupBooterLog(BOOLEAN AllowGrownSize)
 {
@@ -328,7 +444,6 @@ EFI_STATUS SaveBooterLog(const EFI_FILE* BaseDir OPTIONAL, IN CONST CHAR16 *File
   
   return egSaveFile(BaseDir, FileName, (UINT8*)MemLogBuffer, MemLogLen);
 }
-
 
 void DbgHeader(CONST CHAR8 *str)
 {

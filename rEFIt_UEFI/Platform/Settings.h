@@ -3,33 +3,20 @@
 
 #include <Efi.h>
 #include "../gui/menu_items/menu_items.h"
-
+#include "../include/OSFlags.h"
+#include "../include/OSTypes.h"
+#include "../include/Languages.h"
 #include "../Platform/plist/plist.h"
 #include "../Platform/guid.h"
 #include "MacOsVersion.h"
 #include "KERNEL_AND_KEXT_PATCHES.h"
 #include "../libeg/XIcon.h"
+#include "../cpp_lib/undefinable.h"
+#include "../entry_scan/loader.h" // for KERNEL_SCAN_xxx constants
 
 
 #define CLOVER_SIGN             SIGNATURE_32('C','l','v','r')
 
-
-#define QUIRK_DEFRAG  bit(0)
-#define QUIRK_MMIO    bit(1)
-#define QUIRK_SU      bit(2)
-#define QUIRK_VAR     bit(3)
-#define QUIRK_HIBER   bit(4)
-#define QUIRK_SAFE    bit(5)
-#define QUIRK_UNPROT  bit(6)
-#define QUIRK_EXIT    bit(7)
-#define QUIRK_REGION  bit(8)
-#define QUIRK_SECURE  bit(9)
-#define QUIRK_UEFI    bit(10)
-#define QUIRK_CUSTOM  bit(11)
-#define QUIRK_MAP     bit(12)
-#define QUIRK_VIRT    bit(13)
-#define QUIRK_OS      bit(14)
-#define QUIRK_PERM    bit(15)
 
 //// SysVariables
 //typedef struct SYSVARIABLES SYSVARIABLES;
@@ -127,142 +114,325 @@ public:
   ~ACPI_DROP_TABLE() {}
 };
 
+class CUSTOM_LOADER_SUBENTRY_SETTINGS;
+class CUSTOM_LOADER_SUBENTRY;
+
+//class ConfigPlistClass;
+//class ConfigPlistClass::GUI_Custom_Entry_Class;
+//template<class C> class XmlArray;
+
+//void CompareCustomSubEntries(const XString8& label, const XObjArray<CUSTOM_LOADER_SUBENTRY_SETTINGS>& olDCustomEntries, const XmlArray<GUI_Custom_SubEntry_Class>& newCustomEntries);
+//BOOLEAN FillinCustomSubEntry(UINT8 parentType, IN OUT  CUSTOM_LOADER_SUBENTRY_SETTINGS *Entry, const TagDict* DictPointer, IN BOOLEAN SubEntry);
+                   
+class CUSTOM_LOADER_SUBENTRY_SETTINGS
+{
+public:
+  bool                   Disabled = 0;
+public: // temporary, must be protected:
+  // member defined with _ prefix should not be accessed from outside. I left them public for now for CompareCustomEntries()
+  undefinable_XString8   _Arguments = undefinable_XString8();
+  XString8               _AddArguments = XString8();
+
+  undefinable_XString8   _FullTitle = undefinable_XString8();
+  undefinable_XString8   _Title = undefinable_XString8();
+
+  undefinable_bool       _NoCaches = undefinable_bool();
+
+public:
+
+//  friend void ::CompareCustomSubEntries(const XString8& label, const XObjArray<CUSTOM_LOADER_SUBENTRY_SETTINGS>& olDCustomEntries, const XmlArray<GUI_Custom_SubEntry_Class>& newCustomEntries);
+//  friend BOOLEAN FillinCustomSubEntry(UINT8 parentType, IN OUT  CUSTOM_LOADER_SUBENTRY_SETTINGS *Entry, const TagDict* DictPointer, IN BOOLEAN SubEntry);
+//  friend class ::CUSTOM_LOADER_SUBENTRY;
+};
+
+class CUSTOM_LOADER_ENTRY;
+
+class CUSTOM_LOADER_SUBENTRY
+{
+public:
+  const CUSTOM_LOADER_ENTRY& parent;
+  const CUSTOM_LOADER_SUBENTRY_SETTINGS& settings = CUSTOM_LOADER_SUBENTRY_SETTINGS();
+
+  CUSTOM_LOADER_SUBENTRY(const CUSTOM_LOADER_ENTRY& _customLoaderEntry, const CUSTOM_LOADER_SUBENTRY_SETTINGS& _settings) : parent(_customLoaderEntry), settings(_settings) {}
+  
+  XString8Array getLoadOptions() const;
+  UINT8 getFlags(bool NoCachesDefault) const;
+
+  const XString8& getTitle() const;
+  const XString8& getFullTitle() const;
+};
+
+//class GUI_Custom_Entry_Class;
+class CUSTOM_LOADER_ENTRY_SETTINGS;
+//
+//void CompareCustomEntries(const XString8& label, const XObjArray<CUSTOM_LOADER_ENTRY_SETTINGS>& olDCustomEntries, const XmlArray<GUI_Custom_Entry_Class>& newCustomEntries);
+//BOOLEAN FillinCustomEntry(IN OUT  CUSTOM_LOADER_ENTRY_SETTINGS *Entry, const TagDict* DictPointer, IN BOOLEAN SubEntry);
+
+extern const XString8 defaultInstallTitle;
+extern const XString8 defaultRecoveryTitle;
+extern const XStringW defaultRecoveryImagePath;
+extern const XStringW defaultRecoveryDriveImagePath;
+
+class CUSTOM_LOADER_ENTRY_SETTINGS
+{
+public:
+  bool                    Disabled = 0;
+  XBuffer<UINT8>          ImageData = XBuffer<UINT8>();
+  XBuffer<UINT8>          DriveImageData = XBuffer<UINT8>();
+  XStringW                Volume = XStringW();
+  XStringW                Path = XStringW();
+  undefinable_XString8    Arguments = undefinable_XString8();
+  XString8                AddArguments = XString8();
+  XString8                FullTitle = XStringW();
+  XStringW                Settings = XStringW(); // path of a config.plist that'll be read at the beginning of startloader
+  CHAR16                  Hotkey = 0;
+  BOOLEAN                 CommonSettings = 0;
+//  UINT8                   Flags = 0;
+  bool                    Hidden = 0;
+  bool                    AlwaysHidden = 0;
+  UINT8                   Type = 0;
+  UINT8                   VolumeType = 0;
+  UINT8                   KernelScan = KERNEL_SCAN_ALL;
+  XString8                CustomLogoAsXString8 = XString8();
+  XBuffer<UINT8>          CustomLogoAsData = XBuffer<UINT8>();
+  EFI_GRAPHICS_OUTPUT_BLT_PIXEL BootBgColor = EFI_GRAPHICS_OUTPUT_BLT_PIXEL({0,0,0,0});
+  INT8                    InjectKexts = -1;
+  undefinable_bool        NoCaches = undefinable_bool();
+  XObjArray<CUSTOM_LOADER_SUBENTRY_SETTINGS> SubEntriesSettings = XObjArray<CUSTOM_LOADER_SUBENTRY_SETTINGS>();
+public: // temporary, must be protected:
+  XStringW                m_DriveImagePath = XStringW();
+  XString8                m_Title = XStringW();
+  UINT8                   CustomLogoTypeSettings = 0;
+  XStringW                m_ImagePath = XStringW();
+
+public:
+  friend class ::CUSTOM_LOADER_ENTRY;
+//  friend void ::CompareCustomEntries(const XString8& label, const XObjArray<CUSTOM_LOADER_ENTRY_SETTINGS>& olDCustomEntries, const XmlArray<GUI_Custom_Entry_Class>& newCustomEntries);
+  friend BOOLEAN FillinCustomEntry(IN OUT  CUSTOM_LOADER_ENTRY_SETTINGS *Entry, const TagDict* DictPointer, IN BOOLEAN SubEntry);
+
+
+  const XString8& dgetTitle() const {
+    if ( m_Title.notEmpty() ) return m_Title;
+    if (OSTYPE_IS_OSX_RECOVERY(Type)) {
+      return defaultRecoveryTitle;
+    } else if (OSTYPE_IS_OSX_INSTALLER(Type)) {
+      return defaultInstallTitle;
+    }
+    return NullXString8;
+  }
+
+  const XStringW& dgetImagePath() const {
+    if ( m_ImagePath.notEmpty() ) return m_ImagePath;
+    if ( ImageData.notEmpty() ) return NullXStringW;
+    if (OSTYPE_IS_OSX_RECOVERY(Type)) return defaultRecoveryImagePath;
+    return NullXStringW;
+  }
+  const XStringW& dgetDriveImagePath() const {
+    if ( m_DriveImagePath.notEmpty() ) return m_DriveImagePath;
+    if ( DriveImageData.notEmpty() ) return NullXStringW;
+    if (OSTYPE_IS_OSX_RECOVERY(Type)) return defaultRecoveryDriveImagePath;
+    return NullXStringW;
+  }
+
+};
+
 class CUSTOM_LOADER_ENTRY
 {
 public:
-  CUSTOM_LOADER_ENTRY     *Next;
-  CUSTOM_LOADER_ENTRY     *SubEntries;
-  XIcon                  Image = XIcon();
-  XIcon                  DriveImage = XIcon();
-  XStringW               ImagePath;
-  XStringW               DriveImagePath;
-  XStringW               Volume;
-  XStringW               Path;
-  XString8Array           LoadOptions;
+  const CUSTOM_LOADER_ENTRY_SETTINGS& settings = CUSTOM_LOADER_ENTRY_SETTINGS();
+  XObjArray<CUSTOM_LOADER_SUBENTRY> SubEntries = XObjArray<CUSTOM_LOADER_SUBENTRY>();
+  XIcon                   Image = XIcon();
+  XIcon                   DriveImage = XIcon();
+  XImage                  CustomLogoImage = XImage(); // Todo : remove from settings.
+  UINT8                   CustomLogoType = 0;
+  KERNEL_AND_KEXT_PATCHES KernelAndKextPatches = KERNEL_AND_KEXT_PATCHES();
 
-  XStringW FullTitle;
-  XStringW Title;
-  XStringW Settings;
-  CHAR16                  Hotkey;
-  BOOLEAN                 CommonSettings;
-  UINT8                   Flags;
-  bool                    Hidden;
-  UINT8                   Type;
-  UINT8                   VolumeType;
-  UINT8                   KernelScan;
-  UINT8                   CustomBoot;
-  XImage                  CustomLogo = XImage();
-  EFI_GRAPHICS_OUTPUT_BLT_PIXEL BootBgColor = EFI_GRAPHICS_OUTPUT_BLT_PIXEL({0,0,0,0});
-  KERNEL_AND_KEXT_PATCHES KernelAndKextPatches;
+  CUSTOM_LOADER_ENTRY(const CUSTOM_LOADER_ENTRY_SETTINGS& _settings);
 
-  CUSTOM_LOADER_ENTRY() : Next(0), SubEntries(0), ImagePath(), DriveImagePath(), Volume(), Path(), LoadOptions(),
-                          FullTitle(), Title(), Settings(), Hotkey(0), CommonSettings(0), Flags(0), Hidden(0), Type(0), VolumeType(0),
-                          KernelScan(0), CustomBoot(0), KernelAndKextPatches()
-						{ }
+  XString8Array getLoadOptions() const;
+  
+  UINT8 getFlags(bool NoCachesDefault) const {
+    UINT8 Flags = 0;
+    if ( settings.Arguments.isDefined() ) Flags = OSFLAG_SET(Flags, OSFLAG_NODEFAULTARGS);
+    if ( settings.AlwaysHidden ) Flags = OSFLAG_SET(Flags, OSFLAG_DISABLED);
+    if ( settings.Type == OSTYPE_LIN ) Flags = OSFLAG_SET(Flags, OSFLAG_NODEFAULTARGS);
+    if (OSTYPE_IS_OSX(settings.Type) || OSTYPE_IS_OSX_RECOVERY(settings.Type) || OSTYPE_IS_OSX_INSTALLER(settings.Type)) {
+      Flags = OSFLAG_UNSET(Flags, OSFLAG_NOCACHES);
+    }
+    if ( settings.NoCaches.isDefined() ) {
+      if ( settings.NoCaches ) Flags = OSFLAG_SET(Flags, OSFLAG_NOCACHES);
+    }else{
+      if (NoCachesDefault) {
+        Flags = OSFLAG_SET(Flags, OSFLAG_NOCACHES);
+      }
+    }
+    if ( SubEntries.notEmpty() ) Flags = OSFLAG_SET(Flags, OSFLAG_NODEFAULTMENU);
+    return Flags;
+  }
+};
 
-  // Not sure if default are valid. Delete them. If needed, proper ones can be created
-  CUSTOM_LOADER_ENTRY(const CUSTOM_LOADER_ENTRY&) = delete;
-  CUSTOM_LOADER_ENTRY& operator=(const CUSTOM_LOADER_ENTRY&) = delete;
-
+class CUSTOM_LEGACY_ENTRY_SETTINGS
+{
+public:
+  bool                 Disabled = 0;
+  XStringW             ImagePath = XStringW();
+  XBuffer<UINT8>       ImageData = XBuffer<UINT8>();
+  XStringW             DriveImagePath = XStringW();
+  XBuffer<UINT8>       DriveImageData = XBuffer<UINT8>();
+  XStringW             Volume = XStringW();
+  XStringW             FullTitle = XStringW();
+  XStringW             Title = XStringW();
+  CHAR16               Hotkey = 0;
+//  UINT8                Flags = 0;
+  bool                 Hidden = 0;
+  bool                 AlwaysHidden = 0;
+  UINT8                Type = 0;
+  UINT8                VolumeType = 0;
 };
 
 class CUSTOM_LEGACY_ENTRY
 {
 public:
-  CUSTOM_LEGACY_ENTRY* Next;
+  const CUSTOM_LEGACY_ENTRY_SETTINGS& settings = CUSTOM_LEGACY_ENTRY_SETTINGS();
   XIcon                Image = XIcon();
   XIcon                DriveImage = XIcon();
-  XStringW             ImagePath;
-  XStringW             DriveImagePath;
-  XStringW             Volume;
-  XStringW             FullTitle;
-  XStringW             Title;
-  CHAR16               Hotkey;
-  UINT8                Flags;
-  bool                 Hidden;
-  UINT8                Type;
-  UINT8                VolumeType;
 
-  CUSTOM_LEGACY_ENTRY() : Next(0), ImagePath(), DriveImagePath(), Volume(), FullTitle(), Title(), Hotkey(0), Flags(0), Hidden(0), Type(0), VolumeType(0) { }
+  CUSTOM_LEGACY_ENTRY(const CUSTOM_LEGACY_ENTRY_SETTINGS& _settings, const EFI_FILE& ThemeDir) : settings(_settings)
+  {
+    if ( settings.ImagePath.notEmpty() ) {
+      Image.LoadXImage(&ThemeDir, settings.ImagePath);
+    }else if ( settings.ImageData.notEmpty() ) {
+      if ( !EFI_ERROR(Image.Image.FromPNG(settings.ImageData.data(), settings.ImageData.size())) ) {
+        Image.setFilled();
+      }
+    }
+    if ( settings.DriveImagePath.notEmpty() ) {
+      DriveImage.LoadXImage(&ThemeDir, settings.DriveImagePath);
+    }else if ( settings.DriveImageData.notEmpty() ) {
+      if ( !EFI_ERROR(DriveImage.Image.FromPNG(settings.DriveImageData.data(), settings.DriveImageData.size())) ) {
+        DriveImage.setFilled();
+      }
+    }
+  }
+  
+  UINT8 getFlags() const {
+    UINT8 Flags = 0;
+    if ( settings.Disabled || settings.AlwaysHidden ) Flags = OSFLAG_SET(Flags, OSFLAG_DISABLED);
+    return Flags;
+  }
+};
 
-  // Not sure if default are valid. Delete them. If needed, proper ones can be created
-  CUSTOM_LEGACY_ENTRY(const CUSTOM_LEGACY_ENTRY&) = delete;
-  CUSTOM_LEGACY_ENTRY& operator=(const CUSTOM_LEGACY_ENTRY&) = delete;
+class CUSTOM_TOOL_ENTRY_SETTINGS
+{
+public:
+  bool               Disabled = 0;
+  XStringW           ImagePath = XStringW();
+  XBuffer<UINT8>     ImageData = XBuffer<UINT8>();
+  XStringW           Volume = XStringW();
+  XStringW           Path = XStringW();
+//  XString8Array      LoadOptions = XString8Array();
+  XString8           Arguments = XString8();
+  XStringW           FullTitle = XStringW();
+  XStringW           Title = XStringW();
+  CHAR16             Hotkey = 0;
+//  UINT8              Flags = 0;
+  bool               Hidden = 0;
+  bool               AlwaysHidden = 0;
+  UINT8              VolumeType = 0;
+
 };
 
 class CUSTOM_TOOL_ENTRY
 {
 public:
-  CUSTOM_TOOL_ENTRY *Next;
   XIcon              Image = XIcon();
-  XStringW           ImagePath;
-  XStringW           Volume;
-  XStringW           Path;
-  XString8Array       LoadOptions;
-  XStringW           FullTitle;
-  XStringW           Title;
-  CHAR16             Hotkey;
-  UINT8              Flags;
-  bool               Hidden;
-  UINT8              VolumeType;
 
-  CUSTOM_TOOL_ENTRY() : Next(0), ImagePath(), Volume(), Path(), LoadOptions(), FullTitle(), Title(), Hotkey(0), Flags(0), Hidden(0), VolumeType(0) { }
-
-  // Not sure if default are valid. Delete them. If needed, proper ones can be created
-  CUSTOM_TOOL_ENTRY(const CUSTOM_TOOL_ENTRY&) = delete;
-  CUSTOM_TOOL_ENTRY& operator=(const CUSTOM_TOOL_ENTRY&) = delete;
+  const CUSTOM_TOOL_ENTRY_SETTINGS& settings = CUSTOM_TOOL_ENTRY_SETTINGS();
+  
+  CUSTOM_TOOL_ENTRY(const CUSTOM_TOOL_ENTRY_SETTINGS& _settings, const EFI_FILE& ThemeDir) : settings(_settings)
+  {
+    if ( settings.ImagePath.notEmpty() ) {
+      Image.LoadXImage(&ThemeDir, settings.ImagePath);
+    } else if ( settings.ImageData.notEmpty() ) {
+      if ( !EFI_ERROR(Image.Image.FromPNG(settings.ImageData.data(), settings.ImageData.size())) ) {
+        Image.setFilled();
+      }
+    }
+  }
+  UINT8 getFlags() const {
+    UINT8 Flags = 0;
+    if ( settings.Disabled || settings.AlwaysHidden ) Flags = OSFLAG_SET(Flags, OSFLAG_DISABLED);
+    return Flags;
+  }
+  XString8Array getLoadOptions() const {
+    return Split<XString8Array>(settings.Arguments, " ");
+  }
 };
 
 class DEV_PROPERTY
 {
 public:
-  UINT32        Device;
-  EFI_DEVICE_PATH_PROTOCOL* DevicePath = NULL;
-  CHAR8         *Key;
-  UINT8         *Value;
-  UINTN         ValueLen;
-  DEV_PROPERTY  *Next;   //next device or next property
-  DEV_PROPERTY  *Child;  // property list of the device
-  CHAR8         *Label;
-  INPUT_ITEM    MenuItem = INPUT_ITEM();
-  TAG_TYPE      ValueType = kTagTypeNone;
+  UINT32                       Device = 0;
+  EFI_DEVICE_PATH_PROTOCOL*    DevicePath = NULL;
+  CHAR8*                       Key = 0;
+  UINT8*                       Value = 0;
+  UINTN                        ValueLen = 0;
+  DEV_PROPERTY*                Next = 0;   //next device or next property
+  DEV_PROPERTY*                Child = 0;  // property list of the device
+  CHAR8*                       Label = 0;
+  INPUT_ITEM                   MenuItem = INPUT_ITEM();
+  TAG_TYPE                     ValueType = kTagTypeNone;
 
-  DEV_PROPERTY() : Device(0), Key(0), Value(0), ValueLen(0), Next(0), Child(0), Label(0)  { }
-
+  DEV_PROPERTY() {};
   // Not sure if default are valid. Delete them. If needed, proper ones can be created
-  DEV_PROPERTY(const DEV_PROPERTY&) = delete;
-  DEV_PROPERTY& operator=(const DEV_PROPERTY&) = delete;
+  DEV_PROPERTY(const DEV_PROPERTY&) { panic("nope"); };
+  DEV_PROPERTY& operator=(const DEV_PROPERTY&) { panic("nope"); };
 };
 
-//#pragma GCC diagnostic error "-Wpadded"
-
-class DSDT_Patch
+class DEV_ADDPROPERTY
 {
-public :
-  XBuffer<UINT8>   PatchDsdtFind = XBuffer<UINT8>();
-  XBuffer<UINT8>   PatchDsdtReplace = XBuffer<UINT8>();
-  XString8         PatchDsdtLabel = XString8();
-  XBuffer<UINT8>   PatchDsdtTgt = XBuffer<UINT8>();
-  INPUT_ITEM       PatchDsdtMenuItem = INPUT_ITEM();
-
-  DSDT_Patch() = default; // default is fine if there is only native type and objects that have copy ctor
-  DSDT_Patch(const DSDT_Patch& other) = default; // default is fine if there is only native type and objects that have copy ctor
-  DSDT_Patch& operator = ( const DSDT_Patch & ) = default; // default is fine if there is only native type and objects that have copy ctor
+public:
+  UINT32                       Device = 0;
+  XString8                     Key = XString8();
+  XBuffer<uint8_t>             Value = XBuffer<uint8_t>();
+  INPUT_ITEM                   MenuItem = INPUT_ITEM();
 };
 
-class MMIOWhiteList
+/**
+  Set of Search & replace bytes for VideoBiosPatchBytes().
+  this is supposed to be a replacement of VBIOS_PATCH_BYTES, but that would need VbiosPatchLibrary to be update to C++. Quite easy, but need cpp_fundation to become a library. TODO
+**/
+class VBIOS_PATCH {
+public:
+  XBuffer<uint8_t> Find = XBuffer<uint8_t>();
+  XBuffer<uint8_t> Replace = XBuffer<uint8_t>();
+};
+
+class PatchVBiosBytesNewClass : public XObjArray<VBIOS_PATCH>
 {
-public :
-  UINTN        address;
-  XString8     comment;
-  bool         enabled;
-
-  MMIOWhiteList() : address(0), comment(), enabled(false) { }
-
-  // Not sure if default are valid. Delete them. If needed, proper ones can be created
-  MMIOWhiteList(const MMIOWhiteList&) = delete;
-  MMIOWhiteList& operator=(const MMIOWhiteList&) = delete;
+  mutable XArray<VBIOS_PATCH_BYTES> VBIOS_PATCH_BYTES_array = XArray<VBIOS_PATCH_BYTES>();
+public:
+  // Temporary bridge to old struct.
+  const VBIOS_PATCH_BYTES* getVBIOS_PATCH_BYTES() {
+    VBIOS_PATCH_BYTES_array.setSize(size());
+    for ( size_t idx = 0 ; idx < size() ; ++idx ) {
+      VBIOS_PATCH_BYTES_array[idx].Find = ElementAt(idx).Find.data();
+      VBIOS_PATCH_BYTES_array[idx].Replace = ElementAt(idx).Replace.data();
+      VBIOS_PATCH_BYTES_array[idx].NumberOfBytes = ElementAt(idx).Replace.size();
+    }
+    return VBIOS_PATCH_BYTES_array;
+  }
+  size_t getVBIOS_PATCH_BYTES_count() const {
+    return size();
+  }
 };
+
+
+class SETTINGS_DATA;
+class ConfigPlistClass;
+class TagDict;
+//bool CompareOldNewSettings(const SETTINGS_DATA& , const ConfigPlistClass& );
+EFI_STATUS GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings);
 
 class SETTINGS_DATA {
 public:
@@ -273,6 +443,7 @@ public:
       bool                    SkipHibernateTimeout = false;
       bool                    DisableCloverHotkeys = false;
       XString8                BootArgs = XString8();
+      bool                    NeverDoRecovery = 0;
       bool                    LastBootedVolume = false;
       XStringW                DefaultVolume = XStringW();
       XStringW                DefaultLoader = XStringW();
@@ -284,8 +455,9 @@ public:
       bool                    RtcHibernateAware = false;
       bool                    HibernationFixup = false;
       bool                    SignatureFixup = false;
-      UINT8                   SecureBoot = 0;
-      UINT8                   SecureBootSetupMode = 0;
+      INT8                   SecureSetting = 0; // 0 == false, 1 == true, -1 == undefined
+      //UINT8                   SecureBoot = 0;
+      //UINT8                   SecureBootSetupMode = 0;
       UINT8                   SecureBootPolicy = 0;
       // Secure boot white/black list
       XStringWArray           SecureBootWhiteList = XStringWArray();
@@ -294,9 +466,10 @@ public:
       // LegacyBoot
       XStringW                LegacyBoot = XStringW();
       UINT16                  LegacyBiosDefaultEntry = 0;
-      UINT8                   CustomBoot = 0;
-      XImage                  *CustomLogo = 0;
-  } Boot = BootClass();
+      UINT8                   CustomLogoType = 0;
+      XString8                CustomLogoAsXString8 = XString8();
+      XBuffer<UINT8>          CustomLogoAsData = XBuffer<UINT8>();
+  };
   
   class ACPIClass
   {
@@ -309,20 +482,30 @@ public:
           UINT32   TabLength = 0;
           bool     OtherOS = 0;
       };
-      XObjArray<ACPIDropTablesClass> ACPIDropTablesArray = XObjArray<ACPIDropTablesClass>();
       
       class DSDTClass
       {
         public:
+          class DSDT_Patch
+          {
+          public :
+            bool             Disabled = bool();
+            XString8         PatchDsdtLabel = XString8();
+            XBuffer<UINT8>   PatchDsdtFind = XBuffer<UINT8>();
+            XBuffer<UINT8>   PatchDsdtReplace = XBuffer<UINT8>();
+            XBuffer<UINT8>   PatchDsdtTgt = XBuffer<UINT8>();
+            INPUT_ITEM       PatchDsdtMenuItem = INPUT_ITEM();
+          };
+
           XStringW                DsdtName = XStringW();
-          BOOLEAN                 DebugDSDT = 0;
-          BOOLEAN                 Rtc8Allowed = 0;
+          bool                    DebugDSDT = 0;
+          bool                    Rtc8Allowed = 0;
           UINT8                   PNLF_UID = 0;
           UINT32                  FixDsdt = 0;
+          bool                    ReuseFFFF = 0;
+          bool                    SuspendOverride = 0;
           XObjArray<DSDT_Patch>   DSDTPatchArray = XObjArray<DSDT_Patch>();
-          BOOLEAN                 ReuseFFFF = 0;
-          BOOLEAN                 SuspendOverride = 0;
-      } DSDT = DSDTClass();
+      };
       
       class SSDTClass
       {
@@ -330,58 +513,305 @@ public:
           class GenerateClass
           {
             public:
-              BOOLEAN                 GeneratePStates = 0;
-              BOOLEAN                 GenerateCStates = 0;
-              BOOLEAN                 GenerateAPSN = 0;
-              BOOLEAN                 GenerateAPLF = 0;
-              BOOLEAN                 GeneratePluginType = 0;
-          } Generate = GenerateClass();
-          BOOLEAN                 DropSSDT = 0;
-          BOOLEAN                 NoOemTableId = 0;
-          BOOLEAN                 NoDynamicExtract = 0;
-          BOOLEAN                 EnableISS = 0;
-          BOOLEAN                 EnableC7 = 0;
-          BOOLEAN                 EnableC6 = 0;
-          BOOLEAN                 EnableC4 = 0;
-          BOOLEAN                 EnableC2 = 0;
-          UINT16                  C3Latency = 0;
+              bool                 GeneratePStates = 0;
+              bool                 GenerateCStates = 0;
+              bool                 GenerateAPSN = 0;
+              bool                 GenerateAPLF = 0;
+              bool                 GeneratePluginType = 0;
+          };
+
+          bool                    DropSSDTSetting = 0;
+          bool                    NoOemTableId = 0;
+          bool                    NoDynamicExtract = 0;
+          bool                    EnableISS = 0;
+          bool                    EnableC7 = 0;
+          bool                    _EnableC6 = 0;
+          bool                    _EnableC4 = 0;
+          bool                    _EnableC2 = 0;
+          UINT16                  _C3Latency = 0;
           UINT8                   PLimitDict = 0;
           UINT8                   UnderVoltStep = 0;
-          BOOLEAN                 DoubleFirstState = 0;
+          bool                    DoubleFirstState = 0;
           UINT8                   MinMultiplier = 0;
           UINT8                   MaxMultiplier = 0;
           UINT8                   PluginType = 0;
-      } SSDT = SSDTClass();
+          GenerateClass           Generate = GenerateClass();
+      };
 
-      UINT64                  ResetAddr = 0;
-      UINT8                   ResetVal = 0;
-      BOOLEAN                 SlpSmiEnable = 0;
-      BOOLEAN                 FixHeaders = 0;
-      BOOLEAN                 FixMCFG = 0;
-      BOOLEAN                 NoASPM = 0;
-      BOOLEAN                 smartUPS = 0;
-      BOOLEAN                 PatchNMI = 0;
-      XStringWArray           SortedACPI = XStringWArray();
-      BOOLEAN                 AutoMerge = 0;
-      XStringWArray           DisabledAML = XStringWArray();
-      XObjArray<ACPI_NAME_LIST> DeviceRename = XObjArray<ACPI_NAME_LIST>();
-
-  } ACPI = ACPIClass();
+      UINT64                            ResetAddr = 0;
+      UINT8                             ResetVal = 0;
+      bool                              SlpSmiEnable = 0;
+      bool                              FixHeaders = 0;
+      bool                              FixMCFG = 0;
+      bool                              NoASPM = 0;
+      bool                              smartUPS = 0;
+      bool                              PatchNMI = 0;
+      bool                              AutoMerge = 0;
+      XStringWArray                     DisabledAML = XStringWArray();
+      XString8Array                     SortedACPI = XString8Array();
+      XObjArray<ACPI_NAME_LIST>         DeviceRename = XObjArray<ACPI_NAME_LIST>();
+      XObjArray<ACPIDropTablesClass>    ACPIDropTablesArray = XObjArray<ACPIDropTablesClass>();
+      DSDTClass DSDT =                  DSDTClass();
+      SSDTClass SSDT =                  SSDTClass();
+  };
 
   class GUIClass {
     public:
-      INT32                   Timezone = 0xFF;
+      class MouseClass {
+        public:
+          INTN                    PointerSpeed = 0;
+          bool                 PointerEnabled = 0;
+          UINT64                  DoubleClickTime = 0;
+          bool                 PointerMirror = 0;
+      } ;
+      class ScanClass {
+        public:
+          bool                 DisableEntryScan = 0;
+          bool                 DisableToolScan = 0;
+          UINT8                KernelScan = 0;
+          bool                 LinuxScan = 0;
+          bool                 LegacyFirst = false;
+          bool                 NoLegacy = false;
+      };
+
+      INT32                   Timezone = -1;
       XStringW                Theme = XStringW();
+      //bool                    DarkEmbedded = 0;
+      XString8                EmbeddedThemeType = XString8();
+      bool                    PlayAsync = 0;
       bool                    CustomIcons = false;
       bool                    TextOnly = false;
       bool                    ShowOptimus = false;
       XStringW                ScreenResolution = XStringW();
+      bool                    ProvideConsoleGop = 0;
       INTN                    ConsoleMode = 0;
-      INTN                    Codepage = 0xC0;
-      INTN                    CodepageSize = 0xC0;
-      bool                    LegacyFirst = false;
-      bool                    NoLegacy = false;
-  } GUI = GUIClass();
+      LANGUAGES               Language = english;
+      bool                    KbdPrevLang = 0;
+      XString8Array           HVHideStrings = XString8Array();
+      ScanClass Scan =        ScanClass();
+      MouseClass Mouse =      MouseClass();
+      XObjArray<CUSTOM_LOADER_ENTRY_SETTINGS> CustomEntriesSettings = XObjArray<CUSTOM_LOADER_ENTRY_SETTINGS>();
+      XObjArray<CUSTOM_LEGACY_ENTRY_SETTINGS> CustomLegacySettings = XObjArray<CUSTOM_LEGACY_ENTRY_SETTINGS>();
+      XObjArray<CUSTOM_TOOL_ENTRY_SETTINGS>   CustomToolSettings = XObjArray<CUSTOM_TOOL_ENTRY_SETTINGS>();
+
+      bool getDarkEmbedded(bool isDaylight) const;
+
+  };
+
+  class CPUClass {
+    public:
+      UINT16                  QPI = 0;
+      UINT32                  CpuFreqMHz = 0;
+      UINT16                  CpuType = 0;
+      bool                    QEMU = 0;
+      bool                    UseARTFreq = 0;
+      UINT32                  BusSpeed = 0; //in kHz
+      bool                    UserChange = 0;
+      UINT8                   SavingMode = 0;
+      bool                    HWPEnable = false;
+      undefinable_uint32      HWPValue = undefinable_uint32();
+      UINT8                   TDP = 0;
+      bool                    TurboDisabled = 0;
+      undefinable_bool        _EnableC6 = undefinable_bool();
+      undefinable_bool        _EnableC4 = undefinable_bool();
+      undefinable_bool        _EnableC2 = undefinable_bool();
+      undefinable_uint16      _C3Latency = undefinable_uint16();
+  };
+
+  class SystemParametersClass {
+    public:
+      bool                 WithKexts = true;
+      bool                 WithKextsIfNoFakeSMC = 0;
+      bool                 NoCaches = 0;
+      uint16_t   BacklightLevel = 0xFFFF;
+      bool BacklightLevelConfig = false;
+      XString8             CustomUuid = XString8();
+    public: // temporary, must be protected:
+      UINT8                _InjectSystemID = 2; // 0=false, 1=true, other value = default.
+    public:
+      bool                 NvidiaWeb = 0;
+      
+      friend class ::SETTINGS_DATA;
+      friend unsigned long long ::GetUserSettings(const TagDict* CfgDict, SETTINGS_DATA& gSettings);
+  };
+
+  class GraphicsClass {
+    public:
+      class EDIDClass {
+        public:
+          bool                    InjectEDID = bool();
+          XBuffer<UINT8>          CustomEDID = XBuffer<UINT8> ();
+          UINT16                  VendorEDID = UINT16();
+          UINT16                  ProductEDID = UINT16();
+          UINT16                  EdidFixHorizontalSyncPulseWidth = UINT16();
+          UINT8                   EdidFixVideoInputSignal = UINT8();
+      };
+      
+      class InjectAsDictClass {
+        public:
+          bool GraphicsInjector = bool();
+          bool InjectIntel = bool();
+          bool InjectATI = bool();
+          bool InjectNVidia = bool();
+      };
+
+      class GRAPHIC_CARD {
+        public:
+          UINT32            Signature = 0;
+          XString8          Model = XString8();
+          UINT32            Id = 0;
+          UINT32            SubId = 0;
+          UINT64            VideoRam = 0;
+          UINTN             VideoPorts = 0;
+          bool           LoadVBios = 0;
+      };
+
+      bool                     PatchVBios = bool();
+      PatchVBiosBytesNewClass  PatchVBiosBytes = PatchVBiosBytesNewClass();
+//      undefinable_bool InjectAsBool = undefinable_bool();
+      bool                 RadeonDeInit = bool();
+      bool                 LoadVBios = bool();
+      UINT64               VRAM = bool();
+      UINT32               RefCLK = UINT32();
+      XStringW             FBName = XStringW();
+      UINT16               VideoPorts = UINT16();
+      bool                 NvidiaGeneric = bool();
+      bool                 NvidiaNoEFI = bool();
+      bool                 NvidiaSingle = bool();
+      UINT8                Dcfg[8] = {0};
+      UINT8                NVCAP[20] = {0};
+      INT8                 BootDisplay = INT8();
+      UINT32               DualLink = UINT32();
+      UINT32               IgPlatform = UINT32(); //could also be snb-platform-id
+      EDIDClass            EDID = EDIDClass();
+      InjectAsDictClass    InjectAsDict = InjectAsDictClass();
+      XObjArray<GRAPHIC_CARD> ATICardList = XObjArray<GRAPHIC_CARD>();
+      XObjArray<GRAPHIC_CARD> NVIDIACardList = XObjArray<GRAPHIC_CARD>();
+
+      
+      //bool getGraphicsInjector() const { return InjectAsBool.isDefined() ? InjectAsBool.value() : InjectAsDict.GraphicsInjector; }
+      //bool InjectIntel() const { return InjectAsBool.isDefined() ? InjectAsBool.value() : InjectAsDict.InjectIntel; }
+      //bool InjectATI() const { return InjectAsBool.isDefined() ? InjectAsBool.value() : InjectAsDict.InjectATI; }
+      //bool InjectNVidia() const { return InjectAsBool.isDefined() ? InjectAsBool.value() : InjectAsDict.InjectNVidia; }
+
+  };
+  
+  class DevicesClass {
+    public:
+      
+      class AudioClass {
+        public:
+          bool                    ResetHDA = bool();
+          bool                 HDAInjection = bool();
+          INT32                   HDALayoutId = INT32();
+          UINT8                   AFGLowPowerState = UINT8();
+      };
+      class USBClass {
+        public:
+          bool                 USBInjection = bool();
+          bool                 USBFixOwnership = bool();
+          bool                 InjectClockID = bool();
+          bool                 HighCurrent = bool();
+          bool                 NameEH00 = bool();
+          bool                 NameXH00 = bool();
+      };
+      class PropertiesClass {
+        public:
+          XString8 cDeviceProperties = XString8();
+      };
+
+      class FakeIDClass {
+        public:
+          //PCI devices
+          UINT32                  FakeATI = UINT32();    //97
+          UINT32                  FakeNVidia = UINT32();
+          UINT32                  FakeIntel = UINT32();
+          UINT32                  FakeLAN = UINT32();   //100
+          UINT32                  FakeWIFI = UINT32();
+          UINT32                  FakeSATA = UINT32();
+          UINT32                  FakeXHCI = UINT32();  //103
+          UINT32                  FakeIMEI = UINT32();  //106
+      };
+
+      bool                 StringInjector = bool();
+      bool                 IntelMaxBacklight = bool();
+      bool                 IntelBacklight = bool();
+      UINT32               IntelMaxValue = UINT32();
+      bool                 LANInjection = bool();
+      bool                 HDMIInjection = bool();
+      bool                 NoDefaultProperties = bool();
+      bool                 UseIntelHDMI = bool();
+      bool                 ForceHPET = bool();
+      UINT32               DisableFunctions = UINT32();
+      XString8             AirportBridgeDeviceName = XString8();
+      AudioClass           Audio = AudioClass();
+      USBClass             USB = USBClass();
+      PropertiesClass      Properties = PropertiesClass();
+      FakeIDClass          FakeID = FakeIDClass();
+      
+//      UINTN                NrAddProperties;
+//      DEV_PROPERTY        *AddProperties;
+      XObjArray<DEV_ADDPROPERTY>   AddProperties = XObjArray<DEV_ADDPROPERTY>();
+      DEV_PROPERTY                *ArbProperties = 0;
+
+  };
+
+  class QuirksClass {
+    public:
+      class MMIOWhiteList
+      {
+        public :
+          UINTN        address = 0;
+          XString8     comment = XString8();
+          bool         enabled = 0;
+      };
+    
+      bool                     FuzzyMatch = bool();
+      XString8                 OcKernelCache = XString8();
+//      UINTN MaxSlide;
+      OC_KERNEL_QUIRKS         OcKernelQuirks = OC_KERNEL_QUIRKS();
+      OC_BOOTER_QUIRKS         ocBooterQuirks = OC_BOOTER_QUIRKS();
+      XObjArray<MMIOWhiteList> mmioWhiteListArray = XObjArray<MMIOWhiteList>();
+      UINT32                   QuirksMask = 0;
+  };
+
+  class RtVariablesClass {
+    public:
+      class RT_VARIABLES
+      {
+        public:
+          bool     Disabled = bool();
+          XString8 Comment = XStringW();
+          XStringW Name = XStringW();
+          EFI_GUID Guid = {0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0}};
+      };
+        
+      XString8                RtROMAsString = XString8();
+      XBuffer<UINT8>          RtROMAsData = XBuffer<UINT8>();
+      XString8                RtMLBSetting = XString8();
+      UINT32                  CsrActiveConfig = UINT32();
+      UINT16                  BooterConfig = UINT16();
+      XString8                BooterCfgStr = XString8();
+      XObjArray<RT_VARIABLES> BlockRtVariableArray = XObjArray<RT_VARIABLES>();
+
+      bool GetLegacyLanAddress() const {
+        return RtROMAsString.equalIC("UseMacAddr0") || RtROMAsString.equalIC("UseMacAddr1");
+      }
+
+  };
+
+
+  BootClass Boot = BootClass();
+  ACPIClass ACPI = ACPIClass();
+  GUIClass GUI = GUIClass();
+  CPUClass CPU = CPUClass();
+  SystemParametersClass SystemParameters = SystemParametersClass();
+  KERNEL_AND_KEXT_PATCHES KernelAndKextPatches = KERNEL_AND_KEXT_PATCHES();
+  GraphicsClass Graphics = GraphicsClass();
+  XStringWArray           DisabledDriverArray = XStringWArray();
+  QuirksClass Quirks = QuirksClass();
+  RtVariablesClass RtVariables = RtVariablesClass();
+  DevicesClass Devices = DevicesClass();
 
   // SMBIOS TYPE0
   XString8                VendorName;
@@ -394,7 +824,6 @@ public:
   XString8                   VersionNr;
   XString8                   SerialNr;
   XString8                SmUUID;
-  CHAR8                   pad0[7];
 //CHAR8                    Uuid;
 //CHAR8                    SKUNumber;
   XString8                   FamilyName;
@@ -408,36 +837,24 @@ public:
   XString8                   BoardVersion;
   XString8                   OEMBoard;
   UINT8                   BoardType;
-  UINT8                   pad1;
   // SMBIOS TYPE3
   BOOLEAN                 Mobile;
   UINT8                   ChassisType;
   XString8                   ChassisManufacturer;
   XString8                   ChassisAssetTag;
   // SMBIOS TYPE4
-  UINT32                  CpuFreqMHz;
-  UINT32                  BusSpeed; //in kHz
-  BOOLEAN                 Turbo;
   UINT8                   EnabledCores;
-  BOOLEAN                 UserChange;
-  BOOLEAN                 QEMU;
   // SMBIOS TYPE17
   UINT16                  SmbiosVersion;
   INT8                    Attribute;
-  INT8                    pad17[1];
   XString8                   MemoryManufacturer;
   XString8                   MemorySerialNumber;
   XString8                   MemoryPartNumber;
   XString8                   MemorySpeed;
   // SMBIOS TYPE131
-  UINT16                  CpuType;
   // SMBIOS TYPE132
-  UINT16                  QPI;
-  BOOLEAN                 SetTable132;
-  BOOLEAN                 TrustSMBIOS;
+  BOOLEAN                 TrustSMBIOS = 0;
   BOOLEAN                 InjectMemoryTables;
-  BOOLEAN                 UseARTFreq;
-  INT8                    pad18[3];
 
   // SMBIOS TYPE133
   UINT64                  PlatformFeature;
@@ -446,159 +863,60 @@ public:
   BOOLEAN                 NoRomInfo;
 
   // OS parameters
-  INT8                    pad181[7];
   XString8                Language;
-  INT8                    pad19[2];
-  XString8                CustomUuid;
 
-  INT8                    pad20[6];
 
 //Monitor
-  BOOLEAN                 IntelMaxBacklight;
-  UINT8                   pad21[1];
-  UINT16                  VendorEDID;
-  UINT16                  ProductEDID;
-  UINT16                  BacklightLevel;
-  BOOLEAN                 BacklightLevelConfig;
-  BOOLEAN                 IntelBacklight;
 //Boot options
   BOOLEAN                 MemoryFix;
-  BOOLEAN                 WithKexts;
-  BOOLEAN                 WithKextsIfNoFakeSMC;
   BOOLEAN                 FakeSMCFound;
-  BOOLEAN                 NoCaches;
 
   // GUI parameters
   BOOLEAN                 Debug;
-//  BOOLEAN                 Proportional; //never used
-  UINT8                   pad22[2];
   UINT32                  DefaultBackgroundColor;
 
   //ACPI
-  UINT8                   pad23[1];
-  UINT8                   SavingMode;
 
 //  BOOLEAN                 DropMCFG;
 
   //Injections
-  BOOLEAN                 StringInjector;
-  UINT8                   InjectSystemID_; // 0=false, 1=true, other value = default.
-  BOOLEAN                 NoDefaultProperties;
 
 
-  //PCI devices
-  UINT32                  FakeATI;    //97
-  UINT32                  FakeNVidia;
-  UINT32                  FakeIntel;
-  UINT32                  FakeLAN;   //100
-  UINT32                  FakeWIFI;
-  UINT32                  FakeSATA;
-  UINT32                  FakeXHCI;  //103
-  UINT32                  FakeIMEI;  //106
 
   //Graphics
 //  UINT16                  PCIRootUID;
-  BOOLEAN                 GraphicsInjector;
-  BOOLEAN                 InjectIntel;
-  BOOLEAN                 InjectATI;
-  BOOLEAN                 InjectNVidia;
-  BOOLEAN                 DeInit;
-  BOOLEAN                 LoadVBios;
-  BOOLEAN                 PatchVBios;
-  UINT8                   pad24[5];
-  VBIOS_PATCH_BYTES       *PatchVBiosBytes;
-  UINTN                   PatchVBiosBytesCount;
-  BOOLEAN                 InjectEDID;
   BOOLEAN                 LpcTune;
   UINT16                  DropOEM_DSM; //vacant
-  UINT8                   pad25[4];
-  UINT8                   *CustomEDID;
-  UINT16                  CustomEDIDsize;
-  UINT16                  EdidFixHorizontalSyncPulseWidth;
-  UINT8                   EdidFixVideoInputSignal;
-
-  UINT8                   pad26[1];
-  XStringW                FBName;
-  UINT16                  VideoPorts;
-  BOOLEAN                 NvidiaGeneric;
-  BOOLEAN                 NvidiaNoEFI;
-  BOOLEAN                 NvidiaSingle;
-  UINT8                   pad27[5];
-  UINT64                  VRAM;
-  UINT8                   Dcfg[8];
-  UINT8                   NVCAP[20];
-  INT8                    BootDisplay;
-  BOOLEAN                 NvidiaWeb;
-  UINT8                   pad41[2];
-  UINT32                  DualLink;
-  UINT32                  IgPlatform;
 
 
-  // HDA
-  BOOLEAN                 HDAInjection;
-  INT32                   HDALayoutId;
+
 
   // USB DeviceTree injection
-  BOOLEAN                 USBInjection;
-  BOOLEAN                 USBFixOwnership;
-  BOOLEAN                 InjectClockID;
-  BOOLEAN                 HighCurrent;
-  BOOLEAN                 NameEH00;
-  BOOLEAN                 NameXH00;
 	
-  BOOLEAN                 LANInjection;
-  BOOLEAN                 HDMIInjection;
-
- // UINT8                   pad61[2];
 
 
   //SkyLake
-  BOOLEAN                 HWP;
-  UINT8                   TDP;
-  UINT32                  HWPValue;
 
   //Volumes hiding
-  XString8Array           HVHideStrings;
 
   // KernelAndKextPatches
-  KERNEL_AND_KEXT_PATCHES KernelAndKextPatches;
   BOOLEAN                 KextPatchesAllowed;
   BOOLEAN                 KernelPatchesAllowed; //From GUI: Only for user patches, not internal Clover
 
-  XString8                AirportBridgeDeviceName;
 
   // Pre-language
-  BOOLEAN                 KbdPrevLang;
 
-  //Pointer
-  BOOLEAN                 PointerEnabled;
-  UINT8                   pad28[7];
-  INTN                    PointerSpeed;
-  UINT64                  DoubleClickTime;
-  BOOLEAN                 PointerMirror;
 
-//  UINT8                   pad7[6];
-  UINT8                   pad29[6];
 
-  UINT32                  RefCLK;
 
   // SysVariables
-  UINT8                   pad30[4];
-  XString8                RtMLB;
-  XBuffer<UINT8>          RtROM;
 
-  UINT32                  CsrActiveConfig;
-  UINT16                  BooterConfig;
-  XString8                BooterCfgStr;
-  BOOLEAN                 NeverDoRecovery;
 
   // Multi-config
   CHAR16                  ConfigName[30];
-  UINT8                   pad31[4];
 //  XString8                MainConfigName;
 
   //Drivers
-  XStringWArray           DisabledDriverArray;
 
   //SMC keys
   CHAR8                   RPlt[8];
@@ -607,44 +925,13 @@ public:
   UINT8                   REV[6];
 
   //other devices
-  BOOLEAN                 ForceHPET;
-  BOOLEAN                 ResetHDA;
-  BOOLEAN                 PlayAsync;
-  UINT8                   pad32[2];
-  UINT32                  DisableFunctions;
 
-  //Patch DSDT arbitrary
-//  UINT32                  PatchDsdtNum;
-//  UINT8                   **PatchDsdtFind;
-//  UINT32                  *LenToFind;
-//  UINT8                   **PatchDsdtReplace;
-//  UINT32                  *LenToReplace;
-//  CHAR8                   **PatchDsdtLabel;
-//  CHAR8                   **PatchDsdtTgt;
-//  INPUT_ITEM              *PatchDsdtMenuItem;
 
   BOOLEAN                 SlpWak;
   BOOLEAN                 UseIntelHDMI;
-  UINT8                   AFGLowPowerState;
-//  UINT8                   pad83[4];
 
-
-  // Table dropping
-  UINT8                   pad34[3];
-
-  // Custom entries
-  BOOLEAN                 DisableEntryScan;
-  BOOLEAN                 DisableToolScan;
-  UINT8                   KernelScan;
-  BOOLEAN                 LinuxScan;
-  UINT8                   pad35[3];
-  CUSTOM_LOADER_ENTRY     *CustomEntries;
-  CUSTOM_LEGACY_ENTRY     *CustomLegacy;
-  CUSTOM_TOOL_ENTRY       *CustomTool;
 
   //Add custom properties
-  UINTN                   NrAddProperties;
-  DEV_PROPERTY            *AddProperties;
 
   //BlackListed kexts
   CHAR16                  BlockKexts[64];
@@ -656,11 +943,7 @@ public:
 
   //ACPI tables
 
-  // ACPI/PATCHED/AML
-  UINT8                   pad36[4];
-
   //other
-  UINT32                  IntelMaxValue;
 //  UINT32                  AudioVolume;
 
   // boot.efi
@@ -670,41 +953,24 @@ public:
   UINT32 EFILoginHiDPI;
   UINT8  flagstate[32];
 
-  UINT8                   pad37[4];
-  DEV_PROPERTY            *ArbProperties;
   
-  UINT32 QuirksMask;
-  UINT8                   pad38[4];
-  UINTN MaxSlide;
-
-  OC_BOOTER_QUIRKS   ocBooterQuirks;
-  XObjArray<MMIOWhiteList> mmioWhiteListArray;
-
-  BOOLEAN ProvideConsoleGop;
 
 
   SETTINGS_DATA() : VendorName(), RomVersion(), EfiVersion(), ReleaseDate(), ManufactureName(), ProductName(), VersionNr(), SerialNr(), SmUUID(),
-                    pad0{0}, FamilyName(), OEMProduct(), OEMVendor(), BoardManufactureName(), BoardSerialNumber(), BoardNumber(), LocationInChassis(),
-                    BoardVersion(), OEMBoard(), BoardType(0), pad1(0), Mobile(0), ChassisType(0), ChassisManufacturer(), ChassisAssetTag(), CpuFreqMHz(0),
-                    BusSpeed(0), Turbo(0), EnabledCores(0), UserChange(0), QEMU(0), SmbiosVersion(0), Attribute(0), pad17{0}, MemoryManufacturer(),
-                    MemorySerialNumber(), MemoryPartNumber(), MemorySpeed(), CpuType(0), QPI(0), SetTable132(0), TrustSMBIOS(0), InjectMemoryTables(0),
-                    UseARTFreq(0), PlatformFeature(0), NoRomInfo(0), Language(), CustomUuid(),
-                    IntelMaxBacklight(0), VendorEDID(0), ProductEDID(0), BacklightLevel(0), BacklightLevelConfig(0), IntelBacklight(0), MemoryFix(0), WithKexts(0),
-                    WithKextsIfNoFakeSMC(0), FakeSMCFound(0), NoCaches(0), Debug(0), pad22{0}, DefaultBackgroundColor(0), SavingMode(0), StringInjector(0), InjectSystemID_(0), NoDefaultProperties(0),
-                    FakeATI(0), FakeNVidia(0), FakeIntel(0), FakeLAN(0), FakeWIFI(0), FakeSATA(0), FakeXHCI(0), FakeIMEI(0), GraphicsInjector(0),
-                    InjectIntel(0), InjectATI(0), InjectNVidia(0), DeInit(0), LoadVBios(0), PatchVBios(0), PatchVBiosBytes(0), PatchVBiosBytesCount(0), InjectEDID(0),
-                    LpcTune(0), DropOEM_DSM(0), CustomEDID(0), CustomEDIDsize(0), EdidFixHorizontalSyncPulseWidth(0), EdidFixVideoInputSignal(0), FBName(), VideoPorts(0), NvidiaGeneric(0),
-                    NvidiaNoEFI(0), NvidiaSingle(0), VRAM(0), Dcfg{0}, NVCAP{0}, BootDisplay(0), NvidiaWeb(0), pad41{0}, DualLink(0),
-                    IgPlatform(0), HDAInjection(0),
-                    HDALayoutId(0), USBInjection(0), USBFixOwnership(0), InjectClockID(0), HighCurrent(0), NameEH00(0), NameXH00(0), LANInjection(0), HDMIInjection(0),
-                    HWP(0), TDP(0), HWPValue(0), HVHideStrings(), KernelAndKextPatches(), KextPatchesAllowed(0),
-                    KernelPatchesAllowed(0), AirportBridgeDeviceName(), KbdPrevLang(0), PointerEnabled(0), PointerSpeed(0), DoubleClickTime(0), PointerMirror(0),
-                    RefCLK(0), RtMLB(), RtROM(), CsrActiveConfig(0), BooterConfig(0), BooterCfgStr(), NeverDoRecovery(0),
-                    ConfigName{0}, /*MainConfigName(0),*/ /*BlackListCount(0),*/ DisabledDriverArray(), RPlt{0}, RBr{0}, EPCI{0}, REV{0},                     ForceHPET(0), ResetHDA(0), PlayAsync(0), DisableFunctions(0),   SlpWak(0), UseIntelHDMI(0),
-                    AFGLowPowerState(0), DisableEntryScan(0), DisableToolScan(0), KernelScan(0), LinuxScan(0), CustomEntries(0),
-                    CustomLegacy(0), CustomTool(0), NrAddProperties(0), AddProperties(0), BlockKexts{0},
-                    IntelMaxValue(0), OptionsBits(0), FlagsBits(0), UIScale(0), EFILoginHiDPI(0), flagstate{0},
-                    ArbProperties(0), QuirksMask(0), MaxSlide(0), ocBooterQuirks{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, mmioWhiteListArray(), ProvideConsoleGop(0)
+                    FamilyName(), OEMProduct(), OEMVendor(), BoardManufactureName(), BoardSerialNumber(), BoardNumber(), LocationInChassis(),
+                    BoardVersion(), OEMBoard(), BoardType(0), Mobile(0), ChassisType(0), ChassisManufacturer(), ChassisAssetTag(),
+                    EnabledCores(0), SmbiosVersion(0), Attribute(0), MemoryManufacturer(),
+                    MemorySerialNumber(), MemoryPartNumber(), MemorySpeed(), InjectMemoryTables(0),
+                    PlatformFeature(0), NoRomInfo(0), Language(),
+                    MemoryFix(0),
+                    FakeSMCFound(0), Debug(0), DefaultBackgroundColor(0),
+                    LpcTune(0), DropOEM_DSM(0),
+                    KextPatchesAllowed(0),
+                    KernelPatchesAllowed(0),
+                    ConfigName{0}, /*MainConfigName(0),*/ /*BlackListCount(0),*/ RPlt{0}, RBr{0}, EPCI{0}, REV{0},
+                     SlpWak(0), UseIntelHDMI(0),
+                    BlockKexts{0},
+                    OptionsBits(0), FlagsBits(0), UIScale(0), EFILoginHiDPI(0), flagstate{0}
                   {};
   SETTINGS_DATA(const SETTINGS_DATA& other) = delete; // Can be defined if needed
   const SETTINGS_DATA& operator = ( const SETTINGS_DATA & ) = delete; // Can be defined if needed
@@ -718,38 +984,35 @@ public:
   // If CustomUuid is defined, return false by default
   // If SmUUID is defined, return true by default.
   bool ShouldInjectSystemID() {
-    if ( CustomUuid.notEmpty() &&  CustomUuid != nullGuid ) {
-      if ( InjectSystemID_ == 2 ) return false;
-      else return InjectSystemID_;
+    if ( SystemParameters.CustomUuid.notEmpty() &&  SystemParameters.CustomUuid != nullGuidAsString ) {
+      if ( SystemParameters._InjectSystemID == 2 ) return false;
+      else return SystemParameters._InjectSystemID;
     }
-    if ( SmUUID.isEmpty() || SmUUID == nullGuid ) return false;
-    if ( InjectSystemID_ == 2 ) return true;
-    return InjectSystemID_;
+    if ( SmUUID.isEmpty() || SmUUID == nullGuidAsString ) return false;
+    if ( SystemParameters._InjectSystemID == 2 ) return true;
+    return SystemParameters._InjectSystemID;
   }
+  
+  bool getEnableC6() const {
+    if ( CPU._EnableC6.isDefined() ) return CPU._EnableC6.value();
+    return ACPI.SSDT._EnableC6;
+  }
+  bool getEnableC4() const {
+    if ( CPU._EnableC4.isDefined() ) return CPU._EnableC4.value();
+    return ACPI.SSDT._EnableC4;
+  }
+  bool getEnableC2() const {
+    if ( CPU._EnableC2.isDefined() ) return CPU._EnableC2.value();
+    return ACPI.SSDT._EnableC2;
+  }
+  bool getC3Latency() const {
+    if ( CPU._C3Latency.isDefined() ) return CPU._C3Latency.value();
+    return ACPI.SSDT._C3Latency;
+  }
+
 };
 
 //#pragma GCC diagnostic ignored "-Wpadded"
-
-typedef enum {
-  english = 0,  //en
-  russian,    //ru
-  french,     //fr
-  german,     //de
-  dutch,      //nl
-  italian,    //it
-  spanish,    //es
-  portuguese, //pt
-  brasil,     //br
-  polish,     //pl
-  ukrainian,  //ua
-  croatian,   //hr
-  czech,      //cs
-  indonesian, //id
-  korean,     //ko
-  chinese,    //cn
-  romanian    //ro
-  //something else? add, please
-} LANGUAGES;
 
 typedef struct _DRIVERS_FLAGS {
   BOOLEAN EmuVariableLoaded;
@@ -779,11 +1042,10 @@ typedef struct {
 class ACPI_PATCHED_AML
 {
 public:
-  ACPI_PATCHED_AML  *Next;
-  CHAR16            *FileName;
-  INPUT_ITEM        MenuItem = INPUT_ITEM();
+  XString8         FileName = XString8();
+  INPUT_ITEM       MenuItem = INPUT_ITEM();
 
-  ACPI_PATCHED_AML() : Next(0), FileName(0) {};
+  ACPI_PATCHED_AML() {};
   ACPI_PATCHED_AML(const ACPI_PATCHED_AML& other) = delete; // Can be defined if needed
   const ACPI_PATCHED_AML& operator = ( const ACPI_PATCHED_AML & ) = delete; // Can be defined if needed
   ~ACPI_PATCHED_AML() { }
@@ -805,21 +1067,9 @@ public:
   ~SIDELOAD_KEXT() { }
 };
 
-class RT_VARIABLES
-{
-public:
-  XStringW Name;
-  EFI_GUID VarGuid;
-
-RT_VARIABLES() : Name(), VarGuid{0,0,0,{0}} {};
-  RT_VARIABLES(const RT_VARIABLES& other) = delete; // Can be defined if needed
-  const RT_VARIABLES& operator = ( const RT_VARIABLES & ) = delete; // Can be defined if needed
-  ~RT_VARIABLES() { }
-};
 
 
-
-extern XObjArray<RT_VARIABLES> BlockRtVariableArray;
+//extern XObjArray<RT_VARIABLES> gSettings.RtVariables.BlockRtVariableArray;
 extern XObjArray<HDA_OUTPUTS> AudioList;
 
 extern XStringWArray ThemeNameArray;
@@ -849,7 +1099,6 @@ extern UINTN                          NGFX;
 extern UINTN                          NHDA;
 //extern UINT16                         gCPUtype;
 extern SETTINGS_DATA                  gSettings;
-extern LANGUAGES                      gLanguage;
 extern BOOLEAN                        gFirmwareClover;
 extern DRIVERS_FLAGS                  gDriversFlags;
 extern SLOT_DEVICE                    SlotDevices[];
@@ -866,7 +1115,7 @@ extern UINT16                          gBacklightLevel;
 extern TagDict*                          gConfigDict[];
 
 // ACPI/PATCHED/AML
-extern ACPI_PATCHED_AML                *ACPIPatchedAML;
+extern XObjArray<ACPI_PATCHED_AML>       ACPIPatchedAML;
 
 
 // SysVariables
@@ -885,7 +1134,7 @@ extern const LString8  gBuildIdGrepTag;
 
 
 extern BOOLEAN                        ResumeFromCoreStorage;
-extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass argument for Dell SMBIOS here
+//extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass argument for Dell SMBIOS here
 
 extern EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl;
 
@@ -897,68 +1146,47 @@ extern EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl;
 class REFIT_CONFIG
 {
 public:
-//  INTN        Timeout;
-  UINTN       DisableFlags; //to disable some volume types (optical, firewire etc)
-//  BOOLEAN     TextOnly;
-  BOOLEAN     Quiet;
-//  BOOLEAN     LegacyFirst;
-//  BOOLEAN     NoLegacy;
-//  BOOLEAN     DebugLog;
-  BOOLEAN     SpecialBootMode; // content of nvram var "aptiofixflag"
-//  BOOLEAN     NeverHibernate;
-//  BOOLEAN     StrictHibernate;
-//  BOOLEAN     RtcHibernateAware;
-//  BOOLEAN     HibernationFixup;
-//  BOOLEAN     SignatureFixup;
-//  XStringW    Theme;
-//  XStringW    ScreenResolution;
-//  INTN        ConsoleMode;
-//  BOOLEAN     CustomIcons;
-//  INTN        IconFormat = ICON_FORMAT_DEF; // not used anymore
-//  BOOLEAN     NoEarlyProgress;
-//  INT32       Timezone;
-//  BOOLEAN     ShowOptimus;
-//  INTN        Codepage;
-//  INTN        CodepageSize;
+  UINTN       DisableFlags = 0; //to disable some volume types (optical, firewire etc)
+  BOOLEAN     Quiet = true;
+  BOOLEAN     SpecialBootMode = false; // content of nvram var "aptiofixflag"
 
   BOOLEAN       gBootChanged = FALSE;
   BOOLEAN       gThemeChanged = FALSE;
   BOOLEAN       NeedPMfix = FALSE;
   ACPI_DROP_TABLE         *ACPIDropTables = NULL;
 
+  UINT8                   CustomLogoType = 0; // this will be initialized with gSettings.Boot.CustomBoot and set back to CUSTOM_BOOT_DISABLED if CustomLogo could not be loaded or decoded (see afterGetUserSettings)
+  XImage                  *CustomLogo = 0;
 
+  bool                    DropSSDT = 0; // init with gSettings.Boot.DropSSDTSetting. Put back to false is one table is dropped (see afterGetUserSettings)
 
-  /*
-   * Defqult ctor :
-   *   -1,             // INTN        Timeout;
-   *   0,              // UINTN       DisableFlags;
-   *   FALSE,          // BOOLEAN     TextOnly;
-   *   TRUE,           // BOOLEAN     Quiet;
-   *   FALSE,          // BOOLEAN     LegacyFirst;
-   *   FALSE,          // BOOLEAN     NoLegacy;
-   *   FALSE,          // BOOLEAN     DebugLog;
-   *   FALSE,          // BOOLEAN     FastBoot;
-   *   FALSE,          // BOOLEAN     NeverHibernate;
-   *   FALSE,          // BOOLEAN     StrictHibernate;
-   *   FALSE,          // BOOLEAN     RtcHibernateAware;
-   *   FALSE,          // BOOLEAN     HibernationFixup;
-   *   FALSE,          // BOOLEAN     SignatureFixup;
-   *   L""_XSW,        // XStringW    Theme;
-   *   L""_XSW,        // XStringW    ScreenResolution;
-   *   0,              // INTN        ConsoleMode;
-   *   FALSE,          // BOOLEAN     CustomIcons;
-   *   ICON_FORMAT_DEF, // INTN       IconFormat;
-   *   FALSE,          // BOOLEAN     NoEarlyProgress;
-   *   0xFF,           // INT32       Timezone; / 0xFF - not set
-   *   FALSE,          // BOOLEAN     ShowOptimus;
-   *   0xC0,           // INTN        Codepage;
-   *   0xC0,           // INTN        CodepageSize; //extended latin
-};
-   *
-   */
-  REFIT_CONFIG() : DisableFlags(0), Quiet(TRUE),
-                   SpecialBootMode(FALSE)
-                    {};
+  UINT8                   SecureBoot = 0;
+  UINT8                   SecureBootSetupMode = 0;
+
+  BOOLEAN                 SetTable132 = 0;
+  BOOLEAN                 HWP = 0;
+
+  bool                EnableC6 = 0;
+  bool                EnableC4 = 0;
+  bool                EnableC2 = 0;
+  uint16_t              C3Latency = 0;
+
+  XObjArray<CUSTOM_LOADER_ENTRY> CustomEntries = XObjArray<CUSTOM_LOADER_ENTRY>();
+  XObjArray<CUSTOM_LEGACY_ENTRY> CustomLegacyEntries = XObjArray<CUSTOM_LEGACY_ENTRY>();
+  XObjArray<CUSTOM_TOOL_ENTRY> CustomToolsEntries = XObjArray<CUSTOM_TOOL_ENTRY>();
+
+  INTN                    Codepage = 0xC0;
+  INTN                    CodepageSize = 0xC0;
+
+  bool KPKernelPm = bool();
+  bool KPAppleIntelCPUPM = bool();
+
+  XBuffer<UINT8>          RtROM = XBuffer<UINT8>();
+  XString8                RtMLB = XString8();
+
+  bool Turbo = true;
+
+  REFIT_CONFIG() {};
   REFIT_CONFIG(const REFIT_CONFIG& other) = delete; // Can be defined if needed
   const REFIT_CONFIG& operator = ( const REFIT_CONFIG & ) = delete; // Can be defined if needed
   ~REFIT_CONFIG() {  }

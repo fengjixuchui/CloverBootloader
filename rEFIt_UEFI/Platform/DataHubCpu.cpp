@@ -145,7 +145,11 @@ LogDataHubXString8(IN  EFI_GUID *TypeGuid,
            IN  CONST CHAR16   *Name,
            const XString8& s)
 {
+#ifdef DEBUG
   if ( s.sizeInBytesIncludingTerminator() > MAX_UINT32 ) panic("LogDataHub s.length > MAX_UINT32");
+#else
+  if ( s.sizeInBytesIncludingTerminator() > MAX_UINT32 ) return EFI_OUT_OF_RESOURCES;
+#endif
   return LogDataHub(TypeGuid, Name, (void*)s.c_str(), (UINT32)s.sizeInBytesIncludingTerminator());
 }
 
@@ -154,7 +158,11 @@ LogDataHubXStringW(IN  EFI_GUID *TypeGuid,
            IN  CONST CHAR16   *Name,
            const XStringW& s)
 {
+#ifdef DEBUG
   if ( s.sizeInBytesIncludingTerminator() > MAX_UINT32 ) panic("LogDataHub s.length > MAX_UINT32");
+#else
+  if ( s.sizeInBytesIncludingTerminator() > MAX_UINT32 ) return EFI_OUT_OF_RESOURCES;
+#endif
   return LogDataHub(TypeGuid, Name, (void*)s.wc_str(), (UINT32)s.sizeInBytesIncludingTerminator());
 }
 
@@ -176,11 +184,14 @@ OvrSetVariable(
   EFI_STATUS			Status;
   UINTN i;
 
-  for (i = 0; i < BlockRtVariableArray.size(); i++) {
-    if (!CompareGuid(&BlockRtVariableArray[i].VarGuid, VendorGuid)) {
+  for (i = 0; i < gSettings.RtVariables.BlockRtVariableArray.size(); i++) {
+    if ( gSettings.RtVariables.BlockRtVariableArray[i].Disabled ) {
       continue;
     }
-    if (BlockRtVariableArray[i].Name.isEmpty() || BlockRtVariableArray[i].Name[0] == L'*' || BlockRtVariableArray[i].Name == LStringW(VariableName) ) {
+    if (!CompareGuid(&gSettings.RtVariables.BlockRtVariableArray[i].Guid, VendorGuid)) {
+      continue;
+    }
+    if (gSettings.RtVariables.BlockRtVariableArray[i].Name.isEmpty() || gSettings.RtVariables.BlockRtVariableArray[i].Name[0] == L'*' || gSettings.RtVariables.BlockRtVariableArray[i].Name == LStringW(VariableName) ) {
       return EFI_SUCCESS;
     }
   }
@@ -222,7 +233,7 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
   //
   // firmware Variables
   //
-  if (BlockRtVariableArray.size() > 0) {
+  if (gSettings.RtVariables.BlockRtVariableArray.size() > 0) {
     OvrRuntimeServices(gRT);
   }
   
@@ -235,23 +246,23 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
 
   Attributes     = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS;
 
-  if (gSettings.RtMLB.notEmpty()) {
-    if ( gSettings.RtMLB.length() != 17 ) {
+  if (GlobalConfig.RtMLB.notEmpty()) {
+    if ( GlobalConfig.RtMLB.length() != 17 ) {
       DBG("** Warning: Your MLB is not suitable for iMessage(must be 17 chars long) !\n");
     }
 
     SetNvramXString8(L"MLB",
                      &gEfiAppleNvramGuid,
                      Attributes,
-                     gSettings.RtMLB);
+                     GlobalConfig.RtMLB);
   }
 
-  if (gSettings.RtROM.notEmpty()) {
+  if (GlobalConfig.RtROM.notEmpty()) {
     SetNvramVariable(L"ROM",
                      &gEfiAppleNvramGuid,
                      Attributes,
-                     gSettings.RtROM.size(),
-                     gSettings.RtROM.vdata());
+                     GlobalConfig.RtROM.size(),
+                     GlobalConfig.RtROM.vdata());
   }
 
   SetNvramVariable(L"FirmwareFeatures",
@@ -278,7 +289,7 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
   // note: some gEfiAppleBootGuid vars present in nvram.plist are already set by PutNvramPlistToRtVars()
   // we should think how to handle those vars from nvram.plist and ones set here from gSettings
 
-  if ((gFirmwareClover && gDriversFlags.EmuVariableLoaded) || gSettings.KbdPrevLang) {
+  if ((gFirmwareClover && gDriversFlags.EmuVariableLoaded) || gSettings.GUI.KbdPrevLang) {
     // using AddNvramVariable content instead of calling the function to do LangLen calculation only when necessary
     // Do not mess with prev-lang:kbd on UEFI systems without NVRAM emulation; it's OS X's business
     KbdPrevLang = L"prev-lang:kbd";
@@ -325,10 +336,10 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
 
   // Download-Fritz: Do not mess with BacklightLevel; it's OS X's business
   if (gMobile) {
-    if (gSettings.BacklightLevelConfig) {
-      SetNvramVariable(L"backlight-level", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.BacklightLevel), &gSettings.BacklightLevel);
+    if (gSettings.SystemParameters.BacklightLevelConfig) {
+      SetNvramVariable(L"backlight-level", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.SystemParameters.BacklightLevel), &gSettings.SystemParameters.BacklightLevel);
     } else {
-      AddNvramVariable(L"backlight-level", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.BacklightLevel), &gSettings.BacklightLevel);
+      AddNvramVariable(L"backlight-level", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.SystemParameters.BacklightLevel), &gSettings.SystemParameters.BacklightLevel);
     }
   }
 
@@ -367,20 +378,20 @@ SetVariablesForOSX(LOADER_ENTRY *Entry)
   }
 
   // Hack for recovery by Asgorath
-  if (gSettings.CsrActiveConfig != 0xFFFF) {
-    SetNvramVariable(L"csr-active-config", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.CsrActiveConfig), &gSettings.CsrActiveConfig);
+  if (gSettings.RtVariables.CsrActiveConfig != 0xFFFF) {
+    SetNvramVariable(L"csr-active-config", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.RtVariables.CsrActiveConfig), &gSettings.RtVariables.CsrActiveConfig);
   }
 /*
-  if (gSettings.BooterConfig != 0) {
-    SetNvramVariable(L"bootercfg", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.BooterConfig), &gSettings.BooterConfig);
+  if (gSettings.RtVariables.BooterConfig != 0) {
+    SetNvramVariable(L"bootercfg", &gEfiAppleBootGuid, Attributes, sizeof(gSettings.RtVariables.BooterConfig), &gSettings.RtVariables.BooterConfig);
   }
 */
-  if ( gSettings.BooterCfgStr.notEmpty() ) {
-    SetNvramXString8(L"bootercfg", &gEfiAppleBootGuid, Attributes, gSettings.BooterCfgStr);
+  if ( gSettings.RtVariables.BooterCfgStr.notEmpty() ) {
+    SetNvramXString8(L"bootercfg", &gEfiAppleBootGuid, Attributes, gSettings.RtVariables.BooterCfgStr);
   } else {
     DeleteNvramVariable(L"bootercfg", &gEfiAppleBootGuid);
   }
-  if (gSettings.NvidiaWeb) {
+  if (gSettings.SystemParameters.NvidiaWeb) {
     NvidiaWebValue = "1";
     SetNvramVariable(L"nvda_drv", &gEfiAppleBootGuid, Attributes, 2, (void*)NvidiaWebValue);
   } else {
@@ -461,7 +472,7 @@ SetupDataForOSX(BOOLEAN Hibernate)
     FrontSideBus = 100 * Mega;
   }
 
-  if (gSettings.QEMU) {
+  if (gSettings.CPU.QEMU) {
     FrontSideBus = gCPUStructure.TSCFrequency;
     switch (gCPUStructure.Model) {
       case CPU_MODEL_DOTHAN:
@@ -477,10 +488,10 @@ SetupDataForOSX(BOOLEAN Hibernate)
   }
 
   // Save values into gSettings for the genconfig aim
-  gSettings.BusSpeed   = (UINT32)DivU64x32(FrontSideBus, Kilo);
+  gSettings.CPU.BusSpeed   = (UINT32)DivU64x32(FrontSideBus, Kilo);
 
   CpuSpeed = gCPUStructure.CPUFrequency;
-  gSettings.CpuFreqMHz = (UINT32)DivU64x32(CpuSpeed,     Mega);
+  gSettings.CPU.CpuFreqMHz = (UINT32)DivU64x32(CpuSpeed,     Mega);
 
   // Locate DataHub Protocol
   Status = gBS->LocateProtocol(&gEfiDataHubProtocolGuid, NULL, (void**)&gDataHub);
@@ -493,7 +504,7 @@ SetupDataForOSX(BOOLEAN Hibernate)
 
     LogDataHub(&gEfiProcessorSubClassGuid, L"FSBFrequency",     &FrontSideBus,        sizeof(UINT64));
 
-    if (gCPUStructure.ARTFrequency && gSettings.UseARTFreq) {
+    if (gCPUStructure.ARTFrequency && gSettings.CPU.UseARTFreq) {
       ARTFrequency = gCPUStructure.ARTFrequency;
       LogDataHub(&gEfiProcessorSubClassGuid, L"ARTFrequency",   &ARTFrequency,        sizeof(UINT64));
     }

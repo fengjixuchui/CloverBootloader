@@ -244,7 +244,12 @@ protected:
 	template<typename IntegralType, enable_if(is_integral(IntegralType))>
 	T* _data(IntegralType pos) const
 	{
+#ifdef DEBUG
 		if ( pos<0 ) panic("T* data(int i) -> i < 0");
+#else
+    if ( pos<0 ) return 0;
+#endif
+
  		size_t offset = size_of_utf_string_len(m_data, (unsigned_type(IntegralType))pos); // If pos is too big, size_of_utf_string_len returns the end of the string
  		return m_data + offset;
 	}
@@ -293,7 +298,11 @@ public:
 	char32_t char32At(IntegralType i) const
 	{
 		if (i < 0) {
-			panic("__String<T>::char32At(size_t i) : i < 0. System halted\n");
+#ifdef DEBUG
+      panic("__String<T>::char32At(size_t i) : i < 0. System halted\n");
+#else
+      return 0;
+#endif
 		}
 		size_t nb = 0;
 		const T *p = m_data;
@@ -301,8 +310,12 @@ public:
 		do {
 			p = get_char32_from_string(p, &char32);
 			if (!char32) {
-				if ( (unsigned_type(IntegralType))i == nb ) return 0; // no panic if we want to access the null terminator
+#ifdef DEBUG
+        if ( (unsigned_type(IntegralType))i == nb ) return 0; // no panic if we want to access the null terminator
 				panic("__String::char32At(size_t i) : i >= length(). System halted\n");
+#else
+        return 0;
+#endif
 			}
 			nb += 1;
 		} while (nb <= (unsigned_type(IntegralType))i);
@@ -339,7 +352,7 @@ public:
 ////	template<class O>
 ////	ThisXStringClass& operator =(const O* S)	{ strcpy(S); return *this; }
 
-	//--------------------------------------------------------------------- indexOf, rindexOf, contains, subString
+	//--------------------------------------------------------------------- indexOf, rindexOf, contains, subString, startWith
 	
 	/* indexOf */
 	size_t indexOf(char32_t char32Searched, size_t Pos = 0) const
@@ -488,7 +501,7 @@ public:
 //	return true;
 //}
 
-	//---------------------------------------------------------------------
+	//--------------------------------------------------------------------- strcmp, equal, comparison operator
 
 	template<typename O>
 	int strcmp(const O* S) const { return XStringAbstract__compare(m_data, S, false); }
@@ -516,7 +529,13 @@ public:
   template<typename IntegralType, typename O, class OtherXStringClass>
   bool equalAtIC(IntegralType pos, const __String<O, OtherXStringClass>& S) const
   {
+    
+#ifdef DEBUG
     if ( pos < 0 ) panic("XString::equalAtIC -> i < 0");
+#else
+    if ( pos < 0 ) return false;
+#endif
+
     if ( (unsigned_type(IntegralType))pos > length() - S.length() ) return false;
     return XStringAbstract__ncompare(m_data + (unsigned_type(IntegralType))pos, S.s(), S.length(), true) == 0;
   }
@@ -728,7 +747,13 @@ class XStringAbstract : public __String<T, ThisXStringClass>
         m_data = (T*)Xrealloc(m_data, nNewSize*sizeof(T), m_allocatedSize*sizeof(T));
       }
 			if ( !m_data ) {
-				panic("XStringAbstract::Alloc(%zu) : Xrealloc(%" PRIuPTR ", %lu, %zd) returned NULL. System halted\n", nNewSize, uintptr_t(m_data), nNewSize*sizeof(T), m_allocatedSize*sizeof(T));
+
+#ifdef DEBUG
+        panic("XStringAbstract::Alloc(%zu) : Xrealloc(%" PRIuPTR ", %lu, %zd) returned NULL. System halted\n", nNewSize, uintptr_t(m_data), nNewSize*sizeof(T), m_allocatedSize*sizeof(T));
+#else
+        m_allocatedSize = 0;
+        return;
+#endif
 			}
 			m_allocatedSize = nNewSize;
 	}
@@ -822,7 +847,12 @@ public:
 protected:
 	ThisXStringClass& takeValueFromLiteral(const T* s)
 	{
+#ifdef DEBUG
 		if ( m_allocatedSize > 0 ) panic("XStringAbstract::takeValueFromLiteral -> m_allocatedSize > 0");
+#else
+    if ( m_allocatedSize < 0 ) return 0;
+#endif
+
 		m_data = (T*)s;
 		return *((ThisXStringClass*)this);
 	}
@@ -848,8 +878,14 @@ public:
 	template<typename IntegralType, enable_if(is_integral(IntegralType))>
 	T* dataSized(IntegralType size)
 	{
+#ifdef DEBUG
 		if ( size<0 ) panic("T* dataSized() -> i < 0");
 		if ( (unsigned_type(IntegralType))size > MAX_XSIZE ) panic("T* dataSized() -> i > MAX_XSIZE");
+#else
+    if ( size<0 ) return 0;
+    if ( (unsigned_type(IntegralType))size > MAX_XSIZE )  return 0;
+#endif
+
 		CheckSize((unsigned_type(IntegralType))size);
 		return __String<T, ThisXStringClass>::_data(0);
 	}
@@ -961,7 +997,8 @@ public:
 	{
 		if ( other && *other && other_len > 0 ) {
 			size_t currentSize = size_of_utf_string(m_data);
-			size_t newSize = currentSize + utf_size_of_utf_string_len(m_data, other, other_len);
+			size_t other_size = utf_size_of_utf_string_len(m_data, other, other_len);
+			size_t newSize = currentSize + other_size;
 			CheckSize(newSize, 0);
 			utf_string_from_utf_string_len(m_data+currentSize, m_allocatedSize, other, other_len);
 			m_data[newSize] = 0;
@@ -969,7 +1006,21 @@ public:
 			// nothing to do
 		}
 	}
-    
+  /* strsicat */
+  template<typename O>
+  void strsicat(const O* other, size_t other_size)
+  {
+    if ( other && *other && other_size > 0 ) {
+      size_t currentSize = size_of_utf_string(m_data);
+      size_t newSize = currentSize + other_size;
+      CheckSize(newSize, 0);
+      utf_string_from_utf_string_len(m_data+currentSize, m_allocatedSize, other, other_size);
+      m_data[newSize] = 0;
+    }else{
+      // nothing to do
+    }
+  }
+
   /* insert char* */
   template<typename O>
   ThisXStringClass&  insertAtPos(const O* other, size_t other_len, size_t pos)
@@ -1152,6 +1203,13 @@ public:
     }
   }
 
+  /* size is in number of technical chars, NOT in bytes */
+  ThisXStringClass& stealValueFrom(T* S, size_t size) {
+    if ( m_allocatedSize > 0 ) free((void*)m_data);
+    m_data = S;
+    m_allocatedSize = size;
+    return *((ThisXStringClass*)this);
+  }
 
   ThisXStringClass& stealValueFrom(T* S) {
     if ( m_allocatedSize > 0 ) free((void*)m_data);

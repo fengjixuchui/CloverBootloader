@@ -56,10 +56,12 @@
 #include "../Platform/Nvram.h"
 #include "../include/DsdtFixList.h"
 #include "../include/Devices.h"
+#include "../include/QuirksCodes.h"
 #include "../Platform/boot.h"
 #include "../Platform/Injectors.h"
 #include "../Platform/KextList.h"
 #include "../gui/REFIT_MENU_SCREEN.h"
+#include "../gui/REFIT_MAINMENU_SCREEN.h"
 #include "../Platform/Self.h"
 #include "../Platform/VersionString.h"
 
@@ -119,7 +121,7 @@ REFIT_MENU_ITEM_RESET    MenuEntryReset   (L"Restart Computer"_XSW, 1, 0, 'R', A
 REFIT_MENU_ITEM_SHUTDOWN MenuEntryShutdown(L"Exit Clover"_XSW,      1, 0, 'U', ActionSelect);
 REFIT_MENU_ITEM_RETURN   MenuEntryReturn  (L"Return"_XSW,           0, 0,  0,  ActionEnter);
 
-REFIT_MENU_SCREEN MainMenu(1, L"Main Menu"_XSW, L"Automatic boot"_XSW);
+REFIT_MAINMENU_SCREEN MainMenu(1, L"Main Menu"_XSW, L"Automatic boot"_XSW);
 REFIT_MENU_SCREEN AboutMenu(2, L"About"_XSW, L""_XSW);
 REFIT_MENU_SCREEN HelpMenu(3, L"Help"_XSW, L""_XSW);
 REFIT_MENU_SCREEN OptionMenu(4, L"Options"_XSW, L""_XSW);
@@ -152,7 +154,7 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount++].IValue = 3;
 
   InputItems[InputItemsCount].ItemType = BoolValue; //4
-  InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.DropSSDT;
+  InputItems[InputItemsCount++].BValue = GlobalConfig.DropSSDT;
   InputItems[InputItemsCount].ItemType = BoolValue;  //5
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.Generate.GeneratePStates;
   InputItems[InputItemsCount].ItemType = BoolValue;  //6
@@ -164,26 +166,26 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount].ItemType = BoolValue; //9
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.Generate.GenerateCStates;
   InputItems[InputItemsCount].ItemType = BoolValue; //10
-  InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.EnableC2;
+  InputItems[InputItemsCount++].BValue = GlobalConfig.EnableC2;
   InputItems[InputItemsCount].ItemType = BoolValue; //11
-  InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.EnableC4;
+  InputItems[InputItemsCount++].BValue = GlobalConfig.EnableC4;
   InputItems[InputItemsCount].ItemType = BoolValue; //12
-  InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.EnableC6;
+  InputItems[InputItemsCount++].BValue = GlobalConfig.EnableC6;
   InputItems[InputItemsCount].ItemType = BoolValue; //13
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.SSDT.EnableISS;
   InputItems[InputItemsCount].ItemType = Decimal;  //14
-  InputItems[InputItemsCount++].SValue.SWPrintf("%06d", gSettings.QPI);
+  InputItems[InputItemsCount++].SValue.SWPrintf("%06d", gSettings.CPU.QPI);
   InputItems[InputItemsCount].ItemType = BoolValue; //15
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.PatchNMI;
   InputItems[InputItemsCount].ItemType = BoolValue; //16
-  InputItems[InputItemsCount++].BValue = gSettings.PatchVBios;
+  InputItems[InputItemsCount++].BValue = gSettings.Graphics.PatchVBios;
   InputItems[InputItemsCount].ItemType = Decimal;  //17
 	InputItems[InputItemsCount++].SValue.SWPrintf("0x%llX", gPlatformFeature);
   InputItems[InputItemsCount].ItemType = Hex;  //18
-	InputItems[InputItemsCount++].SValue.SWPrintf("0x%hX", gSettings.BacklightLevel);
+	InputItems[InputItemsCount++].SValue.SWPrintf("0x%hX", gSettings.SystemParameters.BacklightLevel);
   InputItems[InputItemsCount].ItemType = Decimal;  //19
-  if (gSettings.BusSpeed > 20000) {
-    InputItems[InputItemsCount++].SValue.SWPrintf("%06d", gSettings.BusSpeed);
+  if (gSettings.CPU.BusSpeed > 20000) {
+    InputItems[InputItemsCount++].SValue.SWPrintf("%06d", gSettings.CPU.BusSpeed);
   } else {
 	  InputItems[InputItemsCount++].SValue.SWPrintf("%06llu", gCPUStructure.ExternalClock);
   }
@@ -194,35 +196,35 @@ void FillInputs(BOOLEAN New)
 
     if (gGraphics[i].Vendor == Ati) {
       InputItems[InputItemsCount].ItemType = BoolValue; //21+i*6
-      InputItems[InputItemsCount++].BValue = gSettings.InjectATI;
+      InputItems[InputItemsCount++].BValue = gSettings.Graphics.InjectAsDict.InjectATI;
       InputItems[InputItemsCount].ItemType = ASString; //22+6i
-      if ( gSettings.FBName.length() > 2 ) { //fool proof: cfg_name is 3 character or more.
-		    InputItems[InputItemsCount++].SValue.SWPrintf("%ls", gSettings.FBName.wc_str());
+      if ( gSettings.Graphics.FBName.length() > 2 ) { //fool proof: cfg_name is 3 character or more.
+		    InputItems[InputItemsCount++].SValue.SWPrintf("%ls", gSettings.Graphics.FBName.wc_str());
       } else {
 		    InputItems[InputItemsCount++].SValue.SWPrintf("%s", gGraphics[i].Config);
       }
     } else if (gGraphics[i].Vendor == Nvidia) {
       InputItems[InputItemsCount].ItemType = BoolValue; //21+i*6
-      InputItems[InputItemsCount++].BValue = gSettings.InjectNVidia;
+      InputItems[InputItemsCount++].BValue = gSettings.Graphics.InjectAsDict.InjectNVidia;
       InputItems[InputItemsCount].ItemType = ASString; //22+6i
       for (j=0; j<8; j++) {
-        snprintf((CHAR8*)&tmp[2*j], 3, "%02hhX", gSettings.Dcfg[j]);
+        snprintf((CHAR8*)&tmp[2*j], 3, "%02hhX", gSettings.Graphics.Dcfg[j]);
       }
 		  InputItems[InputItemsCount++].SValue.SWPrintf("%s", tmp);
 
-      //InputItems[InputItemsCount++].SValue = P__oolPrint(L"%08x",*(UINT64*)&gSettings.Dcfg[0]);
+      //InputItems[InputItemsCount++].SValue = P__oolPrint(L"%08x",*(UINT64*)&gSettings.Graphics.Dcfg[0]);
     } else /*if (gGraphics[i].Vendor == Intel) */ {
       InputItems[InputItemsCount].ItemType = BoolValue; //21+i*6
-      InputItems[InputItemsCount++].BValue = gSettings.InjectIntel;
+      InputItems[InputItemsCount++].BValue = gSettings.Graphics.InjectAsDict.InjectIntel;
       InputItems[InputItemsCount].ItemType = Hex; //22+6i
-		  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.IgPlatform);
+		  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Graphics.IgPlatform);
  //     InputItemsCount += 3;
  //     continue;
     }
 
     InputItems[InputItemsCount].ItemType = Decimal;  //23+6i
-    if (gSettings.VideoPorts > 0) {
-      InputItems[InputItemsCount++].SValue.SWPrintf("%02d", gSettings.VideoPorts);
+    if (gSettings.Graphics.VideoPorts > 0) {
+      InputItems[InputItemsCount++].SValue.SWPrintf("%02d", gSettings.Graphics.VideoPorts);
     } else {
       InputItems[InputItemsCount++].SValue.SWPrintf("%02d", gGraphics[i].Ports);
     }
@@ -230,7 +232,7 @@ void FillInputs(BOOLEAN New)
     if (gGraphics[i].Vendor == Nvidia) {
       InputItems[InputItemsCount].ItemType = ASString; //24+6i
       for (j=0; j<20; j++) {
-        snprintf((CHAR8*)&tmp[2*j], 3, "%02hhX", gSettings.NVCAP[j]);
+        snprintf((CHAR8*)&tmp[2*j], 3, "%02hhX", gSettings.Graphics.NVCAP[j]);
       }
 	    InputItems[InputItemsCount++].SValue.SWPrintf("%s", tmp);
     } else { //ATI and others there will be connectors
@@ -249,42 +251,42 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount].ItemType = BoolValue; //45
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.EightApple;
   InputItems[InputItemsCount].ItemType = BoolValue; //46
-  InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPAppleIntelCPUPM;
+  InputItems[InputItemsCount++].BValue = GlobalConfig.KPAppleIntelCPUPM;
   InputItems[InputItemsCount].ItemType = BoolValue; //47
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPAppleRTC;
   InputItems[InputItemsCount].ItemType = BoolValue; //48
-  InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPKernelPm;
+  InputItems[InputItemsCount++].BValue = GlobalConfig.KPKernelPm;
   InputItems[InputItemsCount].ItemType = BoolValue; //49
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.FixMCFG;
 
   InputItems[InputItemsCount].ItemType = Decimal;  //50
-  InputItems[InputItemsCount++].SValue.SWPrintf("%06d", gSettings.RefCLK);
+  InputItems[InputItemsCount++].SValue.SWPrintf("%06d", gSettings.Graphics.RefCLK);
 
   InputItems[InputItemsCount].ItemType = ASString;  //51 OS version if non-detected
 	InputItems[InputItemsCount++].SValue.SWPrintf("%s ", NonDetected.c_str());
 
   InputItems[InputItemsCount].ItemType = BoolValue; //52
-  InputItems[InputItemsCount++].BValue = gSettings.InjectEDID;
+  InputItems[InputItemsCount++].BValue = gSettings.Graphics.EDID.InjectEDID;
 
   //VendorEDID & ProductEDID 53, 54
   InputItems[InputItemsCount].ItemType = Decimal;  //53
-	InputItems[InputItemsCount++].SValue.SWPrintf("0x%04hX", gSettings.VendorEDID);
+	InputItems[InputItemsCount++].SValue.SWPrintf("0x%04hX", gSettings.Graphics.EDID.VendorEDID);
   InputItems[InputItemsCount].ItemType = Decimal;  //54
-	InputItems[InputItemsCount++].SValue.SWPrintf("0x%04hX", gSettings.ProductEDID);
+	InputItems[InputItemsCount++].SValue.SWPrintf("0x%04hX", gSettings.Graphics.EDID.ProductEDID);
 
   // ErmaC: NvidiaGeneric menu selector y/n
   InputItems[InputItemsCount].ItemType = BoolValue; //55
-  InputItems[InputItemsCount++].BValue = gSettings.NvidiaGeneric;
+  InputItems[InputItemsCount++].BValue = gSettings.Graphics.NvidiaGeneric;
   InputItems[InputItemsCount].ItemType = BoolValue; //56
-  InputItems[InputItemsCount++].BValue = gSettings.NvidiaWeb;
+  InputItems[InputItemsCount++].BValue = gSettings.SystemParameters.NvidiaWeb;
   InputItems[InputItemsCount].ItemType = BoolValue; //57
-  InputItems[InputItemsCount++].BValue = gSettings.ResetHDA;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.Audio.ResetHDA;
   InputItems[InputItemsCount].ItemType = BoolValue; //58
-  InputItems[InputItemsCount++].BValue = gSettings.AFGLowPowerState;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.Audio.AFGLowPowerState;
   InputItems[InputItemsCount].ItemType = BoolValue; //59
-  InputItems[InputItemsCount++].BValue = gSettings.HDAInjection;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.Audio.HDAInjection;
   InputItems[InputItemsCount].ItemType = Decimal;  // 60
-  InputItems[InputItemsCount++].SValue.SWPrintf("%d", gSettings.HDALayoutId);
+  InputItems[InputItemsCount++].SValue.SWPrintf("%d", gSettings.Devices.Audio.HDALayoutId);
 
   // syscl change here
   InputItems[InputItemsCount].ItemType = BoolValue; //61
@@ -304,9 +306,9 @@ void FillInputs(BOOLEAN New)
 
   // CSR - aka System Integrity Protection configuration
   InputItems[InputItemsCount].ItemType = CheckBit; //65
-  InputItems[InputItemsCount++].IValue = gSettings.BooterConfig;
+  InputItems[InputItemsCount++].IValue = gSettings.RtVariables.BooterConfig;
   InputItems[InputItemsCount].ItemType = CheckBit; //66
-  InputItems[InputItemsCount++].IValue = gSettings.CsrActiveConfig;
+  InputItems[InputItemsCount++].IValue = gSettings.RtVariables.CsrActiveConfig;
 
 
   InputItems[InputItemsCount].ItemType = CheckBit; //67
@@ -317,24 +319,24 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount++].IValue = gSettings.FlagsBits;
 
   InputItems[InputItemsCount].ItemType = Decimal;  //70
-	InputItems[InputItemsCount++].SValue.SWPrintf("%02lld", gSettings.PointerSpeed);
+	InputItems[InputItemsCount++].SValue.SWPrintf("%02lld", gSettings.GUI.Mouse.PointerSpeed);
   InputItems[InputItemsCount].ItemType = Decimal;  //71
-	InputItems[InputItemsCount++].SValue.SWPrintf("%04llu", gSettings.DoubleClickTime);
+	InputItems[InputItemsCount++].SValue.SWPrintf("%04llu", gSettings.GUI.Mouse.DoubleClickTime);
   InputItems[InputItemsCount].ItemType = BoolValue; //72
-  InputItems[InputItemsCount++].BValue = gSettings.PointerMirror;
+  InputItems[InputItemsCount++].BValue = gSettings.GUI.Mouse.PointerMirror;
 
   //reserve for mouse and continue
 
   InputItemsCount = 74;
   InputItems[InputItemsCount].ItemType = BoolValue; //74
-  InputItems[InputItemsCount++].BValue = gSettings.USBFixOwnership;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.USB.USBFixOwnership;
 
   InputItems[InputItemsCount].ItemType = Hex;  //75
-	InputItems[InputItemsCount++].SValue.SWPrintf("0x%04hX", gSettings.ACPI.SSDT.C3Latency);
+	InputItems[InputItemsCount++].SValue.SWPrintf("0x%04hX", GlobalConfig.C3Latency);
   InputItems[InputItemsCount].ItemType = Decimal;  //76
   InputItems[InputItemsCount++].SValue.SWPrintf("%02d", gSettings.EnabledCores);
   InputItems[InputItemsCount].ItemType = Decimal;  //77
-  InputItems[InputItemsCount++].SValue.SWPrintf("%02d", gSettings.SavingMode);
+  InputItems[InputItemsCount++].SValue.SWPrintf("%02d", gSettings.CPU.SavingMode);
 
   InputItems[InputItemsCount].ItemType = ASString;  //78
 	InputItems[InputItemsCount++].SValue.SWPrintf("%s", gSettings.ProductName.c_str());
@@ -368,32 +370,32 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPKernelLapic;
 
   InputItems[InputItemsCount].ItemType = BoolValue; //92
-  InputItems[InputItemsCount++].BValue = gSettings.USBInjection;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.USB.USBInjection;
   InputItems[InputItemsCount].ItemType = BoolValue; //93
-  InputItems[InputItemsCount++].BValue = gSettings.InjectClockID;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.USB.InjectClockID;
 
   InputItems[InputItemsCount].ItemType = Hex;  //94
-	InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeATI);
+	InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeATI);
   InputItems[InputItemsCount].ItemType = Hex;  //95
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeNVidia);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeNVidia);
   InputItems[InputItemsCount].ItemType = Hex;  //96
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeIntel);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeIntel);
 
   InputItems[InputItemsCount].ItemType = Hex;  //97
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeLAN);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeLAN);
   InputItems[InputItemsCount].ItemType = Hex;  //98
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeWIFI);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeWIFI);
   InputItems[InputItemsCount].ItemType = Hex;  //99
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeSATA);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeSATA);
   InputItems[InputItemsCount].ItemType = Hex;  //100
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeXHCI);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeXHCI);
   InputItems[InputItemsCount].ItemType = CheckBit;  //101 - Quirks
-  InputItems[InputItemsCount++].IValue = gSettings.QuirksMask; //
+  InputItems[InputItemsCount++].IValue = gSettings.Quirks.QuirksMask; //
 
   InputItems[InputItemsCount].ItemType = BoolValue; //102
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.DSDT.DebugDSDT;
   InputItems[InputItemsCount].ItemType = Hex;  //103
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.FakeIMEI);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.Devices.FakeID.FakeIMEI);
   InputItems[InputItemsCount].ItemType = Hex;  //104
   InputItems[InputItemsCount++].SValue.SWPrintf("0x%08X", gSettings.KernelAndKextPatches.FakeCPUID);
 
@@ -402,36 +404,36 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPKernelXCPM;
 
   InputItems[InputItemsCount].ItemType = BoolValue; //106
-  InputItems[InputItemsCount++].BValue = gSettings.StringInjector;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.StringInjector;
   InputItems[InputItemsCount].ItemType = BoolValue; //107
-  InputItems[InputItemsCount++].BValue = gSettings.NoDefaultProperties;
+  InputItems[InputItemsCount++].BValue = gSettings.Devices.NoDefaultProperties;
   InputItems[InputItemsCount].ItemType = BoolValue; //108
   InputItems[InputItemsCount++].BValue = gSettings.KernelPatchesAllowed;
 
   InputItems[InputItemsCount].ItemType = Hex; //109
-  InputItems[InputItemsCount++].SValue.SWPrintf("%01X", gSettings.DualLink);
+  InputItems[InputItemsCount++].SValue.SWPrintf("%01X", gSettings.Graphics.DualLink);
 
   InputItems[InputItemsCount].ItemType = BoolValue; //110
-  InputItems[InputItemsCount++].BValue = gSettings.NvidiaNoEFI;
+  InputItems[InputItemsCount++].BValue = gSettings.Graphics.NvidiaNoEFI;
   InputItems[InputItemsCount].ItemType = BoolValue; //111
-  InputItems[InputItemsCount++].BValue = gSettings.NvidiaSingle;
+  InputItems[InputItemsCount++].BValue = gSettings.Graphics.NvidiaSingle;
 
   InputItems[InputItemsCount].ItemType = Hex;  //112
-  InputItems[InputItemsCount++].SValue.SWPrintf("0x%04X", gSettings.IntelMaxValue);
+  InputItems[InputItemsCount++].SValue.SWPrintf("0x%04X", gSettings.Devices.IntelMaxValue);
 
   InputItems[InputItemsCount].ItemType = BoolValue; //113
   InputItems[InputItemsCount++].BValue = gSettings.ACPI.AutoMerge;
   InputItems[InputItemsCount].ItemType = BoolValue; //114
-  InputItems[InputItemsCount++].BValue = gSettings.DeInit;
+  InputItems[InputItemsCount++].BValue = gSettings.Graphics.RadeonDeInit;
   InputItems[InputItemsCount].ItemType = BoolValue; //115
-  InputItems[InputItemsCount++].BValue = gSettings.NoCaches;
+  InputItems[InputItemsCount++].BValue = gSettings.SystemParameters.NoCaches;
   InputItems[InputItemsCount].ItemType = RadioSwitch;  //116 - DSDT chooser
   InputItems[InputItemsCount++].IValue = 116;
 
   InputItems[InputItemsCount].ItemType = ASString;  //117
 	InputItems[InputItemsCount++].SValue.SWPrintf("%s", gSettings.EfiVersion.c_str());
   InputItems[InputItemsCount].ItemType = ASString;  //118
-	InputItems[InputItemsCount++].SValue.SWPrintf("%s", gSettings.BooterCfgStr.c_str());
+	InputItems[InputItemsCount++].SValue.SWPrintf("%s", gSettings.RtVariables.BooterCfgStr.c_str());
 
   InputItems[InputItemsCount].ItemType = RadioSwitch;  //119 - Audio chooser
   InputItems[InputItemsCount++].IValue = 119;
@@ -441,9 +443,9 @@ void FillInputs(BOOLEAN New)
   InputItems[InputItemsCount].ItemType = BoolValue; //121
   InputItems[InputItemsCount++].BValue = gSettings.KernelAndKextPatches.KPPanicNoKextDump;
   InputItems[InputItemsCount].ItemType = Decimal;  //122
-  InputItems[InputItemsCount++].SValue.SWPrintf("%04lld", gSettings.MaxSlide);
+  InputItems[InputItemsCount++].SValue.SWPrintf("%04hhu", gSettings.Quirks.ocBooterQuirks.ProvideMaxSlide);
   InputItems[InputItemsCount].ItemType = BoolValue; //123
-  InputItems[InputItemsCount++].BValue = gSettings.ProvideConsoleGop;
+  InputItems[InputItemsCount++].BValue = gSettings.GUI.ProvideConsoleGop;
 
 
 
@@ -456,12 +458,9 @@ void FillInputs(BOOLEAN New)
     }
   }
 
-  if (ACPIPatchedAML) {
-    ACPI_PATCHED_AML *ACPIPatchedAMLTmp = ACPIPatchedAML;
-    while (ACPIPatchedAMLTmp) {
-      ACPIPatchedAMLTmp->MenuItem.ItemType = BoolValue;
-      ACPIPatchedAMLTmp = ACPIPatchedAMLTmp->Next;
-    }
+  for ( size_t idx = 0 ; idx < ACPIPatchedAML.size() ; ++idx) {
+    ACPI_PATCHED_AML& ACPIPatchedAMLTmp = ACPIPatchedAML[idx];
+    ACPIPatchedAMLTmp.MenuItem.ItemType = BoolValue;
   }
 }
 
@@ -473,7 +472,6 @@ void ApplyInputs(void)
   BOOLEAN NeedSave = TRUE;
   INTN i = 0;
   UINTN j;
-  CHAR8  AString[256];
 
 //  DBG("ApplyInputs\n");
   if (InputItems[i].Valid) {
@@ -502,7 +500,7 @@ void ApplyInputs(void)
   }
   i++; //4
   if (InputItems[i].Valid) {
-    gSettings.ACPI.SSDT.DropSSDT = InputItems[i].BValue;
+    GlobalConfig.DropSSDT = InputItems[i].BValue;
   }
   i++; //5
   if (InputItems[i].Valid) {
@@ -529,15 +527,15 @@ void ApplyInputs(void)
   }
   i++; //10
   if (InputItems[i].Valid) {
-    gSettings.ACPI.SSDT.EnableC2 = InputItems[i].BValue;
+    GlobalConfig.EnableC2 = InputItems[i].BValue;
   }
   i++; //11
   if (InputItems[i].Valid) {
-    gSettings.ACPI.SSDT.EnableC4 = InputItems[i].BValue;
+    GlobalConfig.EnableC4 = InputItems[i].BValue;
   }
   i++; //12
   if (InputItems[i].Valid) {
-    gSettings.ACPI.SSDT.EnableC6 = InputItems[i].BValue;
+    GlobalConfig.EnableC6 = InputItems[i].BValue;
   }
   i++; //13
   if (InputItems[i].Valid) {
@@ -545,8 +543,8 @@ void ApplyInputs(void)
   }
   i++; //14
   if (InputItems[i].Valid) {
-    gSettings.QPI = (UINT16)StrDecimalToUintn(InputItems[i].SValue.wc_str());
-    DBG("applied QPI=%d\n", gSettings.QPI);
+    gSettings.CPU.QPI = (UINT16)StrDecimalToUintn(InputItems[i].SValue.wc_str());
+    DBG("applied QPI=%d\n", gSettings.CPU.QPI);
   }
   i++; //15
   if (InputItems[i].Valid) {
@@ -554,7 +552,7 @@ void ApplyInputs(void)
   }
   i++; //16
   if (InputItems[i].Valid) {
-    gSettings.PatchVBios = InputItems[i].BValue;
+    gSettings.Graphics.PatchVBios = InputItems[i].BValue;
   }
   i++; //17
   if (InputItems[i].Valid) {
@@ -563,13 +561,13 @@ void ApplyInputs(void)
   }
   i++; //18 | Download-Fritz: There is no GUI element for BacklightLevel; please revise
   if (InputItems[i].Valid) {
-    gSettings.BacklightLevel = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
-    gSettings.BacklightLevelConfig = TRUE;
+    gSettings.SystemParameters.BacklightLevel = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.SystemParameters.BacklightLevelConfig = TRUE;
   }
   i++; //19
   if (InputItems[i].Valid) {
-    gSettings.BusSpeed = (UINT32)StrDecimalToUintn(InputItems[i].SValue.wc_str());
-    DBG("applied BusSpeed=%d\n", gSettings.BusSpeed);
+    gSettings.CPU.BusSpeed = (UINT32)StrDecimalToUintn(InputItems[i].SValue.wc_str());
+    DBG("applied BusSpeed=%d\n", gSettings.CPU.BusSpeed);
   }
 
   i = 19;
@@ -581,25 +579,23 @@ void ApplyInputs(void)
     i++; //21
     if (InputItems[i].Valid) {
       if (gGraphics[j].Vendor == Ati) {
-        gSettings.InjectATI = InputItems[i].BValue;
+        gSettings.Graphics.InjectAsDict.InjectATI = InputItems[i].BValue;
       } else if (gGraphics[j].Vendor == Nvidia) {
-        gSettings.InjectNVidia = InputItems[i].BValue;
+        gSettings.Graphics.InjectAsDict.InjectNVidia = InputItems[i].BValue;
       } else if (gGraphics[j].Vendor == Intel) {
-        gSettings.InjectIntel = InputItems[i].BValue;
+        gSettings.Graphics.InjectAsDict.InjectIntel = InputItems[i].BValue;
       }
     }
     i++; //22
     if (InputItems[i].Valid) {
       if (gGraphics[j].Vendor == Ati) {
-		  gSettings.FBName = InputItems[i].SValue;
+		  gSettings.Graphics.FBName = InputItems[i].SValue;
       } else if (gGraphics[j].Vendor == Nvidia) {
-        ZeroMem(AString, 256);
-        snprintf(AString, 255, "%ls", InputItems[i].SValue.wc_str());
-        hex2bin(AString, (UINT8*)&gSettings.Dcfg[0], 8);
+        hex2bin(InputItems[i].SValue, (UINT8*)&gSettings.Graphics.Dcfg[0], sizeof(gSettings.Graphics.Dcfg));
       } else if (gGraphics[j].Vendor == Intel) {
         //ig-platform-id for Ivy+ and snb-platform-id for Sandy
-        gSettings.IgPlatform = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
-        DBG("applied *-platform-id=0x%X\n", gSettings.IgPlatform);
+        gSettings.Graphics.IgPlatform = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+        DBG("applied *-platform-id=0x%X\n", gSettings.Graphics.IgPlatform);
       }
     }
 
@@ -615,10 +611,8 @@ void ApplyInputs(void)
     i++; //24
     if (InputItems[i].Valid) {
       if (gGraphics[j].Vendor == Nvidia) {
-        ZeroMem(AString, 256);
         if ( InputItems[i].SValue.notEmpty() ) {
-          snprintf(AString, 255, "%ls", InputItems[i].SValue.wc_str());
-          hex2bin(AString, (UINT8*)&gSettings.NVCAP[0], 20);
+          hex2bin(InputItems[i].SValue, (UINT8*)&gSettings.Graphics.NVCAP[0], sizeof(gSettings.Graphics.NVCAP));
         }
       } else {
         gGraphics[j].Connectors = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
@@ -644,7 +638,7 @@ void ApplyInputs(void)
   }
   i++; //46
   if (InputItems[i].Valid) {
-    gSettings.KernelAndKextPatches.KPAppleIntelCPUPM = InputItems[i].BValue;
+    GlobalConfig.KPAppleIntelCPUPM = InputItems[i].BValue;
     GlobalConfig.gBootChanged = TRUE;
   }
   i++; //47
@@ -654,7 +648,7 @@ void ApplyInputs(void)
   }
   i++; //48
   if (InputItems[i].Valid) {
-     gSettings.KernelAndKextPatches.KPKernelPm = InputItems[i].BValue;
+     GlobalConfig.KPKernelPm = InputItems[i].BValue;
      GlobalConfig.gBootChanged = TRUE;
   }
   i++; //49
@@ -664,7 +658,7 @@ void ApplyInputs(void)
 
   i++; //50
   if (InputItems[i].Valid) {
-    gSettings.RefCLK = (UINT32)StrDecimalToUintn(InputItems[i].SValue.wc_str());
+    gSettings.Graphics.RefCLK = (UINT32)StrDecimalToUintn(InputItems[i].SValue.wc_str());
   }
 
   i++; //51
@@ -674,46 +668,46 @@ void ApplyInputs(void)
 
   i++; //52
   if (InputItems[i].Valid) {
-    gSettings.InjectEDID = InputItems[i].BValue;
+    gSettings.Graphics.EDID.InjectEDID = InputItems[i].BValue;
   }
   i++; //53
   if (InputItems[i].Valid) {
-    gSettings.VendorEDID = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Graphics.EDID.VendorEDID = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //54
   if (InputItems[i].Valid) {
-    gSettings.ProductEDID = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Graphics.EDID.ProductEDID = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //55
   // ErmaC: NvidiaGeneric bool(Y/N)
   if (InputItems[i].Valid) {
-    gSettings.NvidiaGeneric = InputItems[i].BValue;
+    gSettings.Graphics.NvidiaGeneric = InputItems[i].BValue;
   }
   i++; //56
   if (InputItems[i].Valid) {
-    gSettings.NvidiaWeb = InputItems[i].BValue;
+    gSettings.SystemParameters.NvidiaWeb = InputItems[i].BValue;
   }
   i++; //57
   if (InputItems[i].Valid) {
-    gSettings.ResetHDA = InputItems[i].BValue;
+    gSettings.Devices.Audio.ResetHDA = InputItems[i].BValue;
   }
   i++; //58
   if (InputItems[i].Valid) {
-    gSettings.AFGLowPowerState = InputItems[i].BValue;
+    gSettings.Devices.Audio.AFGLowPowerState = InputItems[i].BValue;
   }
   i++; //59
   if (InputItems[i].Valid) {
-    gSettings.HDAInjection = InputItems[i].BValue;
+    gSettings.Devices.Audio.HDAInjection = InputItems[i].BValue;
   }
   i++; //60
   if (InputItems[i].Valid) {
-    gSettings.HDALayoutId = (UINT32)(StrDecimalToUintn(InputItems[i].SValue.wc_str()));
+    gSettings.Devices.Audio.HDALayoutId = (UINT32)(StrDecimalToUintn(InputItems[i].SValue.wc_str()));
   }
   i++; //61
   if (InputItems[i].Valid) {
     gSettings.KernelAndKextPatches.KPDELLSMBIOS = InputItems[i].BValue;
-    // yes, we do need to change gRemapSmBiosIsRequire here as well
-    gRemapSmBiosIsRequire = InputItems[i].BValue;
+//    // yes, we do need to change gRemapSmBiosIsRequire here as well
+//    gRemapSmBiosIsRequire = InputItems[i].BValue;
     GlobalConfig.gBootChanged = TRUE;
   }
   i++; //62
@@ -735,11 +729,11 @@ void ApplyInputs(void)
   // CSR
   i = 65;
   if (InputItems[i].Valid) {
-    gSettings.BooterConfig = InputItems[i].IValue & 0x7F;
+    gSettings.RtVariables.BooterConfig = InputItems[i].IValue & 0x7F;
   }
   i++; //66
   if (InputItems[i].Valid) {
-    gSettings.CsrActiveConfig = InputItems[i].IValue;
+    gSettings.RtVariables.CsrActiveConfig = InputItems[i].IValue;
   }
 
   i++; //67
@@ -762,30 +756,30 @@ void ApplyInputs(void)
     if (InputItems[i].SValue[0] == '-') {
       Minus = 1;
     }
-    gSettings.PointerSpeed = StrDecimalToUintn(InputItems[i].SValue.data(Minus));
+    gSettings.GUI.Mouse.PointerSpeed = StrDecimalToUintn(InputItems[i].SValue.data(Minus));
     if (Minus) {
-      gSettings.PointerSpeed = -gSettings.PointerSpeed;
+      gSettings.GUI.Mouse.PointerSpeed = -gSettings.GUI.Mouse.PointerSpeed;
     }
 //    DBG("Pointer Speed=%d\n", gSettings.PointerSpeed);
   }
   i++; //71
   if (InputItems[i].Valid) {
-    gSettings.DoubleClickTime = StrDecimalToUintn(InputItems[i].SValue.wc_str());
+    gSettings.GUI.Mouse.DoubleClickTime = StrDecimalToUintn(InputItems[i].SValue.wc_str());
 //    DBG("DoubleClickTime=%d ms\n", gSettings.DoubleClickTime);
   }
   i++; //72
   if (InputItems[i].Valid) {
-    gSettings.PointerMirror = InputItems[i].BValue;
+    gSettings.GUI.Mouse.PointerMirror = InputItems[i].BValue;
   }
 
 
   i = 74;
   if (InputItems[i].Valid) {
-    gSettings.USBFixOwnership = InputItems[i].BValue;
+    gSettings.Devices.USB.USBFixOwnership = InputItems[i].BValue;
   }
   i++; //75
   if (InputItems[i].Valid) {
-    gSettings.ACPI.SSDT.C3Latency = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
+    GlobalConfig.C3Latency = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
 
   i++; //76
@@ -794,7 +788,7 @@ void ApplyInputs(void)
   }
   i++; //77
   if (InputItems[i].Valid) {
-    gSettings.SavingMode = (UINT8)StrDecimalToUintn(InputItems[i].SValue.wc_str());
+    gSettings.CPU.SavingMode = (UINT8)StrDecimalToUintn(InputItems[i].SValue.wc_str());
   }
 
   i++; //78
@@ -876,62 +870,62 @@ void ApplyInputs(void)
   }
   i++; //92
   if (InputItems[i].Valid) {
-    gSettings.USBInjection = InputItems[i].BValue;
+    gSettings.Devices.USB.USBInjection = InputItems[i].BValue;
   }
   i++; //93
   if (InputItems[i].Valid) {
-    gSettings.InjectClockID = InputItems[i].BValue;
+    gSettings.Devices.USB.InjectClockID = InputItems[i].BValue;
   }
   i++; //94
   if (InputItems[i].Valid) {
-    gSettings.FakeATI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeATI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //95
   if (InputItems[i].Valid) {
-    gSettings.FakeNVidia = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeNVidia = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //96
   if (InputItems[i].Valid) {
-    gSettings.FakeIntel = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
-    DBG("applied FakeIntel=0x%X\n", gSettings.FakeIntel);
+    gSettings.Devices.FakeID.FakeIntel = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    DBG("applied FakeIntel=0x%X\n", gSettings.Devices.FakeID.FakeIntel);
   }
   i++; //97
   if (InputItems[i].Valid) {
-    gSettings.FakeLAN = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeLAN = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //98
   if (InputItems[i].Valid) {
-    gSettings.FakeWIFI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeWIFI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //99
   if (InputItems[i].Valid) {
-    gSettings.FakeSATA = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeSATA = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //100
   if (InputItems[i].Valid) {
-    gSettings.FakeXHCI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeXHCI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
 
   i++; //101  - Quirks
   if (InputItems[i].Valid) {
-    gSettings.QuirksMask = InputItems[i].IValue;
-    gSettings.ocBooterQuirks.AvoidRuntimeDefrag     = ((gSettings.QuirksMask & QUIRK_DEFRAG) != 0); //1
-    gSettings.ocBooterQuirks.DevirtualiseMmio       = ((gSettings.QuirksMask & QUIRK_MMIO) != 0);   //0
-    gSettings.ocBooterQuirks.DisableSingleUser      = ((gSettings.QuirksMask & QUIRK_SU) != 0);     //0
-    gSettings.ocBooterQuirks.DisableVariableWrite   = ((gSettings.QuirksMask & QUIRK_VAR) != 0);    //0
-    gSettings.ocBooterQuirks.DiscardHibernateMap    = ((gSettings.QuirksMask & QUIRK_HIBER) != 0);  //0
-    gSettings.ocBooterQuirks.EnableSafeModeSlide    = ((gSettings.QuirksMask & QUIRK_SAFE) != 0);   //1
-    gSettings.ocBooterQuirks.EnableWriteUnprotector = ((gSettings.QuirksMask & QUIRK_UNPROT) != 0); //1
-    gSettings.ocBooterQuirks.ForceExitBootServices  = ((gSettings.QuirksMask & QUIRK_EXIT) != 0);   //0
-    gSettings.ocBooterQuirks.ProtectMemoryRegions   = ((gSettings.QuirksMask & QUIRK_REGION) != 0); //0
-    gSettings.ocBooterQuirks.ProtectSecureBoot      = ((gSettings.QuirksMask & QUIRK_SECURE) != 0); //0
-    gSettings.ocBooterQuirks.ProtectUefiServices    = ((gSettings.QuirksMask & QUIRK_UEFI) != 0);   //0
-    gSettings.ocBooterQuirks.ProvideCustomSlide     = ((gSettings.QuirksMask & QUIRK_CUSTOM) != 0); //1
-    gSettings.ocBooterQuirks.RebuildAppleMemoryMap  = ((gSettings.QuirksMask & QUIRK_MAP) != 0);    //0
-    gSettings.ocBooterQuirks.SetupVirtualMap        = ((gSettings.QuirksMask & QUIRK_VIRT) != 0);   //1
-    gSettings.ocBooterQuirks.SignalAppleOS          = ((gSettings.QuirksMask & QUIRK_OS) != 0);     //0
-    gSettings.ocBooterQuirks.SyncRuntimePermissions = ((gSettings.QuirksMask & QUIRK_PERM) != 0);   //1
-	  DBG("applied Quirks mask:%x\n", gSettings.QuirksMask); //default is 0xA861
+    gSettings.Quirks.QuirksMask = InputItems[i].IValue;
+    gSettings.Quirks.ocBooterQuirks.AvoidRuntimeDefrag     = ((gSettings.Quirks.QuirksMask & QUIRK_DEFRAG) != 0); //1
+    gSettings.Quirks.ocBooterQuirks.DevirtualiseMmio       = ((gSettings.Quirks.QuirksMask & QUIRK_MMIO) != 0);   //0
+    gSettings.Quirks.ocBooterQuirks.DisableSingleUser      = ((gSettings.Quirks.QuirksMask & QUIRK_SU) != 0);     //0
+    gSettings.Quirks.ocBooterQuirks.DisableVariableWrite   = ((gSettings.Quirks.QuirksMask & QUIRK_VAR) != 0);    //0
+    gSettings.Quirks.ocBooterQuirks.DiscardHibernateMap    = ((gSettings.Quirks.QuirksMask & QUIRK_HIBER) != 0);  //0
+    gSettings.Quirks.ocBooterQuirks.EnableSafeModeSlide    = ((gSettings.Quirks.QuirksMask & QUIRK_SAFE) != 0);   //1
+    gSettings.Quirks.ocBooterQuirks.EnableWriteUnprotector = ((gSettings.Quirks.QuirksMask & QUIRK_UNPROT) != 0); //1
+    gSettings.Quirks.ocBooterQuirks.ForceExitBootServices  = ((gSettings.Quirks.QuirksMask & QUIRK_EXIT) != 0);   //0
+    gSettings.Quirks.ocBooterQuirks.ProtectMemoryRegions   = ((gSettings.Quirks.QuirksMask & QUIRK_REGION) != 0); //0
+    gSettings.Quirks.ocBooterQuirks.ProtectSecureBoot      = ((gSettings.Quirks.QuirksMask & QUIRK_SECURE) != 0); //0
+    gSettings.Quirks.ocBooterQuirks.ProtectUefiServices    = ((gSettings.Quirks.QuirksMask & QUIRK_UEFI) != 0);   //0
+    gSettings.Quirks.ocBooterQuirks.ProvideCustomSlide     = ((gSettings.Quirks.QuirksMask & QUIRK_CUSTOM) != 0); //1
+    gSettings.Quirks.ocBooterQuirks.RebuildAppleMemoryMap  = ((gSettings.Quirks.QuirksMask & QUIRK_MAP) != 0);    //0
+    gSettings.Quirks.ocBooterQuirks.SetupVirtualMap        = ((gSettings.Quirks.QuirksMask & QUIRK_VIRT) != 0);   //1
+    gSettings.Quirks.ocBooterQuirks.SignalAppleOS          = ((gSettings.Quirks.QuirksMask & QUIRK_OS) != 0);     //0
+    gSettings.Quirks.ocBooterQuirks.SyncRuntimePermissions = ((gSettings.Quirks.QuirksMask & QUIRK_PERM) != 0);   //1
+	  DBG("applied Quirks mask:%x\n", gSettings.Quirks.QuirksMask); //default is 0xA861
   }
   i++; //102
   if (InputItems[i].Valid) {
@@ -939,7 +933,7 @@ void ApplyInputs(void)
   }
   i++; //103
   if (InputItems[i].Valid) {
-    gSettings.FakeIMEI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.FakeID.FakeIMEI = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
 
   i++; //104
@@ -958,12 +952,12 @@ void ApplyInputs(void)
 
   i++; //106
   if (InputItems[i].Valid) {
-    gSettings.StringInjector = InputItems[i].BValue;
+    gSettings.Devices.StringInjector = InputItems[i].BValue;
   }
 
   i++; //107
   if (InputItems[i].Valid) {
-    gSettings.NoDefaultProperties = InputItems[i].BValue;
+    gSettings.Devices.NoDefaultProperties = InputItems[i].BValue;
   }
 
   i++; //108
@@ -974,22 +968,22 @@ void ApplyInputs(void)
 
   i++; //109
   if (InputItems[i].Valid) {
-    gSettings.DualLink = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
-    DBG("applied DualLink=%X\n", gSettings.DualLink);
+    gSettings.Graphics.DualLink = (UINT32)StrHexToUint64(InputItems[i].SValue.wc_str());
+    DBG("applied DualLink=%X\n", gSettings.Graphics.DualLink);
   }
 
   i++; //110
   if (InputItems[i].Valid) {
-    gSettings.NvidiaNoEFI = InputItems[i].BValue;
+    gSettings.Graphics.NvidiaNoEFI = InputItems[i].BValue;
   }
 
   i++; //111
   if (InputItems[i].Valid) {
-    gSettings.NvidiaSingle = InputItems[i].BValue;
+    gSettings.Graphics.NvidiaSingle = InputItems[i].BValue;
   }
   i++; //112
   if (InputItems[i].Valid) {
-    gSettings.IntelMaxValue = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
+    gSettings.Devices.IntelMaxValue = (UINT16)StrHexToUint64(InputItems[i].SValue.wc_str());
   }
   i++; //113
   if (InputItems[i].Valid) {
@@ -997,11 +991,11 @@ void ApplyInputs(void)
   }
   i++; //114
   if (InputItems[i].Valid) {
-    gSettings.DeInit = InputItems[i].BValue;
+    gSettings.Graphics.RadeonDeInit = InputItems[i].BValue;
   }
   i++; //115
   if (InputItems[i].Valid) {
-    gSettings.NoCaches = InputItems[i].BValue;
+    gSettings.SystemParameters.NoCaches = InputItems[i].BValue;
   }
   i++; //116
   if (InputItems[i].Valid) {
@@ -1017,7 +1011,7 @@ void ApplyInputs(void)
   }
   i++; //118
   if (InputItems[i].Valid) {
-	  gSettings.BooterCfgStr = InputItems[i].SValue;
+	  gSettings.RtVariables.BooterCfgStr = InputItems[i].SValue;
   }
   i++; //119
   if (InputItems[i].Valid) {
@@ -1063,13 +1057,13 @@ void ApplyInputs(void)
   }
   i++; //122
   if (InputItems[i].Valid) {
-    gSettings.MaxSlide = (UINTN)StrDecimalToUintn(InputItems[i].SValue.wc_str());
-    DBG(" set MaxSlide = %lld\n", gSettings.MaxSlide);
+    gSettings.Quirks.ocBooterQuirks.ProvideMaxSlide = (UINTN)StrDecimalToUintn(InputItems[i].SValue.wc_str());
+    DBG(" set MaxSlide = %hhu\n", gSettings.Quirks.ocBooterQuirks.ProvideMaxSlide);
   }
   i++; //123
   if (InputItems[i].Valid) {
-    gSettings.ProvideConsoleGop = InputItems[i].BValue;
-    DBG("applied ConsoleGopEnable=%s\n", gSettings.ProvideConsoleGop ? "Y" : "N" );
+    gSettings.GUI.ProvideConsoleGop = InputItems[i].BValue;
+    DBG("applied ConsoleGopEnable=%s\n", gSettings.GUI.ProvideConsoleGop ? "Y" : "N" );
   }
 
 
@@ -1145,7 +1139,7 @@ void HelpRefit(void)
     //else {
     //  HelpMenu.TitleImage.setEmpty();
     //}
-    switch (gLanguage)
+    switch (gSettings.GUI.Language)
     {
       case russian:
         HelpMenu.AddMenuInfo_f("ESC - Выход из подменю, обновление главного меню");
@@ -1523,11 +1517,6 @@ void HelpRefit(void)
     [2] checkbox
     [3] checkbox_checked
 */
-//
-// Scrolling functions
-//
-#define CONSTRAIN_MIN(Variable, MinValue) if (Variable < MinValue) Variable = MinValue
-#define CONSTRAIN_MAX(Variable, MaxValue) if (Variable > MaxValue) Variable = MaxValue
 
 
 //
@@ -1562,14 +1551,14 @@ void ModifyTitles(REFIT_ABSTRACT_MENU_ENTRY *ChosenEntry)
     //MsgLog("@ESC: %ls\n", (*ChosenEntry)->Title);
   } else if (ChosenEntry->SubScreen->ID == SCREEN_CSR) {
     // CSR
-    ChosenEntry->Title.SWPrintf("System Integrity Protection [0x%04x]->", gSettings.CsrActiveConfig);
+    ChosenEntry->Title.SWPrintf("System Integrity Protection [0x%04x]->", gSettings.RtVariables.CsrActiveConfig);
     // check for the right booter flag to allow the application
     // of the new System Integrity Protection configuration.
-    if (gSettings.CsrActiveConfig != 0 && gSettings.BooterConfig == 0) {
-      gSettings.BooterConfig = 0x28;
+    if (gSettings.RtVariables.CsrActiveConfig != 0 && gSettings.RtVariables.BooterConfig == 0) {
+      gSettings.RtVariables.BooterConfig = 0x28;
     }
   } else if (ChosenEntry->SubScreen->ID == SCREEN_BLC) {
-	  ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04hx]->", gSettings.BooterConfig);
+	  ChosenEntry->Title.SWPrintf("boot_args->flags [0x%04hx]->", gSettings.RtVariables.BooterConfig);
   }
 }
 
@@ -1584,7 +1573,7 @@ REFIT_ABSTRACT_MENU_ENTRY *SubMenuGraphics()
   SubScreen->AddMenuItemInput(53, "Fake Vendor EDID:", TRUE);
   SubScreen->AddMenuItemInput(54, "Fake Product EDID:", TRUE);
   SubScreen->AddMenuItemInput(18, "Backlight Level:", TRUE);
-  SubScreen->AddMenuItemInput(112, "Intel Max Backlight:", TRUE); //gSettings.IntelMaxValue
+  SubScreen->AddMenuItemInput(112, "Intel Max Backlight:", TRUE); //gSettings.Devices.IntelMaxValue
 
 
   for (UINTN i = 0; i < NGFX; i++) {
@@ -1681,7 +1670,7 @@ REFIT_ABSTRACT_MENU_ENTRY *SubMenuAudio()
   }
 
   //SubScreen->AddMenuItemInput(59, "HDAInjection", FALSE);
-  if (gSettings.HDAInjection) {
+  if (gSettings.Devices.Audio.HDAInjection) {
     SubScreen->AddMenuItemInput(60, "HDALayoutId:", TRUE);
   }
 
@@ -1986,19 +1975,16 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuDropTables()
   SubScreen->AddMenuItemInput(4, "Drop all OEM SSDT", FALSE);
   SubScreen->AddMenuItemInput(113, "Automatic smart merge", FALSE);
 
-  if (ACPIPatchedAML) {
-    ACPI_PATCHED_AML *ACPIPatchedAMLTmp = ACPIPatchedAML;
-    while (ACPIPatchedAMLTmp) {
-      InputBootArgs = new REFIT_INPUT_DIALOG;
-      InputBootArgs->Title.SWPrintf("Drop \"%ls\"", ACPIPatchedAMLTmp->FileName);
+  for ( size_t idx = 0 ; idx < ACPIPatchedAML.size() ; ++idx) {
+    ACPI_PATCHED_AML& ACPIPatchedAMLTmp = ACPIPatchedAML[idx];
+    InputBootArgs = new REFIT_INPUT_DIALOG;
+    InputBootArgs->Title.SWPrintf("Drop \"%s\"", ACPIPatchedAMLTmp.FileName.c_str());
 //      InputBootArgs->Tag = TAG_INPUT;
-      InputBootArgs->Row = 0xFFFF; //cursor
-      InputBootArgs->Item = &(ACPIPatchedAMLTmp->MenuItem);
-      InputBootArgs->AtClick = ActionEnter;
-      InputBootArgs->AtRightClick = ActionDetails;
-      SubScreen->AddMenuEntry(InputBootArgs, true);
-      ACPIPatchedAMLTmp = ACPIPatchedAMLTmp->Next;
-    }
+    InputBootArgs->Row = 0xFFFF; //cursor
+    InputBootArgs->Item = &(ACPIPatchedAMLTmp.MenuItem);
+    InputBootArgs->AtClick = ActionEnter;
+    InputBootArgs->AtRightClick = ActionDetails;
+    SubScreen->AddMenuEntry(InputBootArgs, true);
   }
 
   SubScreen->AddMenuEntry(&MenuEntryReturn, false);
@@ -2232,37 +2218,37 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuCustomDevices()
 
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_DEVICES, "Custom properties->"_XS8);
 
-  if (gSettings.ArbProperties) {
-    DEV_PROPERTY *Prop = gSettings.ArbProperties;
-	if (Prop && (Prop->Device == 0))
-	{
-		DEV_PROPERTY *Props = NULL;
-		while (Prop) {
-			SubScreen->AddMenuInfo_f("------------");
-			SubScreen->AddMenuInfo_f("%s", Prop->Label);
-			Props = Prop->Child;
-			while (Props) {
-				CreateMenuProps(SubScreen, Props);
-				Props = Props->Next;
-			}
-			Prop = Prop->Next;
-		}
-	}
-    while (Prop) {
-      DevAddr = Prop->Device;
-      if (DevAddr != 0 && DevAddr != OldDevAddr) {
-        OldDevAddr = DevAddr;
+  if (gSettings.Devices.ArbProperties) {
+    DEV_PROPERTY *Prop = gSettings.Devices.ArbProperties;
+    if (Prop && (Prop->Device == 0))
+    {
+      DEV_PROPERTY *Props = NULL;
+      while (Prop) {
         SubScreen->AddMenuInfo_f("------------");
-		  SubScreen->AddMenuInfo_f("%s", Prop->Label);
-        CreateMenuProps(SubScreen, Prop);
+        SubScreen->AddMenuInfo_f("%s", Prop->Label);
+        Props = Prop->Child;
+        while (Props) {
+          CreateMenuProps(SubScreen, Props);
+          Props = Props->Next;
+        }
+        Prop = Prop->Next;
       }
-      Prop = Prop->Next;
     }
+      while (Prop) {
+        DevAddr = Prop->Device;
+        if (DevAddr != 0 && DevAddr != OldDevAddr) {
+          OldDevAddr = DevAddr;
+          SubScreen->AddMenuInfo_f("------------");
+        SubScreen->AddMenuInfo_f("%s", Prop->Label);
+          CreateMenuProps(SubScreen, Prop);
+        }
+        Prop = Prop->Next;
+      }
+    }
+    SubScreen->AddMenuEntry(&MenuEntryReturn, false);
+    Entry->SubScreen = SubScreen;
+    return Entry;
   }
-  SubScreen->AddMenuEntry(&MenuEntryReturn, false);
-  Entry->SubScreen = SubScreen;
-  return Entry;
-}
 
 
 REFIT_ABSTRACT_MENU_ENTRY* SubMenuPCI()
@@ -2384,7 +2370,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuBLC()
 
   // create the entry in the main menu
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_BLC, NullXString8);
-//  Entry->Title.SPrintf("boot_args->flags [0x%02hhx]->", gSettings.BooterConfig);
+//  Entry->Title.SPrintf("boot_args->flags [0x%02hhx]->", gSettings.RtVariables.BooterConfig);
 
   // submenu description
   SubScreen->AddMenuInfoLine_f("Modify flags for boot.efi");
@@ -2460,7 +2446,7 @@ REFIT_ABSTRACT_MENU_ENTRY* SubMenuQuirks()
   
   // create the entry in the main menu
   Entry = newREFIT_MENU_ITEM_OPTIONS(&SubScreen, ActionEnter, SCREEN_QUIRKS, NullXString8);
-  Entry->Title.SWPrintf("Quirks mask [0x%04x]->", gSettings.QuirksMask);
+  Entry->Title.SWPrintf("Quirks mask [0x%04x]->", gSettings.Quirks.QuirksMask);
   
   // submenu description
   SubScreen->AddMenuInfoLine_f("Choose options to fix memory");
@@ -2501,7 +2487,7 @@ void  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
   UINTN               NextMenuExit;
   //CHAR16*           Flags;
 
-  MENU_STYLE_FUNC     Style = &REFIT_MENU_SCREEN::TextMenuStyle;
+//  MENU_STYLE_FUNC     Style = &REFIT_MENU_SCREEN::TextMenuStyle;
 
   INTN                EntryIndex = 0;
   INTN                SubEntryIndex = -1; //value -1 means old position to remember
@@ -2510,9 +2496,9 @@ void  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
   BOOLEAN             OldFontStyle = ThemeX.Proportional;
   ThemeX.Proportional = FALSE; //temporary disable proportional
 
-  if (AllowGraphicsMode) {
-    Style = &REFIT_MENU_SCREEN::GraphicsMenuStyle;
-  }
+//  if (AllowGraphicsMode) {
+//    Style = &REFIT_MENU_SCREEN::GraphicsMenuStyle;
+//  }
 
   // remember, if you extended this menu then change procedures
   // FillInputs and ApplyInputs
@@ -2553,7 +2539,7 @@ void  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
   }
 
   while (!MenuExit) {
-    MenuExit = OptionMenu.RunGenericMenu(Style, &EntryIndex, ChosenEntry);
+    MenuExit = OptionMenu.RunGenericMenu(&EntryIndex, ChosenEntry);
     if (MenuExit == MENU_EXIT_ESCAPE || (*ChosenEntry)->getREFIT_MENU_ITEM_RETURN())
       break;
     if (MenuExit == MENU_EXIT_ENTER || MenuExit == MENU_EXIT_DETAILS) {
@@ -2561,7 +2547,7 @@ void  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
       if ((*ChosenEntry)->SubScreen != NULL) {
         SubMenuExit = 0;
         while (!SubMenuExit) {
-          SubMenuExit = (*ChosenEntry)->SubScreen->RunGenericMenu(Style, &SubEntryIndex, &TmpChosenEntry);
+          SubMenuExit = (*ChosenEntry)->SubScreen->RunGenericMenu(&SubEntryIndex, &TmpChosenEntry);
           if (SubMenuExit == MENU_EXIT_ESCAPE || TmpChosenEntry->getREFIT_MENU_ITEM_RETURN()  ){
             ApplyInputs();
             ModifyTitles(*ChosenEntry);
@@ -2571,7 +2557,7 @@ void  OptionsMenu(OUT REFIT_ABSTRACT_MENU_ENTRY **ChosenEntry)
             if (TmpChosenEntry->SubScreen != NULL) {
               NextMenuExit = 0;
               while (!NextMenuExit) {
-                NextMenuExit = TmpChosenEntry->SubScreen->RunGenericMenu(Style, &NextEntryIndex, &NextChosenEntry);
+                NextMenuExit = TmpChosenEntry->SubScreen->RunGenericMenu(&NextEntryIndex, &NextChosenEntry);
                 if (NextMenuExit == MENU_EXIT_ESCAPE || NextChosenEntry->getREFIT_MENU_ITEM_RETURN()  ){
                   ApplyInputs();
                   ModifyTitles(TmpChosenEntry);

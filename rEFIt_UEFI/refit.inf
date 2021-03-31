@@ -38,13 +38,16 @@
   ../Include/Library/printf_lite-conf.h
   ../Include/Library/printf_lite.h
   include/Devices.h
+  include/DsdtFixList.h
   include/Efi.h
   include/Handle.h
+  include/Languages.h
   include/OneLinerMacros.h
   include/Pci.h
   include/XToolsConf.h
   include/OC.h
   include/printf_lite-test-cpp_conf.h
+  include/QuirksCodes.h
   include/BootTypes.h
   include/OSTypes.h
   include/OSFlags.h
@@ -84,6 +87,8 @@
   gui/menu_items/menu_globals.h
   gui/REFIT_MENU_SCREEN.cpp
   gui/REFIT_MENU_SCREEN.h
+  gui/REFIT_MAINMENU_SCREEN.cpp
+  gui/REFIT_MAINMENU_SCREEN.h
   gui/shared_with_menu.cpp
   gui/shared_with_menu.h
   libeg/egemb_icons.cpp
@@ -127,8 +132,10 @@
   Platform/Posix/stdlib.h
   Platform/Posix/stdio.h
   Platform/Posix/stdio.cpp
-  Platform/Posix/string.cpp
   Platform/Posix/string.h
+  Platform/Posix/string.cpp
+  Platform/Posix/strings.h
+  Platform/Posix/strings.cpp
   Platform/Posix/strlen.cpp
   Platform/Posix/wchar.h
   Platform/Posix/wchar.cpp
@@ -302,8 +309,11 @@
   cpp_foundation/XToolsCommon.h
 #  cpp_foundation/XUINTN.cpp
 #  cpp_foundation/XUINTN.h
+  cpp_lib/undefinable.h
   cpp_unit_test/all_tests.h
   cpp_unit_test/all_tests.cpp
+#  cpp_unit_test/config-test.h
+#  cpp_unit_test/config-test.cpp
   cpp_unit_test/find_replace_mask_Clover_tests.h
   cpp_unit_test/find_replace_mask_Clover_tests.cpp
   cpp_unit_test/find_replace_mask_OC_tests.h
@@ -327,6 +337,8 @@
   cpp_unit_test/XArray_tests.h
   cpp_unit_test/XBuffer_tests.cpp
   cpp_unit_test/XBuffer_tests.h
+#  cpp_unit_test/xml_lite-test.cpp
+#  cpp_unit_test/xml_lite-test.h
   cpp_unit_test/XObjArray_tests.cpp
   cpp_unit_test/XObjArray_tests.h
   cpp_unit_test/XString_test.cpp
@@ -507,8 +519,8 @@
  
   
   # -Wno-unused-const-variable, -maccumulate-outgoing-args is set in tools_def.template
-  GCC:*_*_*_CC_FLAGS = -fno-omit-frame-pointer -ffreestanding -fno-exceptions -DJCONST=CONST
-  GCC:*_*_*_CXX_FLAGS = -fno-omit-frame-pointer -ffreestanding -fno-rtti -fno-exceptions -DJCONST=CONST
+  GCC:*_*_*_CC_FLAGS = -fno-omit-frame-pointer -DJCONST=CONST
+  GCC:*_*_*_CXX_FLAGS = -fno-omit-frame-pointer -fno-rtti -DJCONST=CONST
   
   
   MSFT:*_*_*_CC_FLAGS = /Os /wd4201 /D JCONST=const

@@ -641,7 +641,7 @@ void PreCleanupRSDT()
   // trim the RSDT tail before the XSDT starts
   if ((UINTN)Rsdt < (UINTN)Xsdt && (UINTN)Rsdt + Rsdt->Header.Length > (UINTN)Xsdt) {
     UINTN v = ((UINTN)Xsdt - (UINTN)Rsdt) & ~3;
-    if ( v > MAX_UINT32 ) panic("((UINTN)Xsdt - (UINTN)Rsdt) & ~3 > MAX_UINT32");
+//    if ( v > MAX_UINT32 ) panic("((UINTN)Xsdt - (UINTN)Rsdt) & ~3 > MAX_UINT32");
     Rsdt->Header.Length = (UINT32)v;
     DBG("Cropped Rsdt->Header.Length=%d\n", (UINT32)Rsdt->Header.Length);
   }
@@ -1623,7 +1623,7 @@ void LoadAllPatchedAML(const XStringW& acpiPathUnderOem, UINTN Pass)
     // nothing to do in this case, since AutoMerge=false -> no tables ever merged
     return;
   }
-  if (ACPIPatchedAML) {
+  if ( ACPIPatchedAML.notEmpty() ) {
     DbgHeader("ACPIPatchedAML");
     if (gSettings.ACPI.AutoMerge) {
 		DBG("AutoMerge pass %llu\n", Pass);
@@ -1633,22 +1633,24 @@ void LoadAllPatchedAML(const XStringW& acpiPathUnderOem, UINTN Pass)
       UINTN Index;
       DBG("Sorted\n");
       for (Index = 0; Index < gSettings.ACPI.SortedACPI.size(); Index++) {
-        ACPI_PATCHED_AML *ACPIPatchedAMLTmp;
-        for (ACPIPatchedAMLTmp = ACPIPatchedAML; ACPIPatchedAMLTmp; ACPIPatchedAMLTmp = ACPIPatchedAMLTmp->Next) {
-          if (0 == StriCmp(ACPIPatchedAMLTmp->FileName, gSettings.ACPI.SortedACPI[Index].wc_str()) && ACPIPatchedAMLTmp->MenuItem.BValue) {
-            if (BVALUE_ATTEMPTED != ACPIPatchedAMLTmp->MenuItem.BValue)
-              DBG("Disabled: %ls, skip\n", ACPIPatchedAMLTmp->FileName);
-            ACPIPatchedAMLTmp->MenuItem.BValue = BVALUE_ATTEMPTED;
+        size_t idx;
+        for ( idx = 0 ; idx < ACPIPatchedAML.size() ; ++idx) {
+          ACPI_PATCHED_AML& ACPIPatchedAMLTmp = ACPIPatchedAML[idx];
+          if ( ACPIPatchedAMLTmp.FileName == gSettings.ACPI.SortedACPI[Index] && ACPIPatchedAMLTmp.MenuItem.BValue) {
+            if (BVALUE_ATTEMPTED != ACPIPatchedAMLTmp.MenuItem.BValue)
+              DBG("Disabled: %s, skip\n", ACPIPatchedAMLTmp.FileName.c_str());
+            ACPIPatchedAMLTmp.MenuItem.BValue = BVALUE_ATTEMPTED;
             break;
           }
         }
-        if (!ACPIPatchedAMLTmp) { // NULL when not disabled
-          DBG("Inserting table[%llu]:%ls from %ls\\%ls: ", Index, gSettings.ACPI.SortedACPI[Index].wc_str(), selfOem.getConfigDirFullPath().wc_str(), acpiPathUnderOem.wc_str());
-          if (LoadPatchedAML(selfOem.getConfigDir(), acpiPathUnderOem, gSettings.ACPI.SortedACPI[Index].wc_str(), Pass)) {
+        if ( idx == ACPIPatchedAML.size() ) { // NULL when not disabled
+          DBG("Inserting table[%llu]:%s from %ls\\%ls: ", Index, gSettings.ACPI.SortedACPI[Index].c_str(), selfOem.getConfigDirFullPath().wc_str(), acpiPathUnderOem.wc_str());
+          if (LoadPatchedAML(selfOem.getConfigDir(), acpiPathUnderOem, XStringW(gSettings.ACPI.SortedACPI[Index]).wc_str(), Pass)) {
             // avoid inserting table again on second pass
-            for (ACPI_PATCHED_AML* temp2 = ACPIPatchedAML; temp2; temp2 = temp2->Next) {
-              if (0 == StriCmp(temp2->FileName, gSettings.ACPI.SortedACPI[Index].wc_str())) {
-                temp2->MenuItem.BValue = BVALUE_ATTEMPTED;
+            for ( idx = 0 ; idx < ACPIPatchedAML.size() ; ++idx) {
+              ACPI_PATCHED_AML& temp2 = ACPIPatchedAML[idx];
+              if ( temp2.FileName == gSettings.ACPI.SortedACPI[Index] ) {
+                temp2.MenuItem.BValue = BVALUE_ATTEMPTED;
                 break;
               }
             }
@@ -1656,19 +1658,19 @@ void LoadAllPatchedAML(const XStringW& acpiPathUnderOem, UINTN Pass)
         }
       }
     } else {
-      ACPI_PATCHED_AML *ACPIPatchedAMLTmp;
       DBG("Unsorted\n");
-      for (ACPIPatchedAMLTmp = ACPIPatchedAML; ACPIPatchedAMLTmp; ACPIPatchedAMLTmp = ACPIPatchedAMLTmp->Next) {
-        if (!ACPIPatchedAMLTmp->MenuItem.BValue) {
-          DBG("Inserting %ls from %ls\\%ls: ", ACPIPatchedAMLTmp->FileName, selfOem.getConfigDirFullPath().wc_str(), acpiPathUnderOem.wc_str());
-          if (LoadPatchedAML(selfOem.getConfigDir(), acpiPathUnderOem, ACPIPatchedAMLTmp->FileName, Pass)) {
+      for ( size_t idx = 0 ; idx < ACPIPatchedAML.size() ; ++idx) {
+        ACPI_PATCHED_AML& ACPIPatchedAMLTmp = ACPIPatchedAML[idx];
+        if (!ACPIPatchedAMLTmp.MenuItem.BValue) {
+          DBG("Inserting %s from %ls\\%ls: ", ACPIPatchedAMLTmp.FileName.c_str(), selfOem.getConfigDirFullPath().wc_str(), acpiPathUnderOem.wc_str());
+          if (LoadPatchedAML(selfOem.getConfigDir(), acpiPathUnderOem, XStringW(ACPIPatchedAMLTmp.FileName).wc_str(), Pass)) {
             // avoid inserting table again on second pass
-            ACPIPatchedAMLTmp->MenuItem.BValue = BVALUE_ATTEMPTED;
+            ACPIPatchedAMLTmp.MenuItem.BValue = BVALUE_ATTEMPTED;
           }
         } else {
-          if (BVALUE_ATTEMPTED != ACPIPatchedAMLTmp->MenuItem.BValue)
-            DBG("Disabled: %ls, skip\n", ACPIPatchedAMLTmp->FileName);
-          ACPIPatchedAMLTmp->MenuItem.BValue = BVALUE_ATTEMPTED;
+          if (BVALUE_ATTEMPTED != ACPIPatchedAMLTmp.MenuItem.BValue)
+            DBG("Disabled: %s, skip\n", ACPIPatchedAMLTmp.FileName.c_str());
+          ACPIPatchedAMLTmp.MenuItem.BValue = BVALUE_ATTEMPTED;
         }
       }
     }
@@ -1867,17 +1869,17 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const MacOsVersion& OSVersion)
     } else {
       newFadt->PreferredPmProfile = gMobile?2:1; //as calculated before
     }
-    if (gSettings.ACPI.SSDT.EnableC6 || gSettings.ACPI.SSDT.EnableISS) {
+    if (GlobalConfig.EnableC6 || gSettings.ACPI.SSDT.EnableISS) {
       newFadt->CstCnt = 0x85; //as in Mac
     }
-    if (gSettings.ACPI.SSDT.EnableC2) newFadt->PLvl2Lat = 0x65;
-    if (gSettings.ACPI.SSDT.C3Latency > 0) {
-      newFadt->PLvl3Lat = gSettings.ACPI.SSDT.C3Latency;
-    } else if (gSettings.ACPI.SSDT.EnableC4) {
+    if (GlobalConfig.EnableC2) newFadt->PLvl2Lat = 0x65;
+    if (GlobalConfig.C3Latency > 0) {
+      newFadt->PLvl3Lat = GlobalConfig.C3Latency;
+    } else if (GlobalConfig.EnableC4) {
       newFadt->PLvl3Lat = 0x3E9;
     }
-    if (gSettings.ACPI.SSDT.C3Latency == 0) {
-      gSettings.ACPI.SSDT.C3Latency = newFadt->PLvl3Lat;
+    if (GlobalConfig.C3Latency == 0) {
+      GlobalConfig.C3Latency = newFadt->PLvl3Lat;
     }
     
     newFadt->IaPcBootArch = 0x3;
@@ -2103,7 +2105,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, const MacOsVersion& OSVersion)
     }
   }
 
-  if (gSettings.ACPI.SSDT.DropSSDT) {
+  if (GlobalConfig.DropSSDT) {
     DbgHeader("DropSSDT");
     //special case if we set into menu drop all SSDT
     DropTableFromXSDT(EFI_ACPI_4_0_SECONDARY_SYSTEM_DESCRIPTION_TABLE_SIGNATURE, 0, 0);
