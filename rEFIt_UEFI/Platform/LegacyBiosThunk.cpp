@@ -16,8 +16,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Efi.h>
 
 #include "LegacyBiosThunk.h"
-#include <posix.h>
-#include <Platform.h> // Only use angled for Platform, else, xcode project won't compile
+#include <posix/posix.h>
 
 #ifndef DEBUG_ALL
 #define DEBUG_LBTHUNK 0
@@ -379,7 +378,7 @@ LegacyBiosFarCall86 (
 	mThunkContext->RealModeState = &ThunkRegSet;
 	DBG("SS=%hX, ESP=%X, CS=%hX, Eip=%X\n", ThunkRegSet.E.SS, ThunkRegSet.E.ESP, ThunkRegSet.E.CS, ThunkRegSet.E.Eip);
     #if DEBUG_LBTHUNK == 2
-    PauseForKey(L"LegacyBiosFarCall86");
+    PauseForKey("LegacyBiosFarCall86"_XS8);
     #endif
 
   // Save current rate of DXE Timer and disable DXE timer

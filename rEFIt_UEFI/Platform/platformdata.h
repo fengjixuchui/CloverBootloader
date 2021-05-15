@@ -10,6 +10,10 @@
 
 
 #include "../cpp_foundation/XString.h"
+//#include "../Platform/Settings.h"
+
+class SETTINGS_DATA;
+class REFIT_CONFIG;
 
 typedef enum {
 
@@ -140,33 +144,72 @@ typedef enum {
 } MACHINE_TYPES;
 
 
-constexpr LString8 DefaultMemEntry        = "N/A";
-constexpr LString8 DefaultSerial          = "CT288GT9VT6";
-constexpr LString8 BiosVendor             = "Apple Inc.";
-constexpr LString8 AppleManufacturer      = "Apple Computer, Inc."; //Old name, before 2007
-constexpr LString8 AppleBoardSN           = "C02140302D5DMT31M";
-constexpr LString8 AppleBoardLocation     = "Part Component";
-
-extern UINT32                         gFwFeatures;
-extern UINT32                         gFwFeaturesMask;
-extern UINT64                         gPlatformFeature;
+constexpr LString8 DefaultMemEntry        = "N/A"_XS8;
+constexpr LString8 DefaultSerial          = "CT288GT9VT6"_XS8;
+constexpr LString8 AppleBiosVendor        = "Apple Inc."_XS8;
+constexpr LString8 AppleManufacturer      = "Apple Computer, Inc."_XS8; //Old name, before 2007
+constexpr LString8 AppleBoardSN           = "C02140302D5DMT31M"_XS8;
+constexpr LString8 AppleBoardLocation     = "Part Component"_XS8;
 
 
+class PLATFORMDATA
+{
+public:
+  const LString8 productName;
+  const LString8 firmwareVersion;
+  const LString8 efiversion;
+  const LString8 boardID;
+  const LString8 productFamily;
+  const LString8 systemVersion;
+  const XString8 serialNumber;
+  const LString8 chassisAsset;
+  UINT8 smcRevision[6];
+  const LString8 smcBranch;
+  const LString8 smcPlatform;
+  UINT32 smcConfig;
+  
+  //PLATFORMDATA() : productName(), firmwareVersion(), efiversion(), boardID(), productFamily(), systemVersion(), serialNumber(), chassisAsset(), smcRevision{0,0,0,0,0,0}, smcBranch(), smcPlatform(), smcConfig() { }
+  PLATFORMDATA(const LString8& _productName, const LString8& _firmwareVersion, const LString8& _efiversion, const LString8& _boardID, const LString8& _productFamily,
+               const LString8& _systemVersion, const LString8& _serialNumber, const LString8& _chassisAsset,
+               UINT8 _smcRevision0, UINT8 _smcRevision1, UINT8 _smcRevision2, UINT8 _smcRevision3, UINT8 _smcRevision4, UINT8 _smcRevision5,
+               const LString8& _smcBranch, const LString8& _smcPlatform, UINT32 _smcConfig)
+            :  productName(_productName), firmwareVersion(_firmwareVersion), efiversion(_efiversion), boardID(_boardID), productFamily(_productFamily),
+               systemVersion(_systemVersion), serialNumber(_serialNumber), chassisAsset(_chassisAsset), smcRevision{0},
+               smcBranch(_smcBranch), smcPlatform(_smcPlatform), smcConfig(_smcConfig)
+            {
+              smcRevision[0] = _smcRevision0;
+              smcRevision[1] = _smcRevision1;
+              smcRevision[2] = _smcRevision2;
+              smcRevision[3] = _smcRevision3;
+              smcRevision[4] = _smcRevision4;
+              smcRevision[5] = _smcRevision5;
+            }
 
-void
-SetDMISettingsForModel (
-  MACHINE_TYPES Model,
-  BOOLEAN Redefine
-  );
+  // Not sure if default are valid. Delete them. If needed, proper ones can be created
+  PLATFORMDATA(const PLATFORMDATA&) = delete;
+  PLATFORMDATA& operator=(const PLATFORMDATA&) = delete;
+} ;
 
-MACHINE_TYPES GetModelFromString (
-  const XString8& ProductName
-  );
 
-void
-GetDefaultSettings(void);
+extern PLATFORMDATA ApplePlatformData[];
 
-void
-GetDefaultCpuSettings(void);
+void SetDMISettingsForModel(MACHINE_TYPES Model, SETTINGS_DATA* settingsData, REFIT_CONFIG* liveConfig);
+MACHINE_TYPES GetModelFromString (const XString8& ProductName);
+
+bool isReleaseDateWithYear20(MACHINE_TYPES Model);
+XString8 GetReleaseDate (MACHINE_TYPES Model);
+uint8_t GetChassisTypeFromModel(MACHINE_TYPES Model);
+uint32_t GetFwFeaturesMaskFromModel(MACHINE_TYPES Model);
+uint32_t GetFwFeatures(MACHINE_TYPES Model);
+bool GetMobile(MACHINE_TYPES Model);
+UINT64 GetPlatformFeature(MACHINE_TYPES Model);
+void getRBr(MACHINE_TYPES Model, UINT32 CPUModel, bool isMobile, char RBr[8]);
+void getRPlt(MACHINE_TYPES Model, UINT32 CPUModel, bool isMobile, char RPlt[8]);
+
+int compareBiosVersion(const XString8& version1, const XString8& version2);
+bool is2ndBiosVersionGreaterThan1st(const XString8& version1, const XString8& version2);
+bool isBiosVersionEquel(const XString8& version1, const XString8& version2);
+
+int compareReleaseDate(const XString8& date1, const XString8& date2);
 
 #endif /* PLATFORM_PLATFORMDATA_H_ */

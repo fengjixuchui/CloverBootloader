@@ -36,10 +36,12 @@
 #define CONCAT(x, y) CONCAT2(x, y)
 #define STRINGIZE(x) #x
 
+#define NOP do { int i=0 ; (void)i; } while (0) // for debugging
+
 
 #ifdef __cplusplus
 
-#include "../cpp_util/remove_ref.h"
+#include "remove_ref.h"
 
 #ifdef _MSC_VER
 #define __typeof__(x) decltype(x)

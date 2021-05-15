@@ -14,7 +14,8 @@ Copyright (c) 2006 JLA
 #include <Efi.h>
 #include "LegacyBiosThunk.h"
 #include "AcpiPatcher.h"
-#include "Self.h"
+#include "../Settings/Self.h"
+#include "../refit/lib.h"
 
 
 #ifndef DEBUG_ALL
@@ -962,7 +963,7 @@ EFI_STATUS bootPBR(REFIT_VOLUME* volume, BOOLEAN SataReset)
     Regs.X.SI = (UINT16)(UINTN)pMBR;
   }
 
-	DBG("mbr: %hhX index: %llX pointer: %llX dx: %hX si: %hX\n", volume->IsMbrPartition, volume->MbrPartitionIndex, (uintptr_t)volume->MbrPartitionTable, Regs.X.DX, Regs.X.SI);
+	DBG("mbr: %d index: %llX pointer: %llX dx: %hX si: %hX\n", volume->IsMbrPartition, volume->MbrPartitionIndex, (uintptr_t)volume->MbrPartitionTable, Regs.X.DX, Regs.X.SI);
 	DBG("pmbr: %llX start: %X size: %X\n", (uintptr_t)&pMBR[volume->MbrPartitionIndex], pMBR[volume->MbrPartitionIndex].StartLBA, pMBR[volume->MbrPartitionIndex].Size);
 
   //
@@ -972,7 +973,7 @@ EFI_STATUS bootPBR(REFIT_VOLUME* volume, BOOLEAN SataReset)
   LegacyBiosFarCall86(0, 0x7c00, &Regs);
   
   //Status = gLegacy8259->SetMask(gLegacy8259, &OldMask, NULL, NULL, NULL);
-  PauseForKey(L"save legacy-boot.log ...\n");
+  PauseForKey("save legacy-boot.log ..."_XS8);
   Status = SaveBooterLog(&self.getCloverDir(), LEGBOOT_LOG);
   if (EFI_ERROR(Status)) {
     DBG("can't save legacy-boot.log\n");

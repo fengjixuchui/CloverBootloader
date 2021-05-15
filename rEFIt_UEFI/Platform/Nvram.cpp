@@ -169,7 +169,8 @@ XString8 GetNvramVariableAsXString8(
   if (DataSize != NULL) {
     *DataSize = IntDataSize;
   }
-  *returnValue.data(IntDataSize) = 0;
+  returnValue.dataSized(IntDataSize+1)[IntDataSize] = 0;
+  returnValue.updateSize();
   return returnValue;
 }
 
@@ -189,33 +190,34 @@ SetNvramVariable (
   UINTN  OldDataSize = 0;
   UINT32 OldAttributes = 0;
   
-//  DBG("SetNvramVariable (%ls, guid, 0x%X, %lld):", VariableName, Attributes, DataSize);
+  DBG("SetNvramVariable (%ls, guid, 0x%X, %lld):", VariableName, Attributes, DataSize);
   OldData = (__typeof__(OldData))GetNvramVariable(VariableName, VendorGuid, &OldAttributes, &OldDataSize);
   if (OldData != NULL) {
     // var already exists - check if it equal to new value
-//    DBG(" exists(0x%X, %lld)", OldAttributes, OldDataSize);
+    DBG(" exists(0x%X, %lld)", OldAttributes, OldDataSize);
     if ((OldAttributes == Attributes) &&
         (OldDataSize == DataSize) &&
         (CompareMem (OldData, Data, DataSize) == 0)) {
       // it's the same - do nothing
-//      DBG(", equal -> not writing again.\n");
+      DBG(", equal -> not writing again.\n");
       FreePool(OldData);
       return EFI_SUCCESS;
     }
-//    DBG(", not equal\n");
     
     FreePool(OldData);
     
     // not the same - delete previous one if attributes are different
     if (OldAttributes != Attributes) {
       Status = DeleteNvramVariable(VariableName, VendorGuid);
-//      DBG(", diff. attr: deleting old (%s)", efiStrError(Status));
+      DBG(", diff. attr: deleting old (%s)", efiStrError(Status));
+    }else{
+      DBG(", not equal");
     }
   }
 //  DBG("\n"); // for debug without Status
   
   Status = gRT->SetVariable(VariableName, VendorGuid, Attributes, DataSize, (void*)Data); // CONST missing in EFI_SET_VARIABLE->SetVariable
-//  DBG(" -> writing new (%s)\n", efiStrError(Status));
+  DBG(" -> writing new (%s)\n", efiStrError(Status));
   return Status;
 }
 
@@ -243,7 +245,7 @@ AddNvramVariable (
   EFI_STATUS Status;
   void       *OldData;
 
-  DBG("SetNvramVariable (%ls, guid, 0x%X, %lld):\n", VariableName, Attributes, DataSize);
+  DBG("AddNvramVariable (%ls, guid, 0x%X, %lld):", VariableName, Attributes, DataSize);
   OldData = (__typeof__(OldData))GetNvramVariable(VariableName, VendorGuid, NULL, NULL);
   if (OldData == NULL) {
     // set new value
@@ -251,6 +253,7 @@ AddNvramVariable (
     DBG(" -> writing new (%s)\n", efiStrError(Status));
   } else {
 	FreePool(OldData);
+    DBG(" -> already exists, abort\n");
     Status = EFI_ABORTED;
   }
   return Status;
@@ -1241,7 +1244,7 @@ FindStartupDiskVolume (
           DBG("  checking '%ls'\n", DevicePathToXStringW(Volume->DevicePath).wc_str());
           DBG("   '%ls'\n", LoaderPath.wc_str());
           // case insensitive cmp
-          if ( LoaderPath.equalIC(gEfiBootLoaderPath) ) {
+          if ( LoaderPath.isEqualIC(gEfiBootLoaderPath) ) {
             // that's the one
             DBG("    - found entry %lld. '%ls', Volume '%ls', '%ls'\n", Index, LoaderEntry.Title.s(), Volume->VolName.wc_str(), LoaderPath.wc_str());
             return Index;

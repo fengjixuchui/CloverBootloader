@@ -1,8 +1,8 @@
 /*
- * def_types.h
  *
- *  Created on: Mar 19, 2021
- *      Author: jief
+ * Copyright (c) 2020 Jief
+ * All rights reserved.
+ *
  */
 
 #ifndef CPP_LIB_DEF_TYPES_H_
@@ -37,6 +37,14 @@ public:
     m_value = value;
     return *this;
   }
+  
+  bool operator ==(const undefinable<T>& other) const
+  {
+    if ( !(m_defined == other.m_defined ) ) return false;
+    if ( m_defined && !(m_value == other.m_value ) ) return false; // we don't test value if this is not defined.
+    return true;
+  }
+  bool operator !=(const undefinable<T>& other) const { return !(*this == other); }
 };
 
 class undefinable_bool : public undefinable<bool>
@@ -48,12 +56,21 @@ public:
     undefinable_bool& operator = (bool newValue) { super::operator=(newValue); return *this; }
 };
 
+class undefinable_uint8 : public undefinable<uint8_t>
+{
+  using super = undefinable<uint8_t>;
+public:
+    undefinable_uint8() { }
+    explicit undefinable_uint8(uint8_t newValue) { super::operator=(newValue); }
+    undefinable_uint8& operator = (uint8_t newValue) { super::operator=(newValue); return *this; }
+};
+
 class undefinable_uint16 : public undefinable<uint16_t>
 {
   using super = undefinable<uint16_t>;
 public:
     undefinable_uint16() { }
-    explicit undefinable_uint16(uint32_t newValue) { super::operator=(newValue); }
+    explicit undefinable_uint16(uint16_t newValue) { super::operator=(newValue); }
     undefinable_uint16& operator = (uint16_t newValue) { super::operator=(newValue); return *this; }
 };
 

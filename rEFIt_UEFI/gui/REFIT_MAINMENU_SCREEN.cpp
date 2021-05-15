@@ -56,9 +56,10 @@
 #include "../Platform/Nvram.h"
 #include "../refit/screen.h"
 #include "../Platform/Events.h"
-#include "../Platform/Self.h"
+#include "../Settings/Self.h"
 #include "../Platform/Volumes.h"
 #include "../include/OSFlags.h"
+#include "../Platform/CloverVersion.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_MENU 1
@@ -181,12 +182,12 @@ void REFIT_MENU_SCREEN::DrawTextCorner(UINTN TextC, UINT8 Align)
       Text = L"F1:Help"_XSW;
       break;
     case TEXT_CORNER_OPTIMUS:
-      if (gGraphics[0].Vendor != Intel) {
+      if (gConf.GfxPropertiesArray.size() > 0 && gConf.GfxPropertiesArray[0].Vendor != Intel) {
         Text = L"Discrete"_XSW;
       } else {
         Text = L"Intel"_XSW;
       }
-      //      Text = (NGFX == 2)?L"Intel":L"Discrete";
+      //      Text = (gConf.GfxPropertiesArray.size() == 2)?L"Intel":L"Discrete";
       break;
     default:
       return;
@@ -760,12 +761,12 @@ UINTN REFIT_MAINMENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABS
         }
         SubMenuIndex = -1;
 
-        gSettings.OptionsBits = EncodeOptions(TmpArgs);
-  //      DBG("main OptionsBits = 0x%X\n", gSettings.OptionsBits);
+        GlobalConfig.OptionsBits = EncodeOptions(TmpArgs);
+  //      DBG("main OptionsBits = 0x%X\n", GlobalConfig.OptionsBits);
 
         if (MainChosenEntry->getLOADER_ENTRY()) {
-          gSettings.OptionsBits |= EncodeOptions(MainChosenEntry->getLOADER_ENTRY()->LoadOptions);
-  //        DBG("add OptionsBits = 0x%X\n", gSettings.OptionsBits);
+          GlobalConfig.OptionsBits |= EncodeOptions(MainChosenEntry->getLOADER_ENTRY()->LoadOptions);
+  //        DBG("add OptionsBits = 0x%X\n", GlobalConfig.OptionsBits);
         }
 
         if (MainChosenEntry->getREFIT_MENU_ITEM_BOOTNUM()) {
@@ -775,9 +776,9 @@ UINTN REFIT_MAINMENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABS
 
         if (MainChosenEntry->getLOADER_ENTRY()) {
           // Only for non-legacy entries, as LEGACY_ENTRY doesn't have Flags
-          gSettings.FlagsBits = MainChosenEntry->getLOADER_ENTRY()->Flags;
+          GlobalConfig.FlagsBits = MainChosenEntry->getLOADER_ENTRY()->Flags;
         }
-  //      DBG(" MainChosenEntry with FlagsBits = 0x%X\n", gSettings.FlagsBits);
+  //      DBG(" MainChosenEntry with FlagsBits = 0x%X\n", GlobalConfig.FlagsBits);
 
         SubMenuExit = 0;
         while (!SubMenuExit) {
@@ -808,7 +809,7 @@ UINTN REFIT_MAINMENU_SCREEN::RunMainMenu(IN INTN DefaultSelection, OUT REFIT_ABS
             DBG(" get MainChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)MainChosenEntry)->Flags);
             if (OSFLAG_ISUNSET(TempChosenEntry->getLOADER_ENTRY()->Flags, OSFLAG_NODEFAULTARGS)) {
               DecodeOptions(TempChosenEntry->getLOADER_ENTRY());
-  //            DBG("get OptionsBits = 0x%X\n", gSettings.OptionsBits);
+  //            DBG("get OptionsBits = 0x%X\n", GlobalConfig.OptionsBits);
   //            DBG(" TempChosenEntry FlagsBits = 0x%X\n", ((LOADER_ENTRY*)TempChosenEntry)->Flags);
             }
             // copy also loadoptions from subentry to mainentry

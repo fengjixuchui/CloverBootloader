@@ -12,6 +12,7 @@
 #include <IndustryStandard/CpuId.h>
 #include <Register/Intel/ArchitecturalMsr.h>
 #include <IndustryStandard/ProcessorInfo.h>
+#include "../include/OC.h"
 
 #define CPU_MODEL_PENTIUM_M     0x09
 #define CPU_MODEL_DOTHAN        0x0D
@@ -392,17 +393,16 @@ typedef struct {
 
 } CPU_STRUCTURE;
 
-
-
+#ifndef DONT_DEFINE_GLOBALS
 extern UINT64                         TurboMsr;
 extern CPU_STRUCTURE                  gCPUStructure;
-
+#endif
 
 void
 GetCPUProperties (void);
 
 MACHINE_TYPES
-GetDefaultModel (void);
+GetDefaultModel ();
 
 UINT16
 GetAdvancedCpuType (void);
@@ -410,6 +410,7 @@ GetAdvancedCpuType (void);
 void
 SetCPUProperties (void);
 
-
+void
+FillOCCpuInfo(OC_CPU_INFO* CpuInfo);
 
 #endif /* PLATFORM_CPU_H_ */

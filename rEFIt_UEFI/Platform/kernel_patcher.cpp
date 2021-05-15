@@ -2395,10 +2395,10 @@ LOADER_ENTRY::KernelUserPatch()
         DBG( " StartPattern found\n");
         Num = SearchAndReplaceMask(curs,
                                    procLen,
-                                   (const UINT8*)KernelAndKextPatches.KernelPatches[i].Data.data(),
+                                   (const UINT8*)KernelAndKextPatches.KernelPatches[i].Find.data(),
                                    (const UINT8*)KernelAndKextPatches.KernelPatches[i].MaskFind.data(),
-                                   KernelAndKextPatches.KernelPatches[i].Data.size(),
-                                   (const UINT8*)KernelAndKextPatches.KernelPatches[i].Patch.data(),
+                                   KernelAndKextPatches.KernelPatches[i].Find.size(),
+                                   (const UINT8*)KernelAndKextPatches.KernelPatches[i].Replace.data(),
                                    (const UINT8*)KernelAndKextPatches.KernelPatches[i].MaskReplace.data(),
                                    KernelAndKextPatches.KernelPatches[i].Count,
                                    KernelAndKextPatches.KernelPatches[i].Skip);
@@ -2455,10 +2455,10 @@ LOADER_ENTRY::BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize)
 
         Num = SearchAndReplaceMask(curs,
                                    SearchLen,
-                                   (const UINT8*)KernelAndKextPatches.BootPatches[i].Data.data(),
+                                   (const UINT8*)KernelAndKextPatches.BootPatches[i].Find.data(),
                                    (const UINT8*)KernelAndKextPatches.BootPatches[i].MaskFind.data(),
-                                   KernelAndKextPatches.BootPatches[i].Data.size(),
-                                   (const UINT8*)KernelAndKextPatches.BootPatches[i].Patch.data(),
+                                   KernelAndKextPatches.BootPatches[i].Find.size(),
+                                   (const UINT8*)KernelAndKextPatches.BootPatches[i].Replace.data(),
                                    (const UINT8*)KernelAndKextPatches.BootPatches[i].MaskReplace.data(),
                                    KernelAndKextPatches.BootPatches[i].Count,
                                    KernelAndKextPatches.BootPatches[i].Skip);
@@ -2619,7 +2619,7 @@ LOADER_ENTRY::BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize)
 //
 ////  DBG_RT("\nKernelToPatch: ");
 ////  DBG_RT("Kernels patches: %d\n", KernelAndKextPatches.KernelPatches.size());
-//  if (gSettings.KernelPatchesAllowed && KernelAndKextPatches.KernelPatches.notEmpty()) {
+//  if (GlobalConfig.KernelPatchesAllowed && KernelAndKextPatches.KernelPatches.notEmpty()) {
 ////    DBG_RT("Enabled: \n");
 //    DBG("Kernels patches: enabled \n");
 ////    KernelAndKextPatcherInit();
@@ -2780,16 +2780,16 @@ LOADER_ENTRY::BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize)
 //  if (/*OSFLAG_ISSET(Flags, OSFLAG_WITHKEXTS) || */
 //      OSFLAG_ISSET(Flags, OSFLAG_CHECKFAKESMC)) {
 //    DBG_RT( "\nAllowing kext patching to check if FakeSMC is present\n");
-//    gSettings.KextPatchesAllowed = TRUE;
+//    GlobalConfig.KextPatchesAllowed = TRUE;
 //    KextPatchesNeeded = TRUE;
 //  }
 //
 //  DBG_RT( "\nKextPatches Needed: %c, Allowed: %c ... ",
 //         (KextPatchesNeeded ? L'Y' : L'n'),
-//         (gSettings.KextPatchesAllowed ? L'Y' : L'n')
+//         (GlobalConfig.KextPatchesAllowed ? L'Y' : L'n')
 //         );
 //
-//  if (KextPatchesNeeded && gSettings.KextPatchesAllowed) {
+//  if (KextPatchesNeeded && GlobalConfig.KextPatchesAllowed) {
 ////    DBG_RT( "\nKext patching INIT\n");
 ////    KernelAndKextPatcherInit();
 ////    if (KernelData == NULL) goto NoKernelData;

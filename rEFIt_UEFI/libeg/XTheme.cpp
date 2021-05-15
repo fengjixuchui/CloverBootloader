@@ -51,6 +51,7 @@ InitTheme(const CHAR8* ChosenTheme)
   //initialize Daylight when we know timezone
   if (gSettings.GUI.Timezone != 0xFF) { // 0xFF:default=timezone not set
     INT32 NowHour = Now.Hour + gSettings.GUI.Timezone;
+ //   DBG("now is %d, zone is %d\n", Now.Hour, gSettings.GUI.Timezone);
     if (NowHour <  0 ) NowHour += 24;
     if (NowHour >= 24 ) NowHour -= 24;
     ThemeX.Daylight = (NowHour > 8) && (NowHour < 20);
@@ -221,7 +222,7 @@ finish:
 
   }
   for (i = 0; i < ThemeNameArray.size(); i++) {
-    if ( ThemeX.Theme.equalIC(ThemeNameArray[i]) ) {
+    if ( ThemeX.Theme.isEqualIC(ThemeNameArray[i]) ) {
       OldChosenTheme = i;
       break;
     }
@@ -271,7 +272,9 @@ void XTheme::Init()
   CharWidth = 9;  
   SelectionColor = 0x80808080;
   SelectionBackgroundPixel = { 0xef, 0xef, 0xef, 0xff };
-  FontFileName.setEmpty();     
+  FontFileName.setEmpty();
+
+  Icons.setEmpty();
 //  Theme.takeValueFrom("embedded");
   embedded = false;
   BannerFileName.setEmpty();    
@@ -328,6 +331,7 @@ void XTheme::Init()
 
   Cinema.setEmpty();
 }
+
 TagDict* XTheme::LoadTheme(const XStringW& TestTheme)
 {
   EFI_STATUS Status    = EFI_UNSUPPORTED;
@@ -453,18 +457,18 @@ XTheme::GetThemeTagSettings(const TagDict* DictPointer)
 
       Prop2 = Dict->propertyForKey("ScreenEdgeX");
       if (Prop2 != NULL && (Prop2->isString()) && Prop2->getString()->stringValue().notEmpty() ) {
-        if (Prop2->getString()->stringValue().equal("left")) {
+        if (Prop2->getString()->stringValue().isEqual("left")) {
           BannerEdgeHorizontal = SCREEN_EDGE_LEFT;
-        } else if (Prop2->getString()->stringValue().equal("right")) {
+        } else if (Prop2->getString()->stringValue().isEqual("right")) {
           BannerEdgeHorizontal = SCREEN_EDGE_RIGHT;
         }
       }
 
       Prop2 = Dict->propertyForKey("ScreenEdgeY");
       if (Prop2 != NULL && (Prop2->isString()) && Prop2->getString()->stringValue().notEmpty() ) {
-        if (Prop2->getString()->stringValue().equal("top")) {
+        if (Prop2->getString()->stringValue().isEqual("top")) {
           BannerEdgeVertical = SCREEN_EDGE_TOP;
-        } else if (Prop2->getString()->stringValue().equal("bottom")) {
+        } else if (Prop2->getString()->stringValue().isEqual("bottom")) {
           BannerEdgeVertical = SCREEN_EDGE_BOTTOM;
         }
       }
@@ -673,13 +677,13 @@ XTheme::GetThemeTagSettings(const TagDict* DictPointer)
   if (AnimeArray != NULL) {
     INTN   Count = AnimeArray->arrayContent().size();
     for (INTN i = 0; i < Count; i++) {
-      Dict3 = AnimeArray->dictElementAt(i, "Anime"_XS8);
-      if ( !Dict3->isDict() ) {
-        MsgLog("MALFORMED PLIST : Anime must be an array of dict");
+      if ( !AnimeArray->elementAt(i)->isDict() ) {
+        MsgLog("MALFORMED PLIST : Anime must be an array of dict\n");
         continue;
       }
+      Dict3 = AnimeArray->dictElementAt(i, "Anime"_XS8);
 
-      FILM *NewFilm = new FILM();
+      FILM *NewFilm = new FILM;
 
       Prop = Dict3->propertyForKey("ID");
       NewFilm->SetIndex((UINTN)GetPropertyAsInteger(Prop, 1)); //default=main screen
@@ -697,18 +701,18 @@ XTheme::GetThemeTagSettings(const TagDict* DictPointer)
 
       Prop = Dict3->propertyForKey("ScreenEdgeX");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty() ) {
-        if (Prop->getString()->stringValue().equal("left")) {
+        if (Prop->getString()->stringValue().isEqual("left")) {
           NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_LEFT;
-        } else if (Prop->getString()->stringValue().equal("right")) {
+        } else if (Prop->getString()->stringValue().isEqual("right")) {
           NewFilm->ScreenEdgeHorizontal = SCREEN_EDGE_RIGHT;
         }
       }
 
       Prop = Dict3->propertyForKey("ScreenEdgeY");
       if (Prop != NULL && (Prop->isString()) && Prop->getString()->stringValue().notEmpty() ) {
-        if (Prop->getString()->stringValue().equal("top")) {
+        if (Prop->getString()->stringValue().isEqual("top")) {
           NewFilm->ScreenEdgeVertical = SCREEN_EDGE_TOP;
-        } else if (Prop->getString()->stringValue().equal("bottom")) {
+        } else if (Prop->getString()->stringValue().isEqual("bottom")) {
           NewFilm->ScreenEdgeVertical = SCREEN_EDGE_BOTTOM;
         }
       }
@@ -925,10 +929,14 @@ const XIcon& XTheme::LoadOSIcon(const XString8& Full)
     DBG("      Full=%s\n", Full.c_str());
     if (!ReturnIcon->isEmpty()) return *ReturnIcon;
   }
-  // else something
-  if (DummyIcon.isEmpty()) { //initialize once per session    
-    DummyIcon.Image.DummyImage(MainEntriesSize);
-    DummyIcon.setFilled();
+  if ( Full !="unknown"_XS8 ) {
+    return LoadOSIcon("unknown"_XS8);
+  }else{
+    // else something
+    if (DummyIcon.isEmpty()) { //initialize once per session
+      DummyIcon.Image.DummyImage(MainEntriesSize);
+      DummyIcon.setFilled();
+    }
   }
   return DummyIcon;
 }

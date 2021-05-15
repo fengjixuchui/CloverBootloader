@@ -89,7 +89,7 @@ EFI_STATUS FixDataMatchingTag( CHAR8* buffer, CONST CHAR8* tag,UINT32* lenPtr);
 ////DBG("tagcachehit=%lld\n", tagcachehit);
 //    return tag;
 //  }
-//  tag = new TagStruct();
+//  tag = new TagStruct;
 ////newtagcount += 1;
 ////DBG("newtagcount=%lld\n", newtagcount);
 //  return tag;
@@ -203,7 +203,7 @@ bool TagStruct::isTrueOrYy() const
 bool TagStruct::isTrueOrYes() const
 {
   if ( isBool() ) return getBool()->boolValue();
-  if ( isString() && getString()->stringValue().equal("Yes"_XS8) ) return true;
+  if ( isString() && getString()->stringValue().isEqual("Yes"_XS8) ) return true;
   return false;
 }
 bool TagStruct::isFalseOrNn() const
@@ -242,7 +242,8 @@ EFI_STATUS ParseXML(const CHAR8* buffer, TagDict** dict, size_t bufSize)
     return EFI_INVALID_PARAMETER;
   }
 
-  configBuffer = (__typeof__(configBuffer))AllocateZeroPool(bufferSize+1);
+  configBuffer = (__typeof__(configBuffer))malloc(bufferSize+1);
+  memset(configBuffer, 0, bufferSize+1);
   if(configBuffer == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -268,7 +269,7 @@ EFI_STATUS ParseXML(const CHAR8* buffer, TagDict** dict, size_t bufSize)
     if (tag == NULL) {
       continue;
     }
-    if (tag->isDict()) {
+    if (tag->isDict()||tag->isArray()) {
       break;
     }
 
@@ -280,7 +281,8 @@ EFI_STATUS ParseXML(const CHAR8* buffer, TagDict** dict, size_t bufSize)
   if (EFI_ERROR(Status)) {
     return Status;
   }
-  *dict = tag->getDict();
+  if (tag->isDict()) *dict = tag->getDict();
+  else *dict = NULL;
   return EFI_SUCCESS;
 }
 
@@ -512,7 +514,7 @@ EFI_STATUS ParseTagKey( char * buffer, TagStruct** tag, UINT32* lenPtr)
 //    return Status;
 //  }
   tmpTag = TagKey::getEmptyTag();
-  tmpTag->setKeyValue(LString8(buffer));
+  tmpTag->setKeyValue(LString8(buffer, strlen(buffer)));
 
   *tag = tmpTag;
   *lenPtr = length + length2;
@@ -539,7 +541,8 @@ EFI_STATUS ParseTagString(CHAR8* buffer, TagStruct* * tag,UINT32* lenPtr)
     return EFI_OUT_OF_RESOURCES;
   }
 
-  tmpTag->setStringValue(LString8(XMLDecode(buffer)));
+  size_t outlen = XMLDecode(buffer, strlen(buffer), buffer, strlen(buffer));
+  tmpTag->setStringValue(LString8(buffer, outlen));
   *tag = tmpTag;
   *lenPtr = length;
   DBG(" parse string %s\n", tmpTag->getString()->stringValue().c_str());
@@ -697,7 +700,7 @@ EFI_STATUS ParseTagDate(CHAR8* buffer, TagStruct* * tag,UINT32* lenPtr)
 
 
   tmpTag = TagDate::getEmptyTag();
-  tmpTag->setDateValue(LString8(buffer));
+  tmpTag->setDateValue(LString8(buffer, length));
 
   *tag = tmpTag;
   *lenPtr = length;
@@ -856,7 +859,7 @@ GetPropertyAsInteger(
     UINTN Size = Prop->getData()->dataLenValue();
     if (Size > 8) Size = 8;
     INTN Data = 0;
-    CopyMem(&Data, Prop->getData()->dataValue(), Size);
+    memcpy(&Data, Prop->getData()->dataValue(), Size);
     return Data;
   }
   return Default;

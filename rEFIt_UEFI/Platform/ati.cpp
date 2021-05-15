@@ -13,8 +13,8 @@
 #include "../include/Pci.h"
 #include "../include/Devices.h"
 #include "../Platform/Settings.h"
-#include "Self.h"
-#include "SelfOem.h"
+#include "../Settings/Self.h"
+#include "../Settings/SelfOem.h"
 
 #ifndef DEBUG_ALL
 #define DEBUG_ATI 1
@@ -33,7 +33,7 @@ static value_t aty_nameparent;
 card_t *card;
 //static value_t aty_model;
 
-card_config_t card_configs[] = {
+const card_config_t card_configs[] = {
   {NULL,  0},
   /* OLDController */
   {"Wormy", 2},
@@ -145,7 +145,7 @@ card_config_t card_configs[] = {
   {"Radeon",4},
 };
 
-radeon_card_info_t radeon_cards[] = {
+const radeon_card_info_t radeon_cards[] = {
 
   // Earlier cards are not supported
   //
@@ -1951,12 +1951,12 @@ static BOOLEAN init_card(pci_dt_t *pci_dev)
     break;
   }
 
-  for (j = 0; j < NGFX; j++) {
-    if ((gGraphics[j].Vendor == Ati) &&
-        (gGraphics[j].DeviceID == pci_dev->device_id)) {
-      //      model = gGraphics[j].Model;
-      n_ports = gGraphics[j].Ports;
-      add_vbios = gGraphics[j].LoadVBios;
+  for (j = 0; j < gConf.GfxPropertiesArray.size(); j++) {
+    if ((gConf.GfxPropertiesArray[j].Vendor == Ati) &&
+        (gConf.GfxPropertiesArray[j].DeviceID == pci_dev->device_id)) {
+      //      model = gConf.GfxPropertiesArray[j].Model;
+      n_ports = gConf.GfxPropertiesArray[j].Ports;
+      add_vbios = gConf.GfxPropertiesArray[j].LoadVBios;
       break;
     }
   }
@@ -2139,17 +2139,17 @@ BOOLEAN setup_ati_devprop(LOADER_ENTRY *Entry, pci_dt_t *ati_dev)
   }
 
 
-  if (gSettings.Devices.AddProperties.size() != 0xFFFE) { // Looks like NrAddProperties == 0xFFFE is not used anymore
-    for (i = 0; i < gSettings.Devices.AddProperties.size(); i++) {
-      if (gSettings.Devices.AddProperties[i].Device != DEV_ATI) {
+  if (gSettings.Devices.AddPropertyArray.size() != 0xFFFE) { // Looks like NrAddProperties == 0xFFFE is not used anymore
+    for (i = 0; i < gSettings.Devices.AddPropertyArray.size(); i++) {
+      if (gSettings.Devices.AddPropertyArray[i].Device != DEV_ATI) {
         continue;
       }
 
-      if (!gSettings.Devices.AddProperties[i].MenuItem.BValue) {
-        //DBG("  disabled property Key: %s, len: %d\n", gSettings.Devices.AddProperties[i].Key, gSettings.Devices.AddProperties[i].ValueLen);
+      if (!gSettings.Devices.AddPropertyArray[i].MenuItem.BValue) {
+        //DBG("  disabled property Key: %s, len: %d\n", gSettings.Devices.AddPropertyArray[i].Key, gSettings.Devices.AddPropertyArray[i].ValueLen);
       } else {
-        devprop_add_value(card->device, gSettings.Devices.AddProperties[i].Key, gSettings.Devices.AddProperties[i].Value);
-        //DBG("  added property Key: %s, len: %d\n", gSettings.Devices.AddProperties[i].Key, gSettings.Devices.AddProperties[i].ValueLen);
+        devprop_add_value(card->device, gSettings.Devices.AddPropertyArray[i].Key, gSettings.Devices.AddPropertyArray[i].Value);
+        //DBG("  added property Key: %s, len: %d\n", gSettings.Devices.AddPropertyArray[i].Key, gSettings.Devices.AddPropertyArray[i].ValueLen);
       }
     }
   }

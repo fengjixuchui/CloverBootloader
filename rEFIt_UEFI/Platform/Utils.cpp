@@ -41,7 +41,7 @@ UINT8 hexstrtouint8 (const CHAR8* buf)
 	else if (IS_HEX(buf[0]))
 		i = (buf[0] | 0x20) - 'a' + 10;
 
-	if (AsciiStrLen(buf) == 1) {
+	if (strlen(buf) == 1) {
 		return i;
 	}
 	i <<= 4;
@@ -53,8 +53,12 @@ UINT8 hexstrtouint8 (const CHAR8* buf)
 	return i;
 }
 
-BOOLEAN IsHexDigit (CHAR8 c) {
+BOOLEAN IsHexDigit(char c) {
 	return (IS_DIGIT(c) || (IS_HEX(c)))?TRUE:FALSE;
+}
+
+BOOLEAN IsHexDigit(wchar_t c) {
+  return (IS_DIGIT(c) || (IS_HEX(c)))?TRUE:FALSE;
 }
 
 //out value is a number of byte.  out = len
@@ -97,6 +101,10 @@ BOOLEAN IsHexDigit (CHAR8 c) {
 
 #ifdef __cplusplus
 
+size_t hex2bin(const XBuffer<char>& buffer, uint8_t *out, size_t outlen)
+{
+  return hex2bin(buffer.data(), buffer.size(), out, outlen);
+}
 
 size_t hex2bin(const XString8& s, uint8_t *out, size_t outlen)
 {
@@ -124,46 +132,16 @@ XString8 Bytes2HexStr(UINT8 *data, UINTN len)
   return result;
 }
 
+UINT32 GetCrc32(UINT8 *Buffer, UINTN Size)
+{
+  UINT32 x = 0;
+  UINT32 *Fake = (UINT32*)Buffer;
+  if (!Fake) return 0;
+  Size >>= 2;
+  while (Size--) x+= *Fake++;
+  return x;
+}
+
 
 BOOLEAN haveError = FALSE;
-
-
-BOOLEAN CheckFatalError(IN EFI_STATUS Status, IN CONST CHAR16 *where)
-{
-//    CHAR16 ErrorName[64];
-
-    if (!EFI_ERROR(Status))
-        return FALSE;
-
-    MsgLog("Fatal Error: %s %ls\n", efiStrError(Status), where);
-
-//    StatusToString(ErrorName, Status);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_RED | EFI_BACKGROUND_BLACK);
-    printf("Fatal Error: %s %ls\n", efiStrError(Status), where);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_LIGHTGRAY | EFI_BACKGROUND_BLACK);
-    haveError = TRUE;
-
-    //gBS->Exit(ImageHandle, ExitStatus, ExitDataSize, ExitData);
-
-    return TRUE;
-}
-
-BOOLEAN CheckError(IN EFI_STATUS Status, IN CONST CHAR16 *where)
-{
-//    CHAR16 ErrorName[64];
-
-    if (!EFI_ERROR(Status))
-        return FALSE;
-
-    MsgLog("Fatal Error: %s %ls\n", efiStrError(Status), where);
-
-//    StatusToString(ErrorName, Status);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_RED | EFI_BACKGROUND_BLACK);
-    printf("Error: %s %ls\n", efiStrError(Status), where);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_LIGHTGRAY | EFI_BACKGROUND_BLACK);
-    haveError = TRUE;
-
-    return TRUE;
-}
-
 

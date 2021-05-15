@@ -8,6 +8,7 @@
 #include "cpu.h"
 #include "smbios.h"
 #include "AcpiPatcher.h"
+#include "Settings.h"
 
 extern "C" {
 #include <IndustryStandard/CpuId.h> // for CPUID_FEATURE_MSR
@@ -342,7 +343,7 @@ SSDT_TABLE *generate_pss_ssdt(UINTN Number)
                     (gCPUStructure.Model == CPU_MODEL_ICELAKE) ||
                     (gCPUStructure.Model == CPU_MODEL_TIGERLAKE_C) ||
                     (gCPUStructure.Model == CPU_MODEL_TIGERLAKE_D) ||
-                   (gCPUStructure.Model == CPU_MODEL_COMETLAKE_S) ||
+                    (gCPUStructure.Model == CPU_MODEL_COMETLAKE_S) ||
                     (gCPUStructure.Model == CPU_MODEL_COMETLAKE_Y) ||
                     (gCPUStructure.Model == CPU_MODEL_COMETLAKE_U)) {
                     j = i << 8;

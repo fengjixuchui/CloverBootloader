@@ -1,8 +1,10 @@
-//
-//  unicode_conversions.h
-//
-//  Created by jief the 24 Feb 2020.
-//
+/*
+ *
+ * Created by jief the 24 Feb 2020.
+ * Copyright (c) 2020 Jief
+ * All rights reserved.
+ *
+ */
 
 #ifndef __unicode_conversions_h__
 #define __unicode_conversions_h__
@@ -99,13 +101,23 @@ char32_t get_char32_from_utf8_string_at_pos(const char* s, size_t n);
  * Return value : size
  */
 size_t utf8_size_of_utf32_string(const char32_t* s);
+
 /*
- * Size in bytes of an utf32 string of len char if it were converted to utf8
- * Return value : pointer to the end of string or at the error
+ * Size in bytes of an utf32 string of at most len char if it were converted to utf8
+ * Return value : size
  */
 size_t utf8_size_of_utf32_string_len(const char32_t* s, size_t len);
 
+/*
+* Size in bytes of an utf8 string of at most len char if it were converted to utf32
+* Return value : size
+*/
 size_t utf32_size_of_utf8_string(const char* s);
+
+/*
+* Size in bytes of an utf8 string of at most len char if it were converted to utf8
+* Return value : size, <= len
+*/
 size_t utf32_size_of_utf8_string_len(const char* s, size_t len);
 
 /*
@@ -115,6 +127,7 @@ size_t utf32_size_of_utf8_string_len(const char* s, size_t len);
 size_t utf32_stringnn_from_utf8_string(char32_t* dst, size_t dst_max_size, const char* s);
 size_t utf32_string_from_utf8_string(char32_t* dst, size_t dst_max_size, const char* s);
 size_t utf32_string_from_utf8_string_len(char32_t* dst, size_t dst_max_size, const char* s, size_t len);
+size_t utf32_string_from_utf8_string_size(char32_t* dst, size_t dst_max_size, const char* s, size_t size);
 /*
 * Convert s to dst. Do not add null terminator.
 * Return the number of utf8 char written
@@ -122,6 +135,7 @@ size_t utf32_string_from_utf8_string_len(char32_t* dst, size_t dst_max_size, con
 size_t utf8_stringnn_from_utf32_string(char* dst, size_t dst_max_size, const char32_t *s);
 size_t utf8_string_from_utf32_string(char* dst, size_t dst_max_size, const char32_t *s);
 size_t utf8_string_from_utf32_string_len(char* dst, size_t dst_max_size, const char32_t *s, size_t len);
+size_t utf8_string_from_utf32_string_size(char* dst, size_t dst_max_size, const char32_t *s, size_t size);
 
 char32_t get_char32_from_utf8_string_at_pos(const char* s, size_t pos);
 
@@ -143,9 +157,11 @@ size_t utf16_size_of_utf8_string_len(const char* s, size_t len);
 size_t utf8_stringnn_from_utf16_string(char* dst, size_t dst_max_size, const char16_t *s);
 size_t utf8_string_from_utf16_string(char* dst, size_t dst_max_size, const char16_t *s);
 size_t utf8_string_from_utf16_string_len(char* dst, size_t dst_max_size, const char16_t *s, size_t len);
+size_t utf8_string_from_utf16_string_size(char* dst, size_t dst_max_size, const char16_t *s, size_t size);
 size_t utf16_stringnn_from_utf8_string(char16_t* dst, size_t dst_max_size, const char* s);
 size_t utf16_string_from_utf8_string(char16_t* dst, size_t dst_max_size, const char* s);
 size_t utf16_string_from_utf8_string_len(char16_t* dst, size_t dst_max_size, const char* s, size_t len);
+size_t utf16_string_from_utf8_string_size(char16_t* dst, size_t dst_max_size, const char* s, size_t size);
 
 
 /******   utf16 - utf32   *****/
@@ -164,9 +180,11 @@ size_t utf32_size_of_utf16_string_len(const char16_t *s, size_t len);
 size_t utf16_stringnn_from_utf32_string(char16_t* dst, size_t dst_max_size, const char32_t *s);
 size_t utf16_string_from_utf32_string(char16_t* dst, size_t dst_max_size, const char32_t *s);
 size_t utf16_string_from_utf32_string_len(char16_t* dst, size_t dst_max_size, const char32_t *s, size_t len);
+size_t utf16_string_from_utf32_string_size(char16_t* dst, size_t dst_max_size, const char32_t *s, size_t size);
 size_t utf32_stringnn_from_utf16_string(char32_t* dst, size_t dst_max_size, const char16_t *s);
 size_t utf32_string_from_utf16_string(char32_t* dst, size_t dst_max_size, const char16_t *s);
 size_t utf32_string_from_utf16_string_len(char32_t* dst, size_t dst_max_size, const char16_t *s, size_t len);
+size_t utf32_string_from_utf16_string_size(char32_t* dst, size_t dst_max_size, const char16_t *s, size_t size);
 
 
 /*
@@ -186,9 +204,11 @@ size_t wchar_size_of_utf8_string_len(const char* s, size_t len);
 size_t utf8_stringnn_from_wchar_string(char* dst, size_t dst_max_size, const wchar_t* s);
 size_t utf8_string_from_wchar_string(char* dst, size_t dst_max_size, const wchar_t* s);
 size_t utf8_string_from_wchar_string_len(char* dst, size_t dst_max_size, const wchar_t* s, size_t len);
+size_t utf8_string_from_wchar_string_size(char* dst, size_t dst_max_size, const wchar_t* s, size_t size);
 size_t wchar_stringnn_from_utf8_string(wchar_t* dst, size_t dst_max_size, const char* s);
 size_t wchar_string_from_utf8_string(wchar_t* dst, size_t dst_max_size, const char* s);
 size_t wchar_string_from_utf8_string_len(wchar_t* dst, size_t dst_max_size, const char* s, size_t len);
+size_t wchar_string_from_utf8_string_size(wchar_t* dst, size_t dst_max_size, const char* s, size_t size);
 
 
 /******   utf16 - wchar_t   *****/
@@ -200,9 +220,11 @@ size_t wchar_size_of_utf16_string_len(const char16_t *s, size_t len);
 size_t utf16_stringnn_from_wchar_string(char16_t* dst, size_t dst_max_size, const wchar_t* s);
 size_t utf16_string_from_wchar_string(char16_t* dst, size_t dst_max_size, const wchar_t* s);
 size_t utf16_string_from_wchar_string_len(char16_t* dst, size_t dst_max_size, const wchar_t* s, size_t len);
+size_t utf16_string_from_wchar_string_size(char16_t* dst, size_t dst_max_size, const wchar_t* s, size_t size);
 size_t wchar_stringnn_from_utf16_string(wchar_t* dst, size_t dst_max_size, const char16_t* s);
 size_t wchar_string_from_utf16_string(wchar_t* dst, size_t dst_max_size, const char16_t* s);
 size_t wchar_string_from_utf16_string_len(wchar_t* dst, size_t dst_max_size, const char16_t* s, size_t len);
+size_t wchar_string_from_utf16_string_size(wchar_t* dst, size_t dst_max_size, const char16_t* s, size_t size);
 
 
 /******   utf32 - wchar_t   *****/
@@ -214,9 +236,11 @@ size_t wchar_size_of_utf32_string_len(const char32_t *s, size_t len);
 size_t utf32_stringnn_from_wchar_string(char32_t* dst, size_t dst_max_size, const wchar_t* s);
 size_t utf32_string_from_wchar_string(char32_t* dst, size_t dst_max_size, const wchar_t* s);
 size_t utf32_string_from_wchar_string_len(char32_t* dst, size_t dst_max_size, const wchar_t* s, size_t len);
+size_t utf32_string_from_wchar_string_size(char32_t* dst, size_t dst_max_size, const wchar_t* s, size_t size);
 size_t wchar_stringnn_from_utf32_string(wchar_t* dst, size_t dst_max_size, const char32_t* s);
 size_t wchar_string_from_utf32_string(wchar_t* dst, size_t dst_max_size, const char32_t* s);
 size_t wchar_string_from_utf32_string_len(wchar_t* dst, size_t dst_max_size, const char32_t* s, size_t len);
+size_t wchar_string_from_utf32_string_size(wchar_t* dst, size_t dst_max_size, const char32_t* s, size_t size);
 
 char32_t get_char32_from_wchar_string_at_pos(const char16_t* s, size_t pos);
 
@@ -235,24 +259,28 @@ size_t wchar_size_of_wchar_string_len(const wchar_t* s, size_t len);
 size_t utf8_stringnn_from_utf8_string(char* dst, size_t dst_max_size, const char *s);
 size_t utf8_string_from_utf8_string(char* dst, size_t dst_max_size, const char *s);
 size_t utf8_string_from_utf8_string_len(char* dst, size_t dst_max_size, const char *s, size_t len);
+size_t utf8_string_from_utf8_string_size(char* dst, size_t dst_max_size, const char *s, size_t size);
 size_t utf16_stringnn_from_utf16_string(char16_t* dst, size_t dst_max_size, const char16_t *s);
 size_t utf16_string_from_utf16_string(char16_t* dst, size_t dst_max_size, const char16_t *s);
 size_t utf16_string_from_utf16_string_len(char16_t* dst, size_t dst_max_size, const char16_t *s, size_t len);
+size_t utf16_string_from_utf16_string_size(char16_t* dst, size_t dst_max_size, const char16_t *s, size_t size);
 size_t utf32_stringnn_from_utf32_string(char32_t* dst, size_t dst_max_size, const char32_t *s);
 size_t utf32_string_from_utf32_string(char32_t* dst, size_t dst_max_size, const char32_t *s);
 size_t utf32_string_from_utf32_string_len(char32_t* dst, size_t dst_max_size, const char32_t *s, size_t len);
+size_t utf32_string_from_utf32_string_size(char32_t* dst, size_t dst_max_size, const char32_t *s, size_t size);
 size_t wchar_stringnn_from_wchar_string(wchar_t* dst, size_t dst_max_size, const wchar_t *s);
 size_t wchar_string_from_wchar_string(wchar_t* dst, size_t dst_max_size, const wchar_t *s);
 size_t wchar_string_from_wchar_string_len(wchar_t* dst, size_t dst_max_size, const wchar_t *s, size_t len);
+size_t wchar_string_from_wchar_string_size(wchar_t* dst, size_t dst_max_size, const wchar_t *s, size_t size);
 
 char32_t get_char32_from_utf32_string_at_pos(const char32_t* s, size_t pos);
 
 /******   convenience   *****/
 
-inline size_t length_of_utf8_string(const char* s);
-inline size_t length_of_utf16_string(const char16_t* s);
-inline size_t length_of_utf32_string(const char32_t* s); // UTF32 length == size
-inline size_t length_of_wchar_string(const wchar_t* s);
+//inline size_t length_of_utf8_string(const char* s);
+//inline size_t length_of_utf16_string(const char16_t* s);
+//inline size_t length_of_utf32_string(const char32_t* s); // UTF32 length == size
+//inline size_t length_of_wchar_string(const wchar_t* s);
 
 
 #ifdef __cplusplus
@@ -301,10 +329,10 @@ inline size_t size_of_utf_string(const char32_t* s) { return utf32_size_of_utf32
 inline size_t size_of_utf_string(const wchar_t* s) { return size_of_utf_string((wchar_cast*)s); }
 
 /* Returns amount of utf chars. Type of utf chars are determined by the first parameter. */
-inline size_t utf_size_of_utf_string(const char*, const char* s) { return utf8_size_of_utf8_string(s); }
-inline size_t utf_size_of_utf_string(const char16_t*, const char* s) { return utf16_size_of_utf8_string(s); }
-inline size_t utf_size_of_utf_string(const char32_t*, const char* s) { return utf32_size_of_utf8_string(s); }
-inline size_t utf_size_of_utf_string(const wchar_t* t, const char* s) { return utf_size_of_utf_string((wchar_cast*)t, s); }
+inline size_t utf_size_of_utf_string(const char* dummy, const char* s) { (void)dummy; return utf8_size_of_utf8_string(s); }
+inline size_t utf_size_of_utf_string(const char16_t* dummy, const char* s) { (void)dummy; return utf16_size_of_utf8_string(s); }
+inline size_t utf_size_of_utf_string(const char32_t* dummy, const char* s) { (void)dummy; return utf32_size_of_utf8_string(s); }
+inline size_t utf_size_of_utf_string(const wchar_t* dummy, const char* s) { (void)dummy; return utf_size_of_utf_string((wchar_cast*)dummy, s); }
 
 inline size_t utf_size_of_utf_string(const char*, const char16_t* s) { return utf8_size_of_utf16_string(s); }
 inline size_t utf_size_of_utf_string(const char16_t*, const char16_t* s) { return utf16_size_of_utf16_string(s); }
@@ -349,6 +377,37 @@ inline size_t utf_size_of_utf_string_len(const char16_t* t, const wchar_t* s, si
 inline size_t utf_size_of_utf_string_len(const char32_t* t, const wchar_t* s, size_t len) { return utf_size_of_utf_string_len(t, (wchar_cast*)s, len); }
 inline size_t utf_size_of_utf_string_len(const wchar_t* t, const wchar_t* s, size_t len) { return utf_size_of_utf_string_len((wchar_cast*)t, (wchar_cast*)s, len); }
 
+//
+//
+///* Returns amount of utf chars needed to represent the first [size] native chars chars. */
+//inline size_t size_of_utf_string_size(const char* s, size_t size) { return utf8_size_of_utf8_string_size(s, size); }
+//inline size_t size_of_utf_string_size(const char16_t* s, size_t size) { return utf16_size_of_utf16_string_size(s, size); }
+//inline size_t size_of_utf_string_size(const char32_t* s, size_t size) { return utf32_size_of_utf32_string_size(s, size); } // for UTF32 size and sizegth are equal
+//inline size_t size_of_utf_string_size(const wchar_t* s, size_t size) { return size_of_utf_string_size((wchar_cast*)s, size); }
+//
+///* Returns amount of utf chars needed to represent the first [size] native chars. Type of utf chars are determined by the first parameter. */
+//inline size_t utf_size_of_utf_string_size(const char*, const char* s, size_t size) { return utf8_size_of_utf8_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const char16_t*, const char* s, size_t size) { return utf16_size_of_utf8_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const char32_t*, const char* s, size_t size) { return utf32_size_of_utf8_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const wchar_t* t, const char* s, size_t size) { return utf_size_of_utf_string_size((wchar_cast*)t, s, size); }
+//
+//inline size_t utf_size_of_utf_string_size(const char*, const char16_t* s, size_t size) { return utf8_size_of_utf16_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const char16_t*, const char16_t* s, size_t size) { return utf16_size_of_utf16_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const char32_t*, const char16_t* s, size_t size) { return utf32_size_of_utf16_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const wchar_t* t, const char16_t* s, size_t size) { return utf_size_of_utf_string_size((wchar_cast*)t, s, size); }
+//
+//inline size_t utf_size_of_utf_string_size(const char*, const char32_t* s, size_t size) { return utf8_size_of_utf32_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const char16_t*, const char32_t* s, size_t size) { return utf16_size_of_utf32_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const char32_t*, const char32_t* s, size_t size) { return utf32_size_of_utf32_string_size(s, size); }
+//inline size_t utf_size_of_utf_string_size(const wchar_t* t, const char32_t* s, size_t size) { return utf_size_of_utf_string_size((wchar_cast*)t, s, size); }
+//
+//inline size_t utf_size_of_utf_string_size(const char* t, const wchar_t* s, size_t size) { return utf_size_of_utf_string_size(t, (wchar_cast*)s, size); }
+//inline size_t utf_size_of_utf_string_size(const char16_t* t, const wchar_t* s, size_t size) { return utf_size_of_utf_string_size(t, (wchar_cast*)s, size); }
+//inline size_t utf_size_of_utf_string_size(const char32_t* t, const wchar_t* s, size_t size) { return utf_size_of_utf_string_size(t, (wchar_cast*)s, size); }
+//inline size_t utf_size_of_utf_string_size(const wchar_t* t, const wchar_t* s, size_t size) { return utf_size_of_utf_string_size((wchar_cast*)t, (wchar_cast*)s, size); }
+//
+//
+
 
 
 /*
@@ -376,7 +435,7 @@ inline size_t utf_string_from_utf_string(char32_t* dst, size_t dst_max_size, con
 inline size_t utf_string_from_utf_string(wchar_t* dst, size_t dst_max_size, const wchar_t *s) { return utf_string_from_utf_string(dst, dst_max_size, (wchar_cast*)s); }
 
 
-
+// utf_stringnn... do not add NULL at the end after conversion
 inline size_t utf_stringnn_from_utf_string(char* dst, size_t dst_max_size, const char* s) { return utf8_stringnn_from_utf8_string(dst, dst_max_size, s); }
 inline size_t utf_stringnn_from_utf_string(char16_t* dst, size_t dst_max_size, const char* s) { return utf16_stringnn_from_utf8_string(dst, dst_max_size, s); }
 inline size_t utf_stringnn_from_utf_string(char32_t* dst, size_t dst_max_size, const char* s) { return utf32_stringnn_from_utf8_string(dst, dst_max_size, s); }
@@ -421,6 +480,28 @@ inline size_t utf_string_from_utf_string_len(char* dst, size_t dst_max_size, con
 inline size_t utf_string_from_utf_string_len(char16_t* dst, size_t dst_max_size, const wchar_t * s, size_t len) { return utf_string_from_utf_string_len(dst, dst_max_size, (wchar_cast*)s, len); }
 inline size_t utf_string_from_utf_string_len(char32_t* dst, size_t dst_max_size, const wchar_t * s, size_t len) { return utf_string_from_utf_string_len(dst, dst_max_size, (wchar_cast*)s, len); }
 inline size_t utf_string_from_utf_string_len(wchar_t* dst, size_t dst_max_size, const wchar_t * s, size_t len) { return utf_string_from_utf_string_len(dst, dst_max_size, (wchar_cast*)s, len); }
+
+
+
+inline size_t utf_string_from_utf_string_size(char* dst, size_t dst_max_size, const char* s, size_t size) { return utf8_string_from_utf8_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(char16_t* dst, size_t dst_max_size, const char* s, size_t size) { return utf16_string_from_utf8_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(char32_t* dst, size_t dst_max_size, const char* s, size_t size) { return utf32_string_from_utf8_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(wchar_t* dst, size_t dst_max_size, const char* s, size_t size) { return utf_string_from_utf_string_size((wchar_cast*)dst, dst_max_size, s, size); }
+
+inline size_t utf_string_from_utf_string_size(char* dst, size_t dst_max_size, const char16_t * s, size_t size) { return utf8_string_from_utf16_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(char16_t* dst, size_t dst_max_size, const char16_t * s, size_t size) { return utf16_string_from_utf16_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(char32_t* dst, size_t dst_max_size, const char16_t * s, size_t size) { return utf32_string_from_utf16_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(wchar_t* dst, size_t dst_max_size, const char16_t * s, size_t size) { return utf_string_from_utf_string_size((wchar_cast*)dst, dst_max_size, s, size); }
+
+inline size_t utf_string_from_utf_string_size(char* dst, size_t dst_max_size, const char32_t * s, size_t size) { return utf8_string_from_utf32_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(char16_t* dst, size_t dst_max_size, const char32_t * s, size_t size) { return utf16_string_from_utf32_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(char32_t* dst, size_t dst_max_size, const char32_t * s, size_t size) { return utf32_string_from_utf32_string_size(dst, dst_max_size, s, size); }
+inline size_t utf_string_from_utf_string_size(wchar_t* dst, size_t dst_max_size, const char32_t * s, size_t size) { return utf_string_from_utf_string_size((wchar_cast*)dst, dst_max_size, s, size); }
+
+inline size_t utf_string_from_utf_string_size(char* dst, size_t dst_max_size, const wchar_t * s, size_t size) { return utf_string_from_utf_string_size(dst, dst_max_size, (wchar_cast*)s, size); }
+inline size_t utf_string_from_utf_string_size(char16_t* dst, size_t dst_max_size, const wchar_t * s, size_t size) { return utf_string_from_utf_string_size(dst, dst_max_size, (wchar_cast*)s, size); }
+inline size_t utf_string_from_utf_string_size(char32_t* dst, size_t dst_max_size, const wchar_t * s, size_t size) { return utf_string_from_utf_string_size(dst, dst_max_size, (wchar_cast*)s, size); }
+inline size_t utf_string_from_utf_string_size(wchar_t* dst, size_t dst_max_size, const wchar_t * s, size_t size) { return utf_string_from_utf_string_size(dst, dst_max_size, (wchar_cast*)s, size); }
 
 
 

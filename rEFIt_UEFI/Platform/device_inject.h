@@ -111,19 +111,20 @@ struct DevPropString {
 
 typedef struct DevPropString  DevPropString;
 
+#ifndef DONT_DEFINE_GLOBALS
 extern UINT32                          devices_number;
 extern DevPropString *device_inject_string;
 extern UINT8 *device_inject_stringdata;
 extern UINT32 device_inject_stringlength;
-
+#endif
 
 DevPropString	*devprop_create_string(void);
 //DevPropDevice	*devprop_add_device(DevPropString *string, char *path);
 DevPropDevice	*devprop_add_device_pci(DevPropString *string, pci_dt_t *PciDt, EFI_DEVICE_PATH_PROTOCOL *DevicePath);
 BOOLEAN			devprop_add_value(DevPropDevice *device, CONST CHAR8 *nm, const UINT8 *vl, UINTN len); // to be removed
 bool        devprop_add_value(DevPropDevice *device, const XString8& nm, const XBuffer<uint8_t>& vl);
-CHAR8			*devprop_generate_string(DevPropString *string);
-void			devprop_free_string(DevPropString *string);
+XBuffer<char> devprop_generate_string(DevPropString *string);
+void		    devprop_free_string(DevPropString *string);
 
 BOOLEAN set_eth_props(pci_dt_t *eth_dev);
 BOOLEAN set_usb_props(pci_dt_t *usb_dev);

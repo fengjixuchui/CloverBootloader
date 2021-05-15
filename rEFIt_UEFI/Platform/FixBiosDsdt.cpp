@@ -12,7 +12,8 @@
 #include "cpu.h"
 #include "../include/Pci.h"
 #include "../include/Devices.h"
-
+#include "Settings.h"
+#include "../Settings/Self.h"
 
 extern "C" {
 #include <IndustryStandard/PciCommand.h>
@@ -1581,21 +1582,21 @@ BOOLEAN CustProperties(AML_CHUNK* pack, UINT32 Dev)
 {
   UINTN i;
   BOOLEAN Injected = FALSE;
-  if (gSettings.Devices.AddProperties.size() == 0xFFFE) { // Looks like NrAddProperties == 0xFFFE is not used anymore
+  if (gSettings.Devices.AddPropertyArray.size() == 0xFFFE) { // Looks like NrAddProperties == 0xFFFE is not used anymore
     return FALSE; // not do this for Arbitrary properties?
   }
-  for (i = 0; i < gSettings.Devices.AddProperties.size(); i++) {
-    if (gSettings.Devices.AddProperties[i].Device != Dev) {
+  for (i = 0; i < gSettings.Devices.AddPropertyArray.size(); i++) {
+    if (gSettings.Devices.AddPropertyArray[i].Device != Dev) {
       continue;
     }
     Injected = TRUE;
 
-    if (!gSettings.Devices.AddProperties[i].MenuItem.BValue) {
-      //DBG("  disabled property Key: %s, len: %d\n", gSettings.Devices.AddProperties[i].Key, gSettings.Devices.AddProperties[i].ValueLen);
+    if (!gSettings.Devices.AddPropertyArray[i].MenuItem.BValue) {
+      //DBG("  disabled property Key: %s, len: %d\n", gSettings.Devices.AddPropertyArray[i].Key, gSettings.Devices.AddPropertyArray[i].ValueLen);
     } else {
-      aml_add_string(pack, gSettings.Devices.AddProperties[i].Key.c_str());
-      aml_add_byte_buffer(pack, gSettings.Devices.AddProperties[i].Value.data(), (UINT32)gSettings.Devices.AddProperties[i].Value.size()); // unsafe cast
-      //DBG("  added property Key: %s, len: %d\n", gSettings.Devices.AddProperties[i].Key, gSettings.Devices.AddProperties[i].ValueLen);
+      aml_add_string(pack, gSettings.Devices.AddPropertyArray[i].Key.c_str());
+      aml_add_byte_buffer(pack, gSettings.Devices.AddPropertyArray[i].Value.data(), (UINT32)gSettings.Devices.AddPropertyArray[i].Value.size()); // unsafe cast
+      //DBG("  added property Key: %s, len: %d\n", gSettings.Devices.AddPropertyArray[i].Key, gSettings.Devices.AddPropertyArray[i].ValueLen);
     }
   }
   return Injected;
@@ -2144,7 +2145,7 @@ UINT32 FixRTC (UINT8 *dsdt, UINT32 len)
       break;
     }
     if ((dsdt[i+1] == 0x5B) && (dsdt[i+2] == 0x82)) {
-      break; //end of RTC device and begin of new Device()
+      break; //end of RTC device and begin of new Device
     }
   }
 
@@ -2251,7 +2252,7 @@ UINT32 FixTMR (UINT8 *dsdt, UINT32 len)
     } // offset if
 
     if ((dsdt[i+1] == 0x5B) && (dsdt[i+2] == 0x82)) {
-      break; //end of TMR device and begin of new Device()
+      break; //end of TMR device and begin of new Device
     }
   } // i loop
 
@@ -2336,7 +2337,7 @@ UINT32 FixPIC (UINT8 *dsdt, UINT32 len)
       sizeoffset = 0;
     } // sizeoffset if
     if ((dsdt[i+1] == 0x5B) && (dsdt[i+2] == 0x82)) {
-      break; //end of PIC device and begin of new Device()
+      break; //end of PIC device and begin of new Device
     }
   } // i loop
 
@@ -2710,11 +2711,11 @@ Skip_DSM:
         k = FindName(dsdt + i, Size, "_SUN");
         if (k == 0) {
           aml_add_name(gfx0, "_SUN");
-          aml_add_dword(gfx0, SlotDevices[j].SlotID);
+          aml_add_dword(gfx0, SlotDevices.getSlotForIndexOrNull(j).SlotID);
         } else {
           //we have name sun, set the number
           if (dsdt[k + 4] == 0x0A) {
-            dsdt[k + 5] = SlotDevices[j].SlotID;
+            dsdt[k + 5] = SlotDevices.getSlotForIndexOrNull(j).SlotID;
           }
         }
       } else {
@@ -3071,11 +3072,11 @@ UINT32 FIXNetwork (UINT8 *dsdt, UINT32 len, UINT32 card)
     k = FindName(dsdt + i, Size, "_SUN");
     if (k == 0) {
       aml_add_name(dev, "_SUN");
-      aml_add_dword(dev, SlotDevices[5].SlotID);
+      aml_add_dword(dev, gSettings.Smbios.SlotDevices.getSlotForIndexOrNull(5).SlotID);
     } else {
       //we have name sun, set the number
       if (dsdt[k + 4] == 0x0A) {
-        dsdt[k + 5] = SlotDevices[5].SlotID;
+        dsdt[k + 5] = gSettings.Smbios.SlotDevices.getSlotForIndexOrNull(5).SlotID;
       }
     }
   }
@@ -3153,6 +3154,12 @@ UINT32 FIXNetwork (UINT8 *dsdt, UINT32 len, UINT32 card)
 
 UINT32 FIXAirport (UINT8 *dsdt, UINT32 len)
 {
+#if DEBUG_FIX > 0
+DBG("FIXAirport dsdt len=%d\n", len);
+//EFI_STATUS Status = egSaveFile(&self.getCloverDir(), L"misc\\DSDT_before_AIRPORT.bin", dsdt, len);
+//DBG("DSDT_before_AIRPORT.bin saved in misc. Status = %s\n", efiStrError(Status));
+#endif
+
   UINT32  i, k;
   UINT32 ArptADR = 0, BridgeSize, Size, BrdADR = 0;
   UINT32 PCIADR, PCISIZE = 0;
@@ -3262,11 +3269,11 @@ UINT32 FIXAirport (UINT8 *dsdt, UINT32 len)
     k = FindName(dsdt + i, Size, "_SUN");
     if (k == 0) {
       aml_add_name(dev, "_SUN");
-      aml_add_dword(dev, SlotDevices[6].SlotID);
+      aml_add_dword(dev, gSettings.Smbios.SlotDevices.getSlotForIndexOrNull(6).SlotID);
     } else {
       //we have name sun, set the number
       if (dsdt[k + 4] == 0x0A) {
-        dsdt[k + 5] = SlotDevices[6].SlotID;
+        dsdt[k + 5] = gSettings.Smbios.SlotDevices.getSlotForIndexOrNull(6).SlotID;
       }
     }
   } else {
@@ -3700,11 +3707,11 @@ UINT32 FIXFirewire (UINT8 *dsdt, UINT32 len)
     k = FindName(dsdt + i, Size, "_SUN");
     if (k == 0) {
       aml_add_name(device, "_SUN");
-      aml_add_dword(device, SlotDevices[12].SlotID);
+      aml_add_dword(device, gSettings.Smbios.SlotDevices.getSlotForIndexOrNull(12).SlotID);
     } else {
       //we have name sun, set the number
       if (dsdt[k + 4] == 0x0A) {
-         dsdt[k + 5] = SlotDevices[12].SlotID;
+         dsdt[k + 5] = gSettings.Smbios.SlotDevices.getSlotForIndexOrNull(12).SlotID;
       }
     }
   } else {
@@ -5218,7 +5225,8 @@ BOOLEAN isACPI_Char(CHAR8 C)
     (C == '_'));
 }
 
-BOOLEAN CmpFullName(UINT8* Table, UINTN Len, ACPI_NAME_LIST *Bridge)
+// all string in Bridge is supposed to be 4 chars long.
+BOOLEAN CmpFullName(UINT8* Table, UINTN Len, const XString8Array& Bridge)
 {
   // "RP02" NameLen=4
   // "_SB_PCI0RP02" NameLen=12
@@ -5234,13 +5242,12 @@ BOOLEAN CmpFullName(UINT8* Table, UINTN Len, ACPI_NAME_LIST *Bridge)
   Name = (__typeof__(Name))AllocateCopyPool(NameLen + 1, Table);
   Name[NameLen] = '\0';
   i = NameLen - 4;
-  while (Bridge && (i >= 0)) {
-    if (AsciiStrStr(Name + i, Bridge->Name) == NULL) { //compare Bridge->Name with RP02, Next->Name with PCI0 then _SB_
+  for (size_t idx = 0 ; idx < Bridge.size() && i >= 0 ; ++idx ) {
+    if (AsciiStrStr(Name + i, Bridge[idx].c_str()) == NULL) { //compare Bridge->Name with RP02, Next->Name with PCI0 then _SB_
       FreePool(Name);
       return FALSE;
     }
     i -= 4;
-    Bridge = Bridge->Next;
   }
   FreePool(Name);
   return TRUE;
@@ -5248,11 +5255,8 @@ BOOLEAN CmpFullName(UINT8* Table, UINTN Len, ACPI_NAME_LIST *Bridge)
 
 void RenameDevices(UINT8* table)
 {
-  ACPI_NAME_LIST *List;
-  ACPI_NAME_LIST *Bridge;
-  CHAR8 *Replace;
-  CHAR8 *Find;
 
+  DBG("RenameDevices %zu\n", gSettings.ACPI.DeviceRename.size());
   if ( gSettings.ACPI.DeviceRename.size() <= 0 ) return; // to avoid message "0 replacement"
 
   INTN i;
@@ -5262,24 +5266,30 @@ void RenameDevices(UINT8* table)
   INTN adr, shift, Num = 0;
   BOOLEAN found;
   for (UINTN index = 0; index < gSettings.ACPI.DeviceRename.size(); index++) {
-    List = gSettings.ACPI.DeviceRename[index].Next;
-    Replace = gSettings.ACPI.DeviceRename[index].Name;
-    Find = List->Name;
-    Bridge = List->Next;
-    MsgLog("Name: %s, Bridge: %s, Replace: %s\n", Find, Bridge->Name, Replace);
+    const ACPI_RENAME_DEVICE& deviceRename = gSettings.ACPI.DeviceRename[index];
+    XString8Array FindList = deviceRename.acpiName.getSplittedName();
+    XString8 Replace = deviceRename.getRenameTo();
+    XString8 LastComponentFind;
+    if( FindList.notEmpty() )  LastComponentFind = FindList[0];
+    XString8Array BridgeList = FindList;
+    if( BridgeList.notEmpty() ) BridgeList.removeAtPos(0);
+    XString8 Bridge;
+    if( BridgeList.notEmpty() ) Bridge = BridgeList[0];
+
+    MsgLog("Name: %s, Bridge: %s, Replace: %s\n", LastComponentFind.c_str(), Bridge.c_str(), Replace.c_str());
     adr = 0;
     do
     {
-      shift = FindBin(table + adr, (UINT32)(len - adr), (const UINT8*)Find, 4); //next occurence
+      shift = FindBin(table + adr, (UINT32)(len - adr), (const UINT8*)LastComponentFind.c_str(), 4); //next occurence
       if (shift < 0) {
         break; //not found
       }
       adr += shift;
-//      DBG("found Name @ 0x%X\n", adr);
-      if (!Bridge || (FindBin(table + adr - 4, 5, (const UINT8*)(Bridge->Name), 4) == 0)) { // long name like "RP02.PXSX"
-        CopyMem(table + adr, Replace, 4);
+      DBG("found Name @ 0x%llX\n", adr);
+      if (Bridge.isEmpty() || (FindBin(table + adr - 4, 5, (const UINT8*)(Bridge.c_str()), 4) == 0)) { // long name like "RP02.PXSX"
+//        DBG("replace without bridge %.*s by %s at table+%llu\n", 4, table + adr, Replace.c_str(), adr);
+        CopyMem(table + adr, Replace.c_str(), 4);
         adr += 5; //at least, it is impossible to see  PXSXPXSX
-//        DBG("replaced\n");
         Num++;
         continue;
       }
@@ -5287,7 +5297,7 @@ void RenameDevices(UINT8* table)
       i = adr;
       while ((i > 0) && isACPI_Char(table[i])) i--; //skip attached name
       i -= 6;  //skip size and device field
- //     DBG("search for bridge since %d\n", adr);
+ //     DBG("search for bridge since %lld\n", adr);
       while (i > 0x20) {  //find devices that previous to adr
         found = FALSE;
         //check device
@@ -5302,10 +5312,11 @@ void RenameDevices(UINT8* table)
           found = TRUE;
         }
         if (found) {  // i points to Device or Scope
-          size = get_size(table, (UINT32)(UINTN)k); //k points to size  //        DBG("found bridge candidate 0x%X size %d\n", table[i], size);
+          size = get_size(table, (UINT32)(UINTN)k); //k points to size  //
+ //         DBG("found bridge candidate 0x%X size %lld\n", table[i], size);
           if (size) {
             if ((k + size) > (adr + 4)) {  //Yes - it is outer
-     //            DBG("found Bridge device begin=%X end=%X\n", k, k+size);
+  //            DBG("found Bridge device begin=%llX end=%llX\n", k, k+size);
               if (table[k] < 0x40) {
                 k += 1;
               }
@@ -5315,11 +5326,12 @@ void RenameDevices(UINT8* table)
               else if ((table[k] & 0x80) != 0) {
                 k += 3;
               } //now k points to the outer name
-              if (CmpFullName(table + k, len - k, Bridge)) {
-                CopyMem(table + adr, Replace, 4);
-                adr += 5;
+              if (CmpFullName(table + k, len - k, BridgeList)) {
                 DBG("found Bridge device begin=%llX end=%llX\n", k, k+size);
-    //            DBG("   name copied\n");
+                DBG("replace with bridge %.*s by %s at table+%llu\n", 4, table + adr, Replace.c_str(), adr);
+                CopyMem(table + adr, Replace.c_str(), 4);
+                adr += 5;
+                DBG("   name copied\n");
                 Num++;
                 break; //cancel search outer bridge, we found it.
               }
@@ -5349,7 +5361,8 @@ void FixBiosDsdt(UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, c
   GFXHDAFIX = TRUE;
   USBIDFIX = TRUE;
 
-  DsdtLen = ((EFI_ACPI_DESCRIPTION_HEADER*)temp)->Length;
+  EFI_ACPI_DESCRIPTION_HEADER* efi_acpi_description_header = (EFI_ACPI_DESCRIPTION_HEADER*)temp;
+  DsdtLen = efi_acpi_description_header->Length;
   if ((DsdtLen < 20) || (DsdtLen > 1000000)) { //fool proof (some ASUS dsdt > 300kb?). Up to 1Mb
     MsgLog("DSDT length out of range\n");
     return;

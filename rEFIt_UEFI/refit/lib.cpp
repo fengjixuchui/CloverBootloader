@@ -39,13 +39,14 @@
 #include "../include/OSTypes.h"
 #include "lib.h"
 #include "screen.h"
+#include "../Platform/BasicIO.h"
 #include "../Platform/BootLog.h"
 #include "../Platform/guid.h"
 #include "../Platform/APFS.h"
 #include "../refit/lib.h"
 #include "../Platform/Settings.h"
-#include "../Platform/Self.h"
-#include "../Platform/SelfOem.h"
+#include "../Settings/Self.h"
+#include "../Settings/SelfOem.h"
 #include "../Platform/Volumes.h"
 #include "../libeg/XTheme.h"
 
@@ -481,37 +482,37 @@ static void ScanVolumeBootcode(IN OUT REFIT_VOLUME *Volume, OUT BOOLEAN *Bootabl
         Volume->LegacyOS->Name = L"FreeDOS"_XSW;
         Volume->LegacyOS->Type = OSTYPE_VAR;
         Volume->BootType = BOOTING_BY_PBR;
-/*
+
       } else if (FindMem(SectorBuffer, 512, "OS2LDR", 6) >= 0 ||
                  FindMem(SectorBuffer, 512, "OS2BOOT", 7) >= 0) {
         Volume->HasBootCode = TRUE;
-        Volume->LegacyOS->IconName = L"ecomstation";
-        Volume->LegacyOS->Name = L"eComStation";
+        Volume->LegacyOS->IconName = L"ecomstation"_XSW;
+        Volume->LegacyOS->Name = L"eComStation"_XSW;
         Volume->LegacyOS->Type = OSTYPE_VAR;
         Volume->BootType = BOOTING_BY_PBR;
         
       } else if (FindMem(SectorBuffer, 512, "Be Boot Loader", 14) >= 0) {
         Volume->HasBootCode = TRUE;
-        Volume->LegacyOS->IconName = L"beos";
-        Volume->LegacyOS->Name = L"BeOS";
+        Volume->LegacyOS->IconName = L"beos"_XSW;
+        Volume->LegacyOS->Name = L"BeOS"_XSW;
         Volume->LegacyOS->Type = OSTYPE_VAR;
         Volume->BootType = BOOTING_BY_PBR;
         
       } else if (FindMem(SectorBuffer, 512, "yT Boot Loader", 14) >= 0) {
         Volume->HasBootCode = TRUE;
-        Volume->LegacyOS->IconName = L"zeta";
-        Volume->LegacyOS->Name = L"ZETA";
+        Volume->LegacyOS->IconName = L"zeta"_XSW;
+        Volume->LegacyOS->Name = L"ZETA"_XSW;
         Volume->LegacyOS->Type = OSTYPE_VAR;
         Volume->BootType = BOOTING_BY_PBR;
         
       } else if (FindMem(SectorBuffer, 512, "\x04" "beos\x06" "system\x05" "zbeos", 18) >= 0 ||
                  FindMem(SectorBuffer, 512, "haiku_loader", 12) >= 0) {
         Volume->HasBootCode = TRUE;
-        Volume->LegacyOS->IconName = L"haiku";
-        Volume->LegacyOS->Name = L"Haiku";
+        Volume->LegacyOS->IconName = L"haiku"_XSW;
+        Volume->LegacyOS->Name = L"Haiku"_XSW;
         Volume->LegacyOS->Type = OSTYPE_VAR;
         Volume->BootType = BOOTING_BY_PBR;
- */
+
       } 
     }
     
@@ -529,10 +530,10 @@ static void ScanVolumeBootcode(IN OUT REFIT_VOLUME *Volume, OUT BOOLEAN *Bootabl
       Volume->HasBootCode = FALSE;
 
 #ifdef JIEF_DEBUG
-//*Bootable = TRUE;
+////*Bootable = TRUE;
 //Volume->HasBootCode = TRUE;
-//Volume->LegacyOS->IconName = L"win";
-//Volume->LegacyOS->Name = L"Windows";
+//Volume->LegacyOS->IconName = L"win"_XSW;
+//Volume->LegacyOS->Name = L"Windows"_XSW;
 //Volume->LegacyOS->Type = OSTYPE_WIN;
 //Volume->BootType = BOOTING_BY_PBR;
 #endif
@@ -849,7 +850,7 @@ static EFI_STATUS ScanVolume(IN OUT REFIT_VOLUME *Volume)
       FreePool(RootInfo);
     }
   }
-  if ( Volume->VolName.isEmpty() || Volume->VolName.equal("\\") || Volume->VolName.equal(L"/") )
+  if ( Volume->VolName.isEmpty() || Volume->VolName.isEqual("\\") || Volume->VolName.isEqual(L"/") )
   {
     void *Instance;
     if (!EFI_ERROR(gBS->HandleProtocol(Volume->DeviceHandle, &gEfiPartTypeSystemPartGuid, &Instance))) {
@@ -1206,7 +1207,7 @@ REFIT_VOLUME *FindVolumeByName(IN CONST CHAR16 *VolName)
     if (!Volume) {
       continue;
     }
-    if (Volume->VolName.equal(VolName) == 0) {
+    if (Volume->VolName.isEqual(VolName) == 0) {
       return Volume;
     }
   }

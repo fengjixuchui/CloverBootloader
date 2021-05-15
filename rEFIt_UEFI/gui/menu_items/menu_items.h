@@ -108,7 +108,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
   bool               Hidden = 0;
   UINTN              Row = 0;
   CHAR16             ShortcutDigit = 0;
-  CHAR16             ShortcutLetter = 0;
+  char32_t           ShortcutLetter = 0;
   XIcon              Image = 0;
   EG_RECT            Place = EG_RECT();
   ACTION             AtClick = ActionNone;
@@ -270,7 +270,7 @@ class REFIT_ABSTRACT_MENU_ENTRY
     XIcon        BadgeImage;
 
     REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER()
-        : REFIT_ABSTRACT_MENU_ENTRY(), DevicePathString(0), LoadOptions(), LoaderPath(), DriveImage(), BadgeImage()
+        : REFIT_ABSTRACT_MENU_ENTRY(), DevicePathString(), LoadOptions(), LoaderPath(), DriveImage(), BadgeImage()
         {}
     REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER(const REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER&) = delete;
     REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER& operator=(const REFIT_MENU_ITEM_ABSTRACT_ENTRY_LOADER&) = delete;

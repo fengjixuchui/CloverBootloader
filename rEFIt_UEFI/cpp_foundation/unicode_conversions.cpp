@@ -1,10 +1,13 @@
-//
-//  unicode_conversions.cpp
-//
-//  Created by jief the 24 Feb 2020.
-//
+/*
+ *
+ * Created by jief the 24 Feb 2020.
+ * Copyright (c) 2020 Jief
+ * All rights reserved.
+ *
+ */
 
 #include "unicode_conversions.h"
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,6 +111,7 @@ const char32_t* utf8_size_of_utf32_char_ptr(const char32_t *s, size_t* size)
  * Store an utf32 char in dst, if there is enough room (dst_max_size is >= size of converted utf32 char)
  * If there is enough room, dst_max_size is decrement and dst is increment and returned
  * If there isn't enough room, dst_max_size is set to 0 and dst is returned
+ * if utf32_char == 0, it IS sent to dst
  */
 char* get_utf8_from_char32(char* dst, size_t* dst_max_size, char32_t utf32_char)
 {
@@ -400,6 +404,29 @@ size_t utf32_string_from_utf8_string_len(char32_t* dst, size_t dst_max_size, con
 	return (size_t)(p-dst);
 }
 
+  size_t utf32_string_from_utf8_string_size(char32_t* dst, size_t dst_max_size, const char* s, size_t size)
+  {
+    if ( dst_max_size == 0 ) return 0;
+    if ( !s  || size == 0 ) {
+      *dst = 0;
+      return 0;
+    }
+    
+    char32_t* p = dst;
+    dst_max_size -= 1;
+    const char* s_start = s;
+    char32_t* p_max = dst + dst_max_size;
+
+    char32_t char32;
+    s = get_char32_from_utf8_string(s, &char32);
+    while ( char32  &&  p < p_max  && (uintptr_t)(s - s_start) <= size ) {
+      *p++ = char32;
+      s = get_char32_from_utf8_string(s, &char32);
+    }
+    *p = 0;
+    return (size_t)(p-dst);
+  }
+
 size_t utf8_stringnn_from_utf32_string(char* dst, size_t dst_max_size, const char32_t *s)
 {
   if ( dst_max_size <= 0 ) return 0;
@@ -458,6 +485,25 @@ size_t utf8_string_from_utf32_string_len(char* dst, size_t dst_max_size, const c
 	*p = 0;
 	return (size_t)(p-dst);
 }
+
+  size_t utf8_string_from_utf32_string_size(char* dst, size_t dst_max_size, const char32_t *s, size_t size)
+  {
+    if ( dst_max_size <= 0 ) return 0;
+    if ( !s  || size <= 0 ) {
+      *dst = 0;
+      return 0;
+    }
+    
+    dst_max_size -= 1;
+    const char32_t* s_start = s;
+    char* p = dst;
+
+    while ( *s   &&  dst_max_size > 0  &&  (uintptr_t)(s - s_start) < size ) {
+      p = get_utf8_from_char32(p, &dst_max_size, *s++);
+    }
+    *p = 0;
+    return (size_t)(p-dst);
+  }
 
 /*
  * get nth char32 of an utf8 string
@@ -598,21 +644,41 @@ size_t utf8_string_from_utf16_string(char* dst, size_t dst_max_size, const char1
 
 size_t utf8_string_from_utf16_string_len(char* dst, size_t dst_max_size, const char16_t *s, size_t len)
 {
-	if ( dst_max_size <= 0 ) return 0;
-	if ( !s  || len <= 0 ) {
-		*dst = 0;
-		return 0;
-	}
+	if ( dst_max_size == 0 ) return 0;
+  if ( dst_max_size == 1 ||  !s  || len <= 0 ) {
+    *dst = 0;
+    return 0;
+  }
 	char* p = dst;
 	dst_max_size -= 1;
+  char32_t utf32_char;
 	while ( *s  &&  dst_max_size > 0  && len > 0 ) {
-		char32_t utf32_char;
 		s = get_char32_from_utf16_string(s, &utf32_char);
 		p = get_utf8_from_char32(p, &dst_max_size, utf32_char);
 		len--;
 	}
 	*p = 0;
 	return (size_t)(p-dst);
+}
+
+size_t utf8_string_from_utf16_string_size(char* dst, size_t dst_max_size, const char16_t *s, size_t size)
+{
+  if ( dst_max_size == 0 ) return 0;
+  if ( dst_max_size == 1 ||  !s  || size <= 0 ) {
+    *dst = 0;
+    return 0;
+  }
+  char* p = dst;
+  dst_max_size -= 1;
+  const char16_t* s_start = s;
+  char32_t char32;
+  s = get_char32_from_utf16_string(s, &char32);
+  while ( char32  &&  dst_max_size > 0  && (uintptr_t)(s - s_start) <= size ) {
+    p = get_utf8_from_char32(p, &dst_max_size, char32);
+    s = get_char32_from_utf16_string(s, &char32);
+  }
+  *p = 0;
+  return (size_t)(p-dst);
 }
 
 
@@ -695,6 +761,26 @@ size_t utf16_string_from_utf8_string_len(char16_t* dst, size_t dst_max_size, con
 	}
 	*p = 0;
 	return (size_t)(p-dst);
+}
+
+size_t utf16_string_from_utf8_string_size(char16_t* dst, size_t dst_max_size, const char* s, size_t size)
+{
+  if ( dst_max_size == 0 ) return 0;
+  if ( dst_max_size == 1 ||  !s  || size <= 0 ) {
+    *dst = 0;
+    return 0;
+  }
+  char16_t* p = dst;
+  dst_max_size -= 1;
+  const char* s_start = s;
+  char32_t char32;
+  s = get_char32_from_utf8_string(s, &char32);
+  while ( char32  &&  dst_max_size > 0  && (uintptr_t)(s - s_start) <= size ) {
+    p = get_utf16_from_char32(p, &dst_max_size, char32);
+    s = get_char32_from_utf8_string(s, &char32);
+  }
+  *p = 0;
+  return (size_t)(p-dst);
 }
 
 
@@ -872,6 +958,25 @@ size_t utf16_string_from_utf32_string_len(char16_t* dst, size_t dst_max_size, co
 	return (size_t)(p-dst);
 }
 
+size_t utf16_string_from_utf32_string_size(char16_t* dst, size_t dst_max_size, const char32_t *s, size_t size)
+{
+  if ( dst_max_size <= 0 ) return 0;
+  if ( !s  || size <= 0 ) {
+    *dst = 0;
+    return 0;
+  }
+  
+  dst_max_size -= 1;
+  const char32_t* s_start = s;
+  char16_t* p = dst;
+
+  while ( *s   &&  dst_max_size > 0  &&  (uintptr_t)(s - s_start) < size ) {
+    p = get_utf16_from_char32(p, &dst_max_size, *s++);
+  }
+  *p = 0;
+  return (size_t)(p-dst);
+}
+
 size_t utf32_stringnn_from_utf16_string(char32_t* dst, size_t dst_max_size, const char16_t *s)
 {
   if ( dst_max_size <= 0 ) return 0;
@@ -941,6 +1046,28 @@ size_t utf32_string_from_utf16_string_len(char32_t* dst, size_t dst_max_size, co
 	}
 	*p = 0;
 	return (size_t)(p-dst);
+}
+
+size_t utf32_string_from_utf16_string_size(char32_t* dst, size_t dst_max_size, const char16_t *s, size_t size)
+{
+  if ( dst_max_size <= 0 ) return 0;
+  if ( !s  || size <= 0 ) {
+    *dst = 0;
+    return 0;
+  }
+  dst_max_size -= 1;
+  const char16_t* s_start = s;
+  char32_t* p = dst;
+  char32_t* p_max = dst + dst_max_size;
+
+  char32_t char32;
+  s = get_char32_from_utf16_string(s, &char32);
+  while ( char32 != 0   &&  p < p_max  &&  (uintptr_t)(s - s_start) <= size ) {
+    *p++ = char32;
+    s = get_char32_from_utf16_string(s, &char32);
+  }
+  *p = 0;
+  return (size_t)(p-dst);
 }
 
 
@@ -1021,9 +1148,18 @@ size_t utf8_string_from_wchar_string(char* dst, size_t dst_max_size, const wchar
 size_t utf8_string_from_wchar_string_len(char* dst, size_t dst_max_size, const wchar_t* s, size_t len)
 {
 #if __WCHAR_MAX__ <= 0xFFFFu
-	return utf8_string_from_utf16_string_len(dst, dst_max_size, (char16_t*)s, len);
+  return utf8_string_from_utf16_string_len(dst, dst_max_size, (char16_t*)s, len);
 #else
-	return utf8_string_from_utf32_string_len(dst, dst_max_size, (char32_t*)s, len);
+  return utf8_string_from_utf32_string_len(dst, dst_max_size, (char32_t*)s, len);
+#endif
+}
+
+size_t utf8_string_from_wchar_string_size(char* dst, size_t dst_max_size, const wchar_t* s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf8_string_from_utf16_string_size(dst, dst_max_size, (char16_t*)s, size);
+#else
+  return utf8_string_from_utf32_string_size(dst, dst_max_size, (char32_t*)s, size);
 #endif
 }
 
@@ -1048,9 +1184,18 @@ size_t wchar_string_from_utf8_string(wchar_t* dst, size_t dst_max_size, const ch
 size_t wchar_string_from_utf8_string_len(wchar_t* dst, size_t dst_max_size, const char* s, size_t len)
 {
 #if __WCHAR_MAX__ <= 0xFFFFu
-	return utf16_string_from_utf8_string_len((char16_t*)dst, dst_max_size, s, len);
+  return utf16_string_from_utf8_string_len((char16_t*)dst, dst_max_size, s, len);
 #else
-	return utf32_string_from_utf8_string_len((char32_t*)dst, dst_max_size, s, len);
+  return utf32_string_from_utf8_string_len((char32_t*)dst, dst_max_size, s, len);
+#endif
+}
+
+size_t wchar_string_from_utf8_string_size(wchar_t* dst, size_t dst_max_size, const char* s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf16_string_from_utf8_string_size((char16_t*)dst, dst_max_size, s, size);
+#else
+  return utf32_string_from_utf8_string_size((char32_t*)dst, dst_max_size, s, size);
 #endif
 }
 
@@ -1120,6 +1265,15 @@ size_t utf16_string_from_wchar_string_len(char16_t* dst, size_t dst_max_size, co
 #endif
 }
 
+size_t utf16_string_from_wchar_string_size(char16_t* dst, size_t dst_max_size, const wchar_t* s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf16_string_from_utf16_string_size(dst, dst_max_size, (char16_t*)s, size);
+#else
+  return utf16_string_from_utf32_string_size(dst, dst_max_size, (char32_t*)s, size);
+#endif
+}
+
 size_t wchar_stringnn_from_utf16_string(wchar_t* dst, size_t dst_max_size, const char16_t* s)
 {
 #if __WCHAR_MAX__ <= 0xFFFFu
@@ -1144,6 +1298,15 @@ size_t wchar_string_from_utf16_string_len(wchar_t* dst, size_t dst_max_size, con
 	return utf16_string_from_utf16_string_len((char16_t*)dst, dst_max_size, s, len);
 #else
 	return utf32_string_from_utf16_string_len((char32_t*)dst, dst_max_size, s, len);
+#endif
+}
+
+size_t wchar_string_from_utf16_string_size(wchar_t* dst, size_t dst_max_size, const char16_t* s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf16_string_from_utf16_string_size((char16_t*)dst, dst_max_size, s, size);
+#else
+  return utf32_string_from_utf16_string_size((char32_t*)dst, dst_max_size, s, size);
 #endif
 }
 
@@ -1205,6 +1368,24 @@ size_t utf32_string_from_wchar_string(char32_t* dst, size_t dst_max_size, const 
 #endif
 }
 
+size_t utf32_string_from_wchar_string_len(char32_t* dst, size_t dst_max_size, const wchar_t* s, size_t len)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf32_string_from_utf16_string_len(dst, dst_max_size, (char16_t*)s, len);
+#else
+  return utf32_string_from_utf32_string_len(dst, dst_max_size, (char32_t*)s, len);
+#endif
+}
+
+size_t utf32_string_from_wchar_string_size(char32_t* dst, size_t dst_max_size, const wchar_t* s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf32_string_from_utf16_string_size(dst, dst_max_size, (char16_t*)s, size);
+#else
+  return utf32_string_from_utf32_string_size(dst, dst_max_size, (char32_t*)s, size);
+#endif
+}
+
 size_t wchar_stringnn_from_utf32_string(wchar_t* dst, size_t dst_max_size, const char32_t* s)
 {
 #if __WCHAR_MAX__ <= 0xFFFFu
@@ -1220,6 +1401,24 @@ size_t wchar_string_from_utf32_string(wchar_t* dst, size_t dst_max_size, const c
   return utf16_string_from_utf32_string((char16_t*)dst, dst_max_size, s);
 #else
   return utf32_string_from_utf32_string((char32_t*)dst, dst_max_size, s);
+#endif
+}
+
+size_t wchar_string_from_utf32_string_len(wchar_t* dst, size_t dst_max_size, const char32_t* s, size_t len)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf16_string_from_utf32_string_len((char16_t*)dst, dst_max_size, s, len);
+#else
+  return utf32_string_from_utf32_string_len((char32_t*)dst, dst_max_size, s, len);
+#endif
+}
+
+size_t wchar_string_from_utf32_string_size(wchar_t* dst, size_t dst_max_size, const char32_t* s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf16_string_from_utf32_string_size((char16_t*)dst, dst_max_size, s, size);
+#else
+  return utf32_string_from_utf32_string_size((char32_t*)dst, dst_max_size, s, size);
 #endif
 }
 
@@ -1247,16 +1446,22 @@ char32_t get_char32_from_wchar_string_at_pos(const char16_t* s, size_t pos)
 size_t utf8_size_of_utf8_string(const char* s)
 {
 	if ( !s ) return 0;
-	char32_t char32 = 1;
-	const char* p = s; // = get_char32_from_utf8_string(s, &char32);
-	while ( char32 ) {
-		p = get_char32_from_utf8_string(p, &char32);
-	}
-	return (uintptr_t)p - (uintptr_t)s;
-//
+////2021 : tested on macOS. With this version, test took 8 seconds.
+//	char32_t char32 = 1;
 //	const char* p = s;
-//	while ( *p++ );
-//	return (size_t)(p-s-1);
+//	while ( char32 ) {
+//		p = get_char32_from_utf8_string(p, &char32);
+//	}
+//  return (uintptr_t)p - (uintptr_t)s;
+
+    return strlen(s);// With this version, test took 0.2 seconds. strlen on macOs is optimized for SSE.
+
+//    return clover_strlen(s); // With this version, test took 0.4 seconds.
+
+//// 2021 : // With this version, test took 2.2 seconds.
+//  const char* p = s;
+//  while ( *p++ );
+//  return (uintptr_t)p - (uintptr_t)s - 1;
 }
 
 size_t utf8_size_of_utf8_string_len(const char* s, size_t len)
@@ -1381,21 +1586,75 @@ size_t utf8_string_from_utf8_string(char* dst, size_t dst_max_size, const char *
 
 size_t utf8_string_from_utf8_string_len(char* dst, size_t dst_max_size, const char *s, size_t len)
 {
-	if ( !s  || len <= 0 || dst_max_size <= 1 ) {
-		if ( dst_max_size > 0 ) *dst = 0;
-		return 0;
-	}
-	dst_max_size -= 1;
-	char* p = dst;
-	char32_t char32;
-	s = get_char32_from_utf8_string(s, &char32);
-	while ( char32 && dst_max_size > 0  && len > 0) {
-		p = get_utf8_from_char32(p, &dst_max_size, char32);
-		s = get_char32_from_utf8_string(s, &char32);
-		len--;
-	}
-	*p = 0;
-	return (uintptr_t)p - (uintptr_t)dst - 1;
+  if ( !s  || len <= 0 || dst_max_size <= 1 ) {
+    if ( dst_max_size > 0 ) *dst = 0;
+    return 0;
+  }
+  dst_max_size -= 1;
+  char* p = dst;
+  char32_t char32;
+  s = get_char32_from_utf8_string(s, &char32);
+  while ( char32 && dst_max_size > 0  && len > 0) {
+    p = get_utf8_from_char32(p, &dst_max_size, char32);
+    s = get_char32_from_utf8_string(s, &char32);
+    len--;
+  }
+  *p = 0;
+//  return (uintptr_t)p - (uintptr_t)dst - 1;
+  return (uintptr_t)p - (uintptr_t)dst;
+}
+
+/*
+  Number    Bits for    First    Last          Byte 1    Byte 2    Byte 3    cByte 4
+  of bytes  code point
+     1          7       U+0000   U+007F        0xxxxxxx
+     2         11       U+0080   U+07FF        110xxxxx  10xxxxxx
+     3         16       U+0800   U+FFFF        1110xxxx  10xxxxxx  10xxxxxx
+     4         21       U+10000  U+10FFFF[12]  11110xxx  10xxxxxx  10xxxxxx  10xxxxxx
+*/
+
+size_t utf8_string_from_utf8_string_size(char* dst, size_t dst_max_size, const char *s, size_t size)
+{
+  if ( !s  || size <= 0 || dst_max_size <= 1 ) {
+    if ( dst_max_size > 0 ) *dst = 0;
+    return 0;
+  }
+  size_t real_size = utf8_size_of_utf8_string(s);
+  if ( real_size == 0 ) {
+    *dst = 0; // here, dst_max_size is > 1
+    return 0;
+  }
+  size = MIN(real_size, size);
+  dst_max_size -= 1;
+  size = MIN(size, dst_max_size);
+
+  if ( s[size-1] & 0x80 )
+  {
+    size_t idx_of_first_multibyte = size;
+    while ( idx_of_first_multibyte > 0  &&  (s[--idx_of_first_multibyte] & 0xC0) == 0x80 ) ;
+    
+    if ( (s[idx_of_first_multibyte] & 0xC0) == 0xC0 ) // this is the first of the multibyte sequence
+    {
+      if ( (s[idx_of_first_multibyte] & 0xE0) == 0xC0 ) { // 2 bytes sequence
+        if ( size - idx_of_first_multibyte < 2 ) size = idx_of_first_multibyte;
+        else size = idx_of_first_multibyte + 2;
+      }else
+      if ( (s[idx_of_first_multibyte] & 0xF0) == 0xE0 ) { // 3 bytes sequence
+        if ( size - idx_of_first_multibyte < 3 ) size = idx_of_first_multibyte;
+        else size = idx_of_first_multibyte + 3;
+      }else
+      if ( (s[idx_of_first_multibyte] & 0xF8) == 0xF0 ) { // 3 bytes sequence
+        if ( size - idx_of_first_multibyte < 4 ) size = idx_of_first_multibyte;
+        else size = idx_of_first_multibyte + 4;
+      }
+    }else{
+      while ( size > 1 &&  ( s[--size] & 0x80 ) ) ; // remove all the multibyte chars because there is none multibyte beginning sequence.
+    }
+  }
+//  while ( size > 0 && (s[size-1] & 0x80) ) --size; // ignore incomplete UTF8 sequence. // Cannot put the --size inside the if because size must not be modified if !(s[size-1] & 0x80)
+  memmove(dst, s, size);
+  dst[size] = 0;
+  return size;
 }
 
 size_t utf16_stringnn_from_utf16_string(char16_t* dst, size_t dst_max_size, const char16_t *s)
@@ -1468,7 +1727,30 @@ size_t utf16_string_from_utf16_string_len(char16_t* dst, size_t dst_max_size, co
 		len--;
 	}
 	*p = 0;
-	return (uintptr_t)p - (uintptr_t)dst - 1;
+	return (uintptr_t)(p - dst);
+}
+
+size_t utf16_string_from_utf16_string_size(char16_t* dst, size_t dst_max_size, const char16_t *s, size_t size)
+{
+  if ( dst_max_size == 0 ) return 0;
+  if ( dst_max_size == 1 ||  !s  || size <= 0 ) {
+    *dst = 0;
+    return 0;
+  }
+  size_t real_size = utf16_size_of_utf16_string(s);
+  if ( real_size == 0 ) {
+    *dst = 0; // here, dst_max_size is > 1
+    return 0;
+  }
+  size = MIN(real_size, size); // size & real_size are >= 1
+  dst_max_size -= 1;           // dst_max_size is > 1
+  size = MIN(size, dst_max_size); // here, size is >= 1
+
+  if ( is_high_surrogate(s[size-1]) ) --size;
+
+  memmove(dst, s, size*sizeof(char16_t));
+  dst[size] = 0;
+  return size;
 }
 
 size_t utf32_stringnn_from_utf32_string(char32_t* dst, size_t dst_max_size, const char32_t *s)
@@ -1520,7 +1802,27 @@ size_t utf32_string_from_utf32_string_len(char32_t* dst, size_t dst_max_size, co
 	else dst_max_size -= 1;
 	memcpy((void*)dst, (void*)s, dst_max_size * sizeof(char32_t));
 	dst[dst_max_size] = 0;
-	return dst_max_size * sizeof(char32_t);
+	return dst_max_size;
+}
+
+size_t utf32_string_from_utf32_string_size(char32_t* dst, size_t dst_max_size, const char32_t *s, size_t size)
+{
+  if ( !s  || size <= 0 || dst_max_size <= 1 ) {
+    if ( dst_max_size > 0 ) *dst = 0;
+    return 0;
+  }
+  size_t real_size = utf32_size_of_utf32_string(s);
+  if ( real_size == 0 ) {
+    *dst = 0; // here, dst_max_size is > 1
+    return 0;
+  }
+  size = MIN(real_size, size);
+  dst_max_size -= 1;
+  size = MIN(size, dst_max_size);
+
+  memmove(dst, s, size*sizeof(char32_t));
+  dst[size] = 0;
+  return size;
 }
 
 size_t wchar_stringnn_from_wchar_string(wchar_t* dst, size_t dst_max_size, const wchar_t *s)
@@ -1544,9 +1846,18 @@ size_t wchar_string_from_wchar_string(wchar_t* dst, size_t dst_max_size, const w
 size_t wchar_string_from_wchar_string_len(wchar_t* dst, size_t dst_max_size, const wchar_t *s, size_t len)
 {
 #if __WCHAR_MAX__ <= 0xFFFFu
-	return utf16_string_from_utf16_string_len((char16_t*)dst, dst_max_size, (char16_t*)s, len);
+  return utf16_string_from_utf16_string_len((char16_t*)dst, dst_max_size, (char16_t*)s, len);
 #else
-	return utf32_string_from_utf32_string_len((char32_t*)dst, dst_max_size, (char32_t*)s, len);
+  return utf32_string_from_utf32_string_len((char32_t*)dst, dst_max_size, (char32_t*)s, len);
+#endif
+}
+
+size_t wchar_string_from_wchar_string_size(wchar_t* dst, size_t dst_max_size, const wchar_t *s, size_t size)
+{
+#if __WCHAR_MAX__ <= 0xFFFFu
+  return utf16_string_from_utf16_string_size((char16_t*)dst, dst_max_size, (char16_t*)s, size);
+#else
+  return utf32_string_from_utf32_string_size((char32_t*)dst, dst_max_size, (char32_t*)s, size);
 #endif
 }
 

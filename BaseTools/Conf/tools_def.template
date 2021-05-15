@@ -1875,21 +1875,27 @@ NOOPT_VS2017_IA32_DLINK_FLAGS   = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /OPT:REF /O
 *_VS2017_X64_DLINK_PATH    = DEF(VS2017_BIN_X64)\link.exe
 *_VS2017_X64_ASLDLINK_PATH = DEF(VS2017_BIN_X64)\link.exe
 
-  DEBUG_VS2017_X64_CC_FLAGS     = /nologo /c /WX /GS- /W4 /Gs32768 /D UNICODE /O1b2s /GL /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Z7 /Gw /MP
-RELEASE_VS2017_X64_CC_FLAGS     = /nologo /c /WX /GS- /W4 /Gs32768 /D UNICODE /O1b2s /GL /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Gw /MP
-NOOPT_VS2017_X64_CC_FLAGS       = /nologo /c /WX /GS- /W4 /Gs32768 /D UNICODE /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Z7 /Od /MP
+#we can use /X (no std include path) because OC use stddef.h from the plaform. It's wrong ! TODO
+#without /Gw, it compile but it's to big at link time
+  DEBUG_VS2017_X64_CC_FLAGS     = /nologo /Zc:forScope /Zc:inline /Zc:wchar_t /Gd /Oi- /c     /GS- /W4 /Gs32768 /D UNICODE /D _UNICODE /Od        /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Zi /Gw /MP
+RELEASE_VS2017_X64_CC_FLAGS     = /nologo /Zc:forScope /Zc:inline /Zc:wchar_t /Gd /Oi- /c /WX /GS- /W4 /Gs32768 /D UNICODE /D _UNICODE /O1b2s /GL /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Zi /Gw /MP
+NOOPT_VS2017_X64_CC_FLAGS       = /nologo /Zc:forScope /Zc:inline /Zc:wchar_t /Gd /Oi- /c     /GS- /W4 /Gs32768 /D UNICODE /D _UNICODE /Od        /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Zi /Gw /MP
 
-  DEBUG_VS2017_X64_ASM_FLAGS    = /nologo /c /WX /W3 /Cx /Zd /Zi
+  DEBUG_VS2017_X64_CXX_FLAGS    = /nologo /Zc:forScope /Zc:inline /Zc:wchar_t /Gd /Oi- /c     /GS- /W4 /Gs32768 /D UNICODE /D _UNICODE /Od        /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Zi /Gw /MP
+RELEASE_VS2017_X64_CXX_FLAGS    = /nologo /Zc:forScope /Zc:inline /Zc:wchar_t /Gd /Oi- /c /WX /GS- /W4 /Gs32768 /D UNICODE /D _UNICODE /O1b2s /GL /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Zi /Gw /MP
+NOOPT_VS2017_X64_CXX_FLAGS      = /nologo /Zc:forScope /Zc:inline /Zc:wchar_t /Gd /Oi- /c     /GS- /W4 /Gs32768 /D UNICODE /D _UNICODE /Od        /Gy /FIAutoGen.h /EHs-c- /GR- /GF /Zi /Gw /MP
+
+  DEBUG_VS2017_X64_ASM_FLAGS    = /nologo /c     /W3 /Cx /Zd /Zi
 RELEASE_VS2017_X64_ASM_FLAGS    = /nologo /c /WX /W3 /Cx /Zd
-NOOPT_VS2017_X64_ASM_FLAGS      = /nologo /c /WX /W3 /Cx /Zd /Zi
+NOOPT_VS2017_X64_ASM_FLAGS      = /nologo /c     /W3 /Cx /Zd /Zi
 
   DEBUG_VS2017_X64_NASM_FLAGS   = -Ox -f win64 -g
 RELEASE_VS2017_X64_NASM_FLAGS   = -Ox -f win64
 NOOPT_VS2017_X64_NASM_FLAGS     = -O0 -f win64 -g
 
-  DEBUG_VS2017_X64_DLINK_FLAGS  = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /IGNORE:4281 /IGNORE:4210 /OPT:REF /OPT:ICF=10 /MAP /ALIGN:32 /SECTION:.xdata,D /SECTION:.pdata,D /Machine:X64 /LTCG /DLL /ENTRY:$(IMAGE_ENTRY_POINT) /SUBSYSTEM:EFI_BOOT_SERVICE_DRIVER /SAFESEH:NO /BASE:0 /DRIVER /DEBUG
-RELEASE_VS2017_X64_DLINK_FLAGS  = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /IGNORE:4281 /IGNORE:4254 /IGNORE:4210 /OPT:REF /OPT:ICF=10 /MAP /ALIGN:32 /SECTION:.xdata,D /SECTION:.pdata,D /Machine:X64 /LTCG /DLL /ENTRY:$(IMAGE_ENTRY_POINT) /SUBSYSTEM:EFI_BOOT_SERVICE_DRIVER /SAFESEH:NO /BASE:0 /DRIVER /MERGE:.rdata=.data
-NOOPT_VS2017_X64_DLINK_FLAGS    = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /IGNORE:4281 /OPT:REF /IGNORE:4210 /OPT:ICF=10 /MAP /ALIGN:32 /SECTION:.xdata,D /SECTION:.pdata,D /Machine:X64 /LTCG /DLL /ENTRY:$(IMAGE_ENTRY_POINT) /SUBSYSTEM:EFI_BOOT_SERVICE_DRIVER /SAFESEH:NO /BASE:0 /DRIVER /DEBUG
+  DEBUG_VS2017_X64_DLINK_FLAGS  = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /IGNORE:4281 /IGNORE:4210              /OPT:REF /OPT:ICF=10 /MAP /ALIGN:32 /SECTION:.xdata,D /SECTION:.pdata,D /Machine:X64 /LTCG /DLL /ENTRY:$(IMAGE_ENTRY_POINT) /SUBSYSTEM:EFI_BOOT_SERVICE_DRIVER /SAFESEH:NO /BASE:0 /DRIVER /DEBUG
+RELEASE_VS2017_X64_DLINK_FLAGS  = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /IGNORE:4281 /IGNORE:4210 /IGNORE:4254 /OPT:REF /OPT:ICF=10 /MAP /ALIGN:32 /SECTION:.xdata,D /SECTION:.pdata,D /Machine:X64 /LTCG /DLL /ENTRY:$(IMAGE_ENTRY_POINT) /SUBSYSTEM:EFI_BOOT_SERVICE_DRIVER /SAFESEH:NO /BASE:0 /DRIVER /MERGE:.rdata=.data
+NOOPT_VS2017_X64_DLINK_FLAGS    = /NOLOGO /NODEFAULTLIB /IGNORE:4001 /IGNORE:4281 /IGNORE:4210              /OPT:REF /OPT:ICF=10 /MAP /ALIGN:32 /SECTION:.xdata,D /SECTION:.pdata,D /Machine:X64 /LTCG /DLL /ENTRY:$(IMAGE_ENTRY_POINT) /SUBSYSTEM:EFI_BOOT_SERVICE_DRIVER /SAFESEH:NO /BASE:0 /DRIVER /DEBUG
 
 #################
 # ARM definitions
@@ -2079,7 +2085,7 @@ DEFINE GCC5_AARCH64_ASLDLINK_FLAGS   = DEF(GCC49_AARCH64_ASLDLINK_FLAGS)
 DEFINE GCC5_ASLCC_FLAGS              = DEF(GCC49_ASLCC_FLAGS) -fno-lto
 
 DEFINE GCC53_IA32_CC_FLAGS           = DEF(GCC49_IA32_CC_FLAGS)
-DEFINE GCC53_X64_CC_FLAGS            = DEF(GCC49_X64_CC_FLAGS) -fno-unwind-tables -Wno-incompatible-ms-struct -mms-bitfields -fno-ms-extensions -ffreestanding -fno-exceptions -nostdinc
+DEFINE GCC53_X64_CC_FLAGS            = DEF(GCC49_X64_CC_FLAGS) -fno-unwind-tables -Wno-incompatible-ms-struct -mms-bitfields -fno-ms-extensions -ffreestanding -fno-exceptions
 DEFINE GCC53_IA32_X64_DLINK_COMMON   = -nostdlib -Wl,-n,-q,--gc-sections,-z,common-page-size=0x40,--defsym=PECOFF_HEADER_SIZE=0x240,--script=$(EDK_TOOLS_PATH)/Scripts/GccBase.lds
 
 DEFINE GCC53_IA32_X64_ASLDLINK_FLAGS = DEF(GCC53_IA32_X64_DLINK_COMMON),--entry,ReferenceAcpiTable,-u,ReferenceAcpiTable
@@ -2416,9 +2422,9 @@ RELEASE_GCC48_AARCH64_CC_FLAGS   = DEF(GCC48_AARCH64_CC_FLAGS) -Wno-unused-but-s
 
 #Jief removed lto flag. It is set in CLover.dsc, from the env var 'DISABLE_LTO'
   DEBUG_GCC53_X64_CC_FLAGS       = DEF(GCC53_X64_CC_FLAGS) -g3 -O0
-RELEASE_GCC53_X64_CC_FLAGS       = DEF(GCC53_X64_CC_FLAGS)     -Os -Werror
+RELEASE_GCC53_X64_CC_FLAGS       = DEF(GCC53_X64_CC_FLAGS) -g3 -Os -Werror
   DEBUG_GCC53_X64_CXX_FLAGS      = DEF(GCC53_X64_CC_FLAGS) -g3 -O0
-RELEASE_GCC53_X64_CXX_FLAGS      = DEF(GCC53_X64_CC_FLAGS)     -Os -Werror
+RELEASE_GCC53_X64_CXX_FLAGS      = DEF(GCC53_X64_CC_FLAGS) -g3 -Os -Werror
 
 #
 #
@@ -2569,14 +2575,16 @@ RELEASE_XCODE8_*_MTOC_FLAGS = -align 0x20
 # X64 definitions
 ##################
        DEBUG_XCODE8_X64_DLINK_FLAGS      = -arch x86_64 -nostdlib -Wl,-u,_$(IMAGE_ENTRY_POINT),-e,_$(IMAGE_ENTRY_POINT),-preload,-segalign,0x20,-pie,-all_load,-dead_strip,-seg1addr,0x260,-map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map
-  DEBUGMACOS_XCODE8_X64_DLINK_FLAGS      = -arch x86_64 -nostdlib -Wl,-u,_$(IMAGE_ENTRY_POINT),-e,_$(IMAGE_ENTRY_POINT),-preload,-segalign,0x20,-pie,-all_load,-dead_strip,-seg1addr,0x260,-map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map
+  DEBUGMACOS_XCODE8_X64_DLINK_FLAGS      = -arch x86_64 -nostdlib -Wl,-u,_$(IMAGE_ENTRY_POINT),-e,_$(IMAGE_ENTRY_POINT),-preload,-segalign,0x20,-pie,-all_load,-dead_strip,-seg1addr,0x800,-map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map
      RELEASE_XCODE8_X64_DLINK_FLAGS      = -arch x86_64 -nostdlib -Wl,-u,_$(IMAGE_ENTRY_POINT),-e,_$(IMAGE_ENTRY_POINT),-preload,-segalign,0x20,-pie,-all_load,-dead_strip,-seg1addr,0x260,-map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map
+RELEASEMACOS_XCODE8_X64_DLINK_FLAGS      = -arch x86_64 -nostdlib -Wl,-u,_$(IMAGE_ENTRY_POINT),-e,_$(IMAGE_ENTRY_POINT),-preload,-segalign,0x20,-pie,-all_load,-dead_strip,-seg1addr,0x800,-map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map
 
            *_XCODE8_X64_SLINK_FLAGS      = -static -no_warning_for_no_symbols -o 
            
          DEBUG_XCODE8_X64_ASM_FLAGS      = -c -x assembler -arch x86_64 -g
     DEBUGMACOS_XCODE8_X64_ASM_FLAGS      = -c -x assembler -arch x86_64 -g
        RELEASE_XCODE8_X64_ASM_FLAGS      = -c -x assembler -arch x86_64
+  RELEASEMACOS_XCODE8_X64_ASM_FLAGS      = -c -x assembler -arch x86_64
        
             *_XCODE8_X64_NASM_FLAGS      = -f macho64
                 *_XCODE8_*_PP_FLAGS      = DEF(GCC_PP_FLAGS)
@@ -2591,12 +2599,14 @@ RELEASE_XCODE8_*_MTOC_FLAGS = -align 0x20
  
 
 
-          DEBUG_XCODE8_X64_CC_FLAGS      = -g -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS) -target x86_64-pc-win32-macho "-DEFIAPI=__attribute__((ms_abi))"
-     DEBUGMACOS_XCODE8_X64_CC_FLAGS      = -g -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS)
+          DEBUG_XCODE8_X64_CC_FLAGS      = -g3 -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS) -target x86_64-pc-win32-macho "-DEFIAPI=__attribute__((ms_abi))"
+     DEBUGMACOS_XCODE8_X64_CC_FLAGS      = -g3 -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS)
         RELEASE_XCODE8_X64_CC_FLAGS      =            -Os DEF(XCODE8_COMMON_FLAGS) -target x86_64-pc-win32-macho "-DEFIAPI=__attribute__((ms_abi))" -Werror
-         DEBUG_XCODE8_X64_CXX_FLAGS      = -g -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS) -target x86_64-pc-win32-macho "-DEFIAPI=__attribute__((ms_abi))"
-    DEBUGMACOS_XCODE8_X64_CXX_FLAGS      = -g -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS)
+   RELEASEMACOS_XCODE8_X64_CC_FLAGS      =            -Os DEF(XCODE8_COMMON_FLAGS)
+         DEBUG_XCODE8_X64_CXX_FLAGS      = -g3 -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS) -target x86_64-pc-win32-macho "-DEFIAPI=__attribute__((ms_abi))"
+    DEBUGMACOS_XCODE8_X64_CXX_FLAGS      = -g3 -gdwarf -O0 DEF(XCODE8_COMMON_FLAGS)
        RELEASE_XCODE8_X64_CXX_FLAGS      =            -Os DEF(XCODE8_COMMON_FLAGS) -target x86_64-pc-win32-macho "-DEFIAPI=__attribute__((ms_abi))" -Werror
+  RELEASEMACOS_XCODE8_X64_CXX_FLAGS      =            -Os DEF(XCODE8_COMMON_FLAGS)
 
 *_XCODE8_*_ASLCC_FLAGS      = -x c -save-temps -g -O0 -fshort-wchar -fno-strict-aliasing -Wall -Werror -c -include AutoGen.h
 *_XCODE8_*_ASLDLINK_FLAGS   = -nostdlib -Wl,-e,_ReferenceAcpiTable,-preload,-segalign,0x20,-pie,-seg1addr,0x260,-read_only_relocs,suppress,-map,$(DEST_DIR_DEBUG)/$(BASE_NAME).map

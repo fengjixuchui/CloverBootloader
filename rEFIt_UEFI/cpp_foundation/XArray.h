@@ -1,12 +1,10 @@
-//*************************************************************************************************
-//*************************************************************************************************
-//
-//                                          XArray
-//
-// Developed by jief666, from 1997.
-//
-//*************************************************************************************************
-//*************************************************************************************************
+/*
+ *
+ * Created by jief in 1997.
+ * Copyright (c) 2020 Jief
+ * All rights reserved.
+ *
+ */
 
 #if !defined(__XARRAY_H__)
 #define __XARRAY_H__
@@ -48,11 +46,11 @@ class XArray
 
   //low case functions like in std::vector
 
-  const TYPE& begin() const { return ElementAt(0); }
-        TYPE& begin()       { return ElementAt(0); }
+  const TYPE& begin() const { if ( m_len == 0 ) panic("m_len == 0"); return ElementAt(0); }
+        TYPE& begin()       { if ( m_len == 0 ) panic("m_len == 0"); return ElementAt(0); }
 
-  const TYPE& end() const { return ElementAt(m_len - 1); }
-        TYPE& end()       { return ElementAt(m_len - 1); }
+  const TYPE& end() const { if ( m_len == 0 ) panic("m_len == 0"); return ElementAt(m_len - 1); }
+        TYPE& end()       { if ( m_len == 0 ) panic("m_len == 0"); return ElementAt(m_len - 1); }
 
   size_t insert(const TYPE newElement, size_t pos, size_t count = 1) { return Insert(newElement, pos, count); }
  
@@ -78,6 +76,24 @@ class XArray
   const TYPE &operator[](IntegralType nIndex) const { return ElementAt(nIndex); }
   template<typename IntegralType, enable_if(is_integral(IntegralType))>
   TYPE &operator[](IntegralType nIndex) { return ElementAt(nIndex); }
+
+  bool operator==(const XArray<TYPE>& other) const
+  {
+    if ( size() != other.size() ) return false;
+    for ( size_t idx = 0 ; idx < other.size() ; ++idx ) {
+      if ( !( ElementAt(idx) == other.ElementAt(idx) ) ) return false;
+    }
+    return true;
+  }
+  bool isEqual(const XArray<TYPE>& other) const
+  {
+    if ( size() != other.size() ) return false;
+    for ( size_t idx = 0 ; idx < other.size() ; ++idx ) {
+      if ( !( ElementAt(idx).isEqual(other.ElementAt(idx)) ) ) return false;
+    }
+    return true;
+  }
+
 
 
 	operator const void *() const { return m_data; };
